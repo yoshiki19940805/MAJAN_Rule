@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.3<br>2026-03-15 20:38</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.4<br>2026-03-15 20:53</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -98,14 +98,19 @@
 
 const OPTIONS_4 = {
   length:["東南戦","東風戦"],
-  mochi_ten:["25000点","30000点"],
-  kaeshi_ten:["30000点","25000点"],
-  uma:["10-20","10-30","15-5","20-30","なし"],
+  mochi_ten:["25000点","30000点","カスタム"],
+  mochi_ten_custom:[""],
+  kaeshi_ten:["30000点","25000点","カスタム"],
+  kaeshi_ten_custom:[""],
+  uma:["10-20","10-30","15-5","20-30","なし","カスタム"],
+  uma_custom:[""],
   tobi:["あり（0点未満で終了）","あり（0点ちょうどで終了）","なし"],
   nishiiri:["なし","あり"],
-  ipponba:["300点","1500点"],
+  ipponba:["300点","1500点","カスタム"],
+  ipponba_custom:[""],
   renchan:["テンパイ連荘","和了連荘"],
-  agariyame:["あり","なし"],
+  oras_oya:["アガリ止め・テンパイ止めあり","アガリ止め・テンパイ止めなし","カスタム"],
+  oras_oya_custom:[""],
   tochu_kyushu:["あり","なし"],
   tochu_sufon:["あり","なし"],
   tochu_sukan:["あり","なし"],
@@ -164,17 +169,22 @@ const OPTIONS_4 = {
 
 const OPTIONS_3 = {
   length:["東南戦","東風戦"],
-  mochi_ten:["35000点","30000点","40000点"],
-  kaeshi_ten:["40000点","35000点"],
-  uma:["+20/±0/-20","+30/±0/-30","なし"],
+  mochi_ten:["35000点","30000点","40000点","カスタム"],
+  mochi_ten_custom:[""],
+  kaeshi_ten:["40000点","35000点","カスタム"],
+  kaeshi_ten_custom:[""],
+  uma:["+20/±0/-20","+30/±0/-30","なし","カスタム"],
+  uma_custom:[""],
   tobi:["あり（0点ちょうどで終了）","あり（0点未満で終了）","なし"],
   tsumozon:["なし","あり"],
   fu_keisan:["なし（専用点数表）","あり"],
   tsumopin:["あり","なし"],
-  ipponba:["1000点（上家取り）","300点","1500点"],
+  ipponba:["1000点（上家取り）","300点","1500点","カスタム"],
+  ipponba_custom:[""],
   tenpai_ryou:["場に2000点","場に3000点"],
   renchan:["テンパイ連荘（形式テンパイOK）","和了連荘"],
-  agariyame:["あり（トップ時強制終了）","なし"],
+  oras_oya:["アガリ止め・テンパイ止めあり","アガリ止め・テンパイ止めなし","カスタム"],
+  oras_oya_custom:[""],
   tochu_ryukyoku:["なし（3人リーチも続行）","あり"],
   double_ron:["あり","なし（頭ハネ）"],
   tsumo_yama:["ドラ表示牌の隣までツモり切り","王牌14枚残し"],
@@ -230,9 +240,9 @@ const OPTIONS_3 = {
 
 // --- 基準ルール ---
 const _BASE_4_COMMON = {
-  length:"東南戦", mochi_ten:"25000点", kaeshi_ten:"30000点",
-  tobi:"あり（0点未満で終了）", ipponba:"300点",
-  renchan:"テンパイ連荘", agariyame:"あり",
+  length:"東南戦", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点", kaeshi_ten_custom:"",
+  tobi:"あり（0点未満で終了）", ipponba:"300点", ipponba_custom:"",
+  renchan:"テンパイ連荘", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
   tochu_kyushu:"あり", tochu_sufon:"あり", tochu_sukan:"あり", tochu_sucha:"あり", tochu_sancha:"あり",
   tochu_honba:"積む", naki_priority:"発声優先（同時ならポン・カン優先）",
   kuitan:"あり", atozuke:"あり", kuikae:"禁止",
@@ -258,7 +268,7 @@ const BASE_RULES_4 = {
   "雀魂（四麻・段位戦）":{..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
     double_ron:"あり", triple_ron:"全員アガリ", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"雀魂に準ずる"},
-  "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", nishiiri:"なし", tobi:"なし", agariyame:"なし",
+  "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", uma_custom:"", nishiiri:"なし", tobi:"なし", oras_oya:"アガリ止め・テンパイ止めなし",
     tochu_kyushu:"なし", tochu_sufon:"なし", tochu_sukan:"なし", tochu_sucha:"なし", tochu_sancha:"なし",
     double_ron:"なし（頭ハネ）", triple_ron:"頭ハネ",
     kiriage:"あり", nagashi:"なし", yakuman_type:"雀魂に準ずる"},
@@ -280,7 +290,7 @@ const BASE_RULES_3 = {
     uma:"+20/±0/-20", tobi:"あり（0点ちょうどで終了）",
     tsumozon:"なし", fu_keisan:"なし（専用点数表）", tsumopin:"あり",
     ipponba:"1000点（上家取り）", tenpai_ryou:"場に2000点",
-    renchan:"テンパイ連荘（形式テンパイOK）", agariyame:"あり（トップ時強制終了）",
+    renchan:"テンパイ連荘（形式テンパイOK）", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
     tochu_ryukyoku:"なし（3人リーチも続行）", double_ron:"あり",
     tsumo_yama:"ドラ表示牌の隣までツモり切り",
     kuitan:"あり", atozuke:"あり", aka_niji:"5索5筒 赤2虹2（計8枚・全ドラ）",
@@ -312,10 +322,14 @@ const DEFAULT_3 = {...BASE_RULES_3["三人麻雀（標準）"]};
 
 // --- ラベル ---
 const LABELS = {
-  length:"対局の長さ", mochi_ten:"持ち点", kaeshi_ten:"返し点",
-  uma:"ウマ", tobi:"トビ終了", nishiiri:"西入", ipponba:"一本場", tenpai_ryou:"テンパイ料",
+  length:"対局の長さ", mochi_ten:"持ち点", mochi_ten_custom:"持ち点（カスタム）",
+  kaeshi_ten:"返し点", kaeshi_ten_custom:"返し点（カスタム）",
+  uma:"ウマ", uma_custom:"ウマ（カスタム）",
+  tobi:"トビ終了", nishiiri:"西入",
+  ipponba:"一本場", ipponba_custom:"一本場（カスタム）",
+  tenpai_ryou:"テンパイ料",
   tsumozon:"ツモ損", fu_keisan:"符計算", tsumopin:"ツモピン",
-  renchan:"連荘条件", agariyame:"アガリやめ・テンパイやめ",
+  renchan:"連荘条件", oras_oya:"オーラスの親の終了", oras_oya_custom:"オーラスの親の終了（カスタム）",
   tochu_kyushu:"九種九牌", tochu_sufon:"四風連打", tochu_sukan:"四槓散了",
   tochu_sucha:"四家立直", tochu_sancha:"三家和",
   tochu_ryukyoku:"途中流局", tochu_honba:"途中流局時の本場",
@@ -355,8 +369,8 @@ const LABELS = {
 
 // --- カテゴリ ---
 const CATEGORIES_4 = [
-  ["1. 基本設定・ポイント精算",["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","ipponba"]],
-  ["2. 進行・連荘ルール",["renchan","agariyame","tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba","double_ron","triple_ron","naki_priority"]],
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","ipponba","ipponba_custom"]],
+  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba","double_ron","triple_ron","naki_priority"]],
   ["3. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]],
   ["4. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000","reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
   ["5. 祝儀（チップ）",["shugi_type","shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","shugi_memo"]],
@@ -368,8 +382,8 @@ const CATEGORIES_4 = [
 ];
 
 const CATEGORIES_3 = [
-  ["1. 基本設定・ポイント精算",["length","mochi_ten","kaeshi_ten","uma","tobi","tsumozon","fu_keisan","tsumopin","ipponba","tenpai_ryou"]],
-  ["2. 進行・連荘ルール",["renchan","agariyame","tochu_ryukyoku","double_ron","tsumo_yama"]],
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","tsumozon","fu_keisan","tsumopin","ipponba","ipponba_custom","tenpai_ryou"]],
+  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","tochu_ryukyoku","double_ron","tsumo_yama"]],
   ["3. 役・ドラ・牌の扱い",["kuitan","atozuke","aka_niji","kita","hanapai","kan_dora"]],
   ["4. リーチ関連",["reach_1000","furiten_reach","open_reach","reach_kan"]],
   ["5. 特殊役・ローカルルール",["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin","kazoe_yakuman","w_yakuman","kokushi_ankan"]],
@@ -579,6 +593,20 @@ function renderEdit() {
       const val = rule.settings[k] ?? '';
       const isDiff = base && val !== (base[k] ?? '');
 
+      // _custom キー: 親キーが「カスタム」選択時のみ text input 表示
+      if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
+        const parentKey = k.replace('_custom', '');
+        if (rule.settings[parentKey] === 'カスタム') {
+          html += `<div class="setting-row-textarea">
+            <label>📝 ${esc(LABELS[k] || k)}</label>
+            <input type="text" data-key="${k}" value="${esc(val)}"
+              oninput="onSettingChange('${k}',this.value)"
+              placeholder="自由入力..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+          </div>`;
+        }
+        continue;
+      }
+
       // 条件付きtextarea: yakuman_custom_memoは yakuman_type=カスタム時のみ表示
       if (k === 'yakuman_custom_memo') {
         if (rule.settings.yakuman_type === 'カスタム') {
@@ -635,8 +663,9 @@ function onSettingChange(key, val) {
   const rule = getRule(editingId);
   if (rule) { rule.settings[key] = val; saveData(); }
 
-  // yakuman_type か chombo_batsu が変わったら再描画（条件付きtextareaの表示切替）
-  if (key === 'yakuman_type' || key === 'chombo_batsu') {
+  // カスタム系ドロップダウンが変わったら再描画（条件付き入力欄の表示切替）
+  const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya']);
+  if (reRenderKeys.has(key)) {
     renderEdit();
     return;
   }
@@ -711,6 +740,15 @@ function renderPreview() {
 
     html += `<div class="pv-cat">■ ${esc(catName)}</div>`;
     for (const k of keys) {
+      // _custom キー: 親キーが「カスタム」時にプレビュー表示
+      if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
+        const parentKey = k.replace('_custom', '');
+        if (rule.settings[parentKey] === 'カスタム') {
+          const customVal = rule.settings[k] || '';
+          if (customVal) html += `<div class="pv-memo">📝 ${esc(LABELS[k]||k)}: ${esc(customVal)}</div>`;
+        }
+        continue;
+      }
       // 条件付きtextarea: カスタム時のみ表示
       if (k === 'yakuman_custom_memo') {
         if (rule.settings.yakuman_type === 'カスタム') {
