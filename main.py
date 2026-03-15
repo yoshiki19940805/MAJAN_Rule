@@ -88,7 +88,7 @@ OPTIONS_4 = {
 # --- 四麻 基準ルール ---
 _BASE_4_COMMON = {
     "length": "東南戦", "mochi_ten": "25000点", "kaeshi_ten": "30000点",
-    "tobi": "あり（0点未満で終了）", "nishiiri": "なし", "ipponba": "300点",
+    "tobi": "あり（0点未満で終了）", "ipponba": "300点",
     "renchan": "テンパイ連荘", "agariyame": "あり",
     "tochu_honba": "積む", "naki_priority": "発声優先（同時はポン優先）",
     "kuitan": "あり（アリアリ）", "atozuke": "あり", "kuikae": "禁止",
@@ -114,7 +114,7 @@ _BASE_4_COMMON = {
 BASE_RULES_4 = {
     "雀魂（四麻・段位戦）": {
         **_BASE_4_COMMON,
-        "uma": "15-5",
+        "uma": "10-20", "nishiiri": "あり",
         "tochu_ryukyoku": "あり（九種九牌・四風連打・四槓散了・四家立直・三家和）",
         "double_ron": "あり", "triple_ron": "全員アガリ",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
@@ -122,7 +122,7 @@ BASE_RULES_4 = {
     },
     "Mリーグ公式（四麻）": {
         **_BASE_4_COMMON,
-        "uma": "10-30", "tobi": "なし", "agariyame": "なし",
+        "uma": "10-30", "nishiiri": "なし", "tobi": "なし", "agariyame": "なし",
         "tochu_ryukyoku": "一切なし",
         "double_ron": "なし（頭ハネ）", "triple_ron": "頭ハネ",
         "kiriage": "あり", "nagashi": "なし",
@@ -130,17 +130,17 @@ BASE_RULES_4 = {
     },
     "天鳳（四麻）": {
         **_BASE_4_COMMON,
-        "uma": "10-20",
+        "uma": "10-20", "nishiiri": "あり",
         "tochu_ryukyoku": "あり（九種九牌・四風連打・四槓散了・四家立直・三家和）",
         "double_ron": "あり", "triple_ron": "流局（三家和）",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
-        "aka_dora": "なし", "yakuman_type": "天鳳に準ずる",
+        "yakuman_type": "天鳳に準ずる",
     },
 }
 
 DEFAULT_4 = {
     **_BASE_4_COMMON,
-    "uma": "10-20",
+    "uma": "10-20", "nishiiri": "あり",
     "tochu_ryukyoku": "あり（九種九牌・四風連打・四槓散了・四家立直・三家和）",
     "double_ron": "あり", "triple_ron": "全員アガリ",
     "kiriage": "あり", "nagashi": "あり（流局時成立）",
