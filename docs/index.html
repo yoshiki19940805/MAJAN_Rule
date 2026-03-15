@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.9<br>2026-03-16 08:55</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.0<br>2026-03-16 08:59</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -754,9 +754,7 @@ function renderEdit() {
       // 選択中の値がリストに無ければ追加
       if (val && !options.includes(val)) options = [val, ...options];
 
-      const hasEdit = customDropdownKeys.has(k);
-      const actionsWidth = hasEdit ? 120 : 60;
-      html += `<div class="swipe-row" data-actions-width="${actionsWidth}" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
+      html += `<div class="swipe-row" data-actions-width="120" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
         <div class="setting-row ${isDiff?'diff':''} swipe-content">
         <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?' <span class="diff-badge">変更あり</span>':''}
         </div>
@@ -764,7 +762,7 @@ function renderEdit() {
           ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
         </select></div>
       </div>
-        <div class="swipe-actions" style="width:${actionsWidth}px;">${hasEdit ? `<button class="swipe-edit-btn" onclick="showEditOptionsDialog('${k}')">編集</button>` : ''}<button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button></div>
+        <div class="swipe-actions" style="width:120px;"><button class="swipe-edit-btn" onclick="showEditOptionsDialog('${k}')">編集</button><button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button></div>
       </div>`;
     }
 
