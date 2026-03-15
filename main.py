@@ -35,7 +35,7 @@ OPTIONS_4 = {
     "ipponba":       ["300点", "1500点", "カスタム"],
     "ipponba_custom": [""],
     # 2. 進行
-    "renchan":       ["テンパイ連荘", "和了連荘"],
+    "renchan":       ["テンパイ連荘", "テンパイ連荘（形テンNG）", "アガリ連荘"],
     "oras_oya":      ["アガリ止め・テンパイ止めあり", "アガリ止め・テンパイ止めなし", "カスタム"],
     "oras_oya_custom": [""],
     "tochu_kyushu":  ["あり", "なし"],
@@ -47,24 +47,34 @@ OPTIONS_4 = {
     "double_ron":    ["あり", "なし（頭ハネ）"],
     "triple_ron":    ["全員アガリ", "流局（三家和）", "頭ハネ"],
     "naki_priority": ["発声優先（同時ならポン・カン優先）", "ポン・カン優先"],
+    "tsumo_yama":    ["王牌14枚残し", "ドラ表示牌の隣までツモり切り"],
     # 3. 役・ドラ
     "kuitan":        ["あり", "なし"],
     "atozuke":       ["あり", "なし"],
     "kuikae":        ["禁止", "あり"],
     "aka_dora":      ["各1枚（計3枚）", "なし"],
+    "kan_dora":      ["先めくり", "後めくり"],
     "kiriage":       ["あり", "なし"],
     "renpai_toitsu": ["2符", "4符"],
     "nagashi":       ["あり（流局時成立）", "なし"],
     "kokushi_ankan": ["あり", "なし"],
+    "shiro_pocchi":  ["なし", "あり（リーチ後オールマイティ）"],
     "yakuman_type":  ["雀魂に準ずる", "天鳳に準ずる", "カスタム"],
     "yakuman_custom_memo": [""],
     "yakuman_fukugo":["なし", "あり"],
     "kazoe_yakuman": ["13飜以上", "なし"],
+    # ローカルルール（四麻）
+    "sp_daisharin":  ["なし", "あり（清一七対子）"],
+    "sp_renho":      ["なし", "あり"],
+    "sp_nagashi_ym": ["なし", "あり"],
+    "sp_4mai_chii":  ["なし", "あり（2翻）"],
+    "sp_shosharin":  ["なし", "あり（混一七対子・6翻）"],
     # 4. リーチ
     "furiten_reach": ["あり", "なし"],
     "open_reach":    ["なし", "あり"],
+    "furiten_open_reach": ["あり", "なし"],
     "tsumo_nashi_reach": ["不可", "可"],
-    "reach_1000":    ["不可（1000点未満）", "可"],
+    "reach_1000":    ["あり", "なし", "あり（局終了時にトビ）", "あり（局終了時に0点でトビ）"],
     "reach_ankan_okuri":  ["可", "不可"],
     "reach_ankan_machi":  ["可", "不可"],
     "reach_ankan_mentsu": ["可", "不可"],
@@ -72,7 +82,7 @@ OPTIONS_4 = {
     "shugi_type":    ["鳴き祝儀あり", "門前祝儀のみ", "なし"],
     "shugi_ippatsu": ["あり", "なし"],
     "shugi_ura":     ["あり", "なし"],
-    "shugi_aka":     ["あり", "なし"],
+    "shugi_aka":     ["鳴き祝儀", "門前祝儀", "なし"],
     "shugi_ym_tsumo":["5枚オール", "3枚オール", "なし"],
     "shugi_ym_ron":  ["10枚", "5枚", "なし"],
     "shugi_kazoe":   ["対象外", "対象"],
@@ -108,12 +118,16 @@ _BASE_4_COMMON = {
     "tochu_kyushu": "あり", "tochu_sufon": "あり", "tochu_sukan": "あり",
     "tochu_sucha": "あり", "tochu_sancha": "あり",
     "tochu_honba": "積む", "naki_priority": "発声優先（同時ならポン・カン優先）",
+    "tsumo_yama": "王牌14枚残し",
     "kuitan": "あり", "atozuke": "あり", "kuikae": "禁止",
-    "aka_dora": "各1枚（計3枚）", "renpai_toitsu": "2符",
-    "kokushi_ankan": "あり", "yakuman_fukugo": "なし", "kazoe_yakuman": "13飜以上",
+    "aka_dora": "各1枚（計3枚）", "kan_dora": "先めくり", "renpai_toitsu": "2符",
+    "kokushi_ankan": "あり", "shiro_pocchi": "なし", "yakuman_fukugo": "なし", "kazoe_yakuman": "13飜以上",
     "yakuman_custom_memo": "",
-    "furiten_reach": "あり", "open_reach": "なし", "tsumo_nashi_reach": "不可",
-    "reach_1000": "不可（1000点未満）",
+    "sp_daisharin": "なし", "sp_renho": "なし", "sp_nagashi_ym": "なし",
+    "sp_4mai_chii": "なし", "sp_shosharin": "なし",
+    "furiten_reach": "あり", "open_reach": "なし", "furiten_open_reach": "なし",
+    "tsumo_nashi_reach": "不可",
+    "reach_1000": "なし",
     "reach_ankan_okuri": "可", "reach_ankan_machi": "不可", "reach_ankan_mentsu": "不可",
     "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
     "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外",
@@ -180,11 +194,18 @@ OPTIONS_3 = {
     "tsumozon":      ["なし", "あり"],
     "fu_keisan":     ["なし（専用点数表）", "あり"],
     "tsumopin":      ["あり", "なし"],
-    "ipponba":       ["1000点（上家取り）", "300点", "1500点"],
+    "ipponba":       ["1000点", "300点", "1500点", "カスタム"],
+    "ipponba_custom": [""],
     "tenpai_ryou":   ["場に2000点", "場に3000点"],
     # 2. 進行
-    "renchan":       ["テンパイ連荘（形式テンパイOK）", "和了連荘"],
+    "renchan":       ["テンパイ連荘", "テンパイ連荘（形テンNG）", "アガリ連荘"],
+    "oras_oya":      ["アガリ止め・テンパイ止めあり", "アガリ止め・テンパイ止めなし", "カスタム"],
+    "oras_oya_custom": [""],
     "agariyame":     ["あり（トップ時強制終了）", "なし"],
+    "tochu_kyushu":  ["あり", "なし"],
+    "tochu_sukan":   ["あり", "なし"],
+    "tochu_sancha":  ["あり", "なし"],
+    "tochu_honba":   ["積む", "積まない"],
     "tochu_ryukyoku":["なし（3人リーチも続行）", "あり"],
     "double_ron":    ["あり", "なし（頭ハネ）"],
     "tsumo_yama":    ["ドラ表示牌の隣までツモり切り", "王牌14枚残し"],
@@ -196,9 +217,13 @@ OPTIONS_3 = {
     "hanapai":       ["あり（空気扱い・一発消えず・嶺上開花なし）", "なし"],
     "kan_dora":      ["先めくり", "後めくり"],
     # 4. リーチ
-    "reach_1000":    ["可（1000点でも可・流局でトビ）", "不可"],
+    "reach_1000":    ["あり", "なし", "あり（局終了時にトビ）", "あり（局終了時に0点でトビ）"],
     "furiten_reach": ["可能（見逃しツモ可）", "不可"],
     "open_reach":    ["あり（全晒し・フリテン可・放銃時役満払い）", "なし"],
+    "furiten_open_reach": ["あり", "なし"],
+    "reach_ankan_okuri":  ["可", "不可"],
+    "reach_ankan_machi":  ["可", "不可"],
+    "reach_ankan_mentsu": ["可", "不可"],
     "reach_kan":     ["待ち不変ならOK", "不可"],
     # 5. 特殊役
     "niken_reach":   ["2軒リーチで残り1人手牌公開", "なし"],
@@ -248,16 +273,22 @@ BASE_RULES_3 = {
         "length": "東南戦", "mochi_ten": "35000点", "kaeshi_ten": "40000点",
         "uma": "+20/±0/-20", "tobi": "あり（0点ちょうどで終了）",
         "tsumozon": "なし", "fu_keisan": "なし（専用点数表）", "tsumopin": "あり",
-        "ipponba": "1000点（上家取り）", "tenpai_ryou": "場に2000点",
-        "renchan": "テンパイ連荘（形式テンパイOK）", "agariyame": "あり（トップ時強制終了）",
-        "tochu_ryukyoku": "なし（3人リーチも続行）", "double_ron": "あり",
+        "ipponba": "1000点", "ipponba_custom": "", "tenpai_ryou": "場に2000点",
+        "renchan": "テンパイ連荘", "oras_oya": "アガリ止め・テンパイ止めあり", "oras_oya_custom": "",
+        "agariyame": "あり（トップ時強制終了）",
+        "tochu_kyushu": "あり", "tochu_sukan": "あり", "tochu_sancha": "あり",
+        "tochu_honba": "積む", "tochu_ryukyoku": "なし（3人リーチも続行）",
+        "double_ron": "あり",
         "tsumo_yama": "ドラ表示牌の隣までツモり切り",
         "kuitan": "あり", "atozuke": "あり",
         "aka_niji": "5索5筒 赤2虹2（計8枚・全ドラ）",
         "kita": "共通役牌（北抜きなし）",
         "hanapai": "あり（空気扱い・一発消えず・嶺上開花なし）", "kan_dora": "先めくり",
-        "reach_1000": "可（1000点でも可・流局でトビ）", "furiten_reach": "可能（見逃しツモ可）",
-        "open_reach": "あり（全晒し・フリテン可・放銃時役満払い）", "reach_kan": "待ち不変ならOK",
+        "reach_1000": "あり（局終了時にトビ）", "furiten_reach": "可能（見逃しツモ可）",
+        "open_reach": "あり（全晒し・フリテン可・放銃時役満払い）",
+        "furiten_open_reach": "あり",
+        "reach_ankan_okuri": "可", "reach_ankan_machi": "不可", "reach_ankan_mentsu": "不可",
+        "reach_kan": "待ち不変ならOK",
         "niken_reach": "2軒リーチで残り1人手牌公開", "shiro_pocchi": "あり（リーチ後オールマイティ）",
         "sp_manzu_honitsu": "あり", "sp_daisharin": "あり（清一七対子）",
         "sp_renho": "あり", "sp_nagashi_ym": "あり",
@@ -287,23 +318,32 @@ DEFAULT_3 = BASE_RULES_3["三人麻雀（標準）"].copy()
 
 # --- ラベル ---
 LABELS = {
-    "length": "対局の長さ", "mochi_ten": "持ち点", "kaeshi_ten": "返し点",
-    "uma": "ウマ", "tobi": "トビ終了", "nishiiri": "西入", "ipponba": "一本場",
+    "length": "対局の長さ", "mochi_ten": "持ち点", "mochi_ten_custom": "持ち点（カスタム）",
+    "kaeshi_ten": "返し点", "kaeshi_ten_custom": "返し点（カスタム）",
+    "uma": "ウマ", "uma_custom": "ウマ（カスタム）",
+    "tobi": "トビ終了", "nishiiri": "西入",
+    "ipponba": "一本場", "ipponba_custom": "一本場（カスタム）",
     "tenpai_ryou": "テンパイ料",
     "tsumozon": "ツモ損", "fu_keisan": "符計算", "tsumopin": "ツモピン",
-    "renchan": "連荘条件", "agariyame": "アガリやめ・テンパイやめ",
+    "renchan": "連荘条件", "oras_oya": "オーラスの親の終了", "oras_oya_custom": "オーラスの親の終了（カスタム）",
+    "agariyame": "アガリやめ・テンパイやめ",
+    "tochu_kyushu": "九種九牌", "tochu_sufon": "四風連打", "tochu_sukan": "四槓散了",
+    "tochu_sucha": "四家立直", "tochu_sancha": "三家和",
     "tochu_ryukyoku": "途中流局", "tochu_honba": "途中流局時の本場",
     "double_ron": "ダブロン", "triple_ron": "トリロン",
-    "naki_priority": "鳴きの優先順位", "tsumo_yama": "ツモ山",
+    "naki_priority": "鳴きの優先", "tsumo_yama": "ツモ山",
     "kuitan": "喰いタン", "atozuke": "後付け", "kuikae": "喰い替え",
     "aka_dora": "赤ドラ", "aka_niji": "赤ドラ・虹ドラ",
     "kiriage": "切り上げ満貫", "renpai_toitsu": "連風牌の対子",
     "nagashi": "流し満貫", "kokushi_ankan": "国士の暗槓ロン",
-    "yakuman_type": "役満の種類", "yakuman_fukugo": "役満の複合・W役満",
+    "yakuman_type": "役満の種類", "yakuman_custom_memo": "役満カスタム詳細",
+    "yakuman_fukugo": "役満の複合・W役満",
     "kazoe_yakuman": "数え役満", "w_yakuman": "W役満",
     "kita": "北の扱い", "hanapai": "花牌", "kan_dora": "カンドラ",
     "furiten_reach": "フリテンリーチ", "open_reach": "オープンリーチ",
-    "tsumo_nashi_reach": "ツモ番なしリーチ", "reach_1000": "1000点リーチ",
+    "furiten_open_reach": "フリテンオープンリーチ",
+    "tsumo_nashi_reach": "ツモ番なしリーチ", "reach_1000": "1000点未満のリーチ",
+    "reach_ankan_okuri": "送り槓", "reach_ankan_machi": "待ちの変わる槓", "reach_ankan_mentsu": "面子構成の変わる槓",
     "reach_ankan": "リーチ後の暗槓", "reach_kan": "リーチ後のカン",
     "niken_reach": "2軒リーチ時", "shiro_pocchi": "白ポッチ",
     "sp_manzu_honitsu": "マンズ混一色（役満）",
@@ -311,6 +351,7 @@ LABELS = {
     "sp_nagashi_ym": "流し役満",
     "sp_4mai_chii": "四枚使い七対子", "sp_shosharin": "小車輪",
     # 祝儀（個別）
+    "shugi_type": "祝儀の種類",
     "shugi_ippatsu": "一発祝儀", "shugi_ura": "裏ドラ祝儀",
     "shugi_aka": "赤ドラ祝儀", "shugi_niji": "虹牌祝儀",
     "shugi_pocchi": "白ポッチ祝儀",
@@ -322,7 +363,7 @@ LABELS = {
     "pao_sukantu": "四槓子パオ",
     "pao_tsumo": "パオ支払い（ツモ）", "pao_ron": "パオ支払い（ロン）",
     # 罰則（状況別）
-    "chombo_batsu": "チョンボ罰符", "chombo_taiou": "チョンボ対処",
+    "chombo_batsu": "チョンボ罰符", "chombo_memo": "罰符の詳細", "chombo_taiou": "チョンボ対処",
     "pen_goron_taopai": "誤ロン・誤ツモ（倒牌）",
     "pen_noten_reach": "ノーテンリーチ流局",
     "pen_reach_bad_ankan": "リーチ後不正暗槓",
@@ -337,28 +378,35 @@ LABELS = {
 
 # --- カテゴリ ---
 CATEGORIES_4 = [
-    ("1. 基本設定・ポイント精算", ["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","ipponba"]),
-    ("2. 進行・連荘ルール", ["renchan","agariyame","tochu_ryukyoku","tochu_honba","double_ron","triple_ron","naki_priority"]),
-    ("3. 役・ドラ", ["kuitan","atozuke","kuikae","aka_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_fukugo","kazoe_yakuman"]),
-    ("4. リーチ関連", ["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000","reach_ankan"]),
-    ("5. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","shugi_memo"]),
-    ("6. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]),
-    ("7. チョンボ", ["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("8. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
-    ("9. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
+    ("1. 基本設定・ポイント精算", ["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","ipponba","ipponba_custom"]),
+    ("2. 進行・連荘ルール", ["renchan","oras_oya","oras_oya_custom","double_ron","triple_ron","naki_priority","tsumo_yama"]),
+    ("3. 途中流局", ["tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba"]),
+    ("4. 役・ドラ", ["kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]),
+    ("5. リーチ関連", ["furiten_reach","open_reach","furiten_open_reach","tsumo_nashi_reach","reach_1000"]),
+    ("6. リーチ後の暗槓", ["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]),
+    ("7. 祝儀（チップ）", ["shugi_type","shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe"]),
+    ("8. 特殊牌", []),
+    ("9. ローカルルール", ["shiro_pocchi","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin"]),
+    ("10. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]),
+    ("11. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
+    ("12. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
+    ("13. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
 ]
 
 CATEGORIES_3 = [
-    ("1. 基本設定・ポイント精算", ["length","mochi_ten","kaeshi_ten","uma","tobi","tsumozon","fu_keisan","tsumopin","ipponba","tenpai_ryou"]),
-    ("2. 進行・連荘ルール", ["renchan","agariyame","tochu_ryukyoku","double_ron","tsumo_yama"]),
-    ("3. 役・ドラ・牌の扱い", ["kuitan","atozuke","aka_niji","kita","hanapai","kan_dora"]),
-    ("4. リーチ関連", ["reach_1000","furiten_reach","open_reach","reach_kan"]),
-    ("5. 特殊役・ローカルルール", ["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin","kazoe_yakuman","w_yakuman","kokushi_ankan"]),
-    ("6. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai","shugi_memo"]),
-    ("7. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
-    ("8. チョンボ", ["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("9. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
-    ("10. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
+    ("1. 基本設定・ポイント精算", ["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","tsumozon","fu_keisan","tsumopin","ipponba","ipponba_custom","tenpai_ryou"]),
+    ("2. 進行・連荘ルール", ["renchan","oras_oya","oras_oya_custom","double_ron","tsumo_yama"]),
+    ("3. 途中流局", ["tochu_kyushu","tochu_sukan","tochu_sancha","tochu_honba"]),
+    ("4. 役・ドラ・牌の扱い", ["kuitan","atozuke","aka_niji","kita","hanapai","kan_dora"]),
+    ("5. リーチ関連", ["reach_1000","furiten_reach","open_reach","furiten_open_reach"]),
+    ("6. リーチ後の暗槓", ["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]),
+    ("7. 特殊役", ["kazoe_yakuman","w_yakuman","kokushi_ankan"]),
+    ("8. ローカルルール", ["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin"]),
+    ("9. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]),
+    ("10. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
+    ("11. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
+    ("12. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
+    ("13. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
 ]
 
 # =====================================================================
@@ -510,19 +558,67 @@ def main(page: ft.Page):
         page.update()
 
     def save_pdf_file(e):
-        b64 = current_state.get("preview_base64", "")
-        if not b64: return
-        img_bytes = base64.b64decode(b64)
-        img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
-        name = current_state["rule_data"]["name"].replace(" ", "_").replace("/", "_")
+        rd = current_state.get("rule_data")
+        if not rd: return
+        settings = rd["settings"]
+        name = rd["name"].replace(" ", "_").replace("/", "_")
         path = os.path.join(os.path.expanduser("~"), "Desktop", f"{name}.pdf")
         a4_w, a4_h = 595, 842
-        ratio = min(a4_w / img.width, a4_h / img.height)
-        nw, nh = int(img.width * ratio), int(img.height * ratio)
-        resized = img.resize((nw, nh), Image.LANCZOS)
-        a4 = Image.new('RGB', (a4_w, a4_h), '#FFFFFF')
-        a4.paste(resized, ((a4_w - nw) // 2, 20))
-        a4.save(path, 'PDF', resolution=72)
+        is_4ma = rd["mode"] == "四麻"
+        categories = get_categories(rd["mode"])
+        base = None
+        if is_4ma:
+            bd = get_base_dict("四麻")
+            base = bd.get(rd.get("base_rule", ""), list(bd.values())[0])
+
+        try:
+            if os.path.exists(FONT_PATH):
+                font = ImageFont.truetype(FONT_PATH, 18)
+                font_title = ImageFont.truetype(FONT_PATH, 24)
+                font_cat = ImageFont.truetype(FONT_PATH, 16)
+            elif os.path.exists("/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc"):
+                font = ImageFont.truetype("/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc", 18)
+                font_title = ImageFont.truetype("/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", 24)
+                font_cat = ImageFont.truetype("/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc", 16)
+            else:
+                font = font_title = font_cat = ImageFont.load_default()
+        except:
+            font = font_title = font_cat = ImageFont.load_default()
+
+        pages = []
+        for ci, (cat_title, cat_keys) in enumerate(categories):
+            if not cat_keys:
+                continue
+            # ページ高さを計算
+            row_count = sum(1 for k in cat_keys if settings.get(k, "") not in [None, ""])
+            pg_h = max(200, 100 + row_count * 36 + 60)
+            pg = Image.new('RGB', (a4_w, pg_h), '#FFFFFF')
+            draw = ImageDraw.Draw(pg)
+            # ヘッダー（ルール名 + カテゴリ名）
+            draw.rectangle([(0, 0), (a4_w, 50)], fill='#1A202C')
+            draw.text((15, 10), f"{rd['name']} ({rd['mode']})", fill='#FFFFFF', font=font_title)
+            y = 60
+            draw.rectangle([(10, y), (a4_w - 10, y + 28)], fill='#EDF2F7')
+            draw.text((18, y + 3), f"■ {cat_title}", fill='#1A202C', font=font_cat)
+            y += 36
+            for key in cat_keys:
+                val = settings.get(key, "")
+                if not val or val is None:
+                    continue
+                label = LABELS.get(key, key)
+                is_diff = base and val != base.get(key, "")
+                color = '#E53E3E' if is_diff else '#1A202C'
+                draw.text((22, y), f"{label}:", fill='#718096', font=font)
+                draw.text((240, y), str(val)[:50], fill=color, font=font)
+                y += 36
+            # ページ画像をA4に埋め込み
+            a4_page = Image.new('RGB', (a4_w, a4_h), '#FFFFFF')
+            a4_page.paste(pg, (0, 10))
+            pages.append(a4_page)
+
+        if not pages:
+            return
+        pages[0].save(path, 'PDF', resolution=72, save_all=True, append_images=pages[1:])
         page.snack_bar = ft.SnackBar(ft.Text(f"PDFを保存: {path}"), open=True)
         page.update()
 

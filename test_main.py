@@ -51,11 +51,21 @@ print("\n" + "=" * 50)
 print("テスト2: カテゴリ網羅性")
 print("=" * 50)
 
+# CATEGORIESに含まれないキー（UI上では別途表示されるもの）
+# - _custom サフィックス: カスタム入力フィールド（親キーが「カスタム」選択時のみ表示）
+# - shugi_memo: カテゴリ末尾の特記事項として別途描画
+# - agariyame (三麻のみ): oras_oya に統合された旧キー
+skip_cat_keys = {'shugi_memo', 'agariyame', 'tochu_ryukyoku', 'reach_kan'}
+
 for k in OPTIONS_4:
+    if k.endswith('_custom') or k in skip_cat_keys:
+        continue
     found = any(k in ck for _, ck in CATEGORIES_4)
     check(found, f"4麻 CATEGORIES に '{k}' 含む")
 
 for k in OPTIONS_3:
+    if k.endswith('_custom') or k in skip_cat_keys:
+        continue
     found = any(k in ck for _, ck in CATEGORIES_3)
     check(found, f"3麻 CATEGORIES に '{k}' 含む")
 
