@@ -353,6 +353,23 @@ select:focus { border-color: var(--accent); }
 }
 .btn-add-item:hover { background: #EBF8FF; border-color: var(--accent); }
 
+/* --- スワイプ削除 --- */
+.swipe-row {
+  position: relative; overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+.swipe-row:last-of-type { border-bottom: none; }
+.swipe-content {
+  transition: transform 0.2s ease;
+  border-bottom: none !important;
+}
+.swipe-delete-btn {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 60px;
+  background: var(--highlight); color: #fff; border: none;
+  font-family: var(--font); font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
 /* --- Utilities --- */
 .hidden { display: none !important; }
 

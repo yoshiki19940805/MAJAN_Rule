@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.9<br>2026-03-15 23:28</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.0<br>2026-03-15 23:37</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -120,12 +120,12 @@ const OPTIONS_4 = {
   double_ron:["あり","なし（頭ハネ）"],
   triple_ron:["全員アガリ","流局（三家和）","頭ハネ"],
   naki_priority:["発声優先（同時ならポン・カン優先）","ポン・カン優先"],
-  tsumo_yama:["王牌14枚残し","ドラ表示牌の隣までツモり切り"],
+  tsumo_yama:["王牌14枚残し","ドラ表示牌の隣までツモり切り","カスタム"],
   kuitan:["あり","なし"],
   atozuke:["あり","なし"],
   kuikae:["禁止","あり"],
-  aka_dora:["各1枚（計3枚）","なし"],
-  kan_dora:["先めくり","後めくり"],
+  aka_dora:["各1枚（計3枚）","なし","カスタム"],
+  kan_dora:["先めくり","後めくり","カスタム"],
   kiriage:["あり","なし"],
   renpai_toitsu:["2符","4符"],
   nagashi:["あり（流局時成立）","なし"],
@@ -133,16 +133,16 @@ const OPTIONS_4 = {
   shiro_pocchi:["なし","あり（リーチ後オールマイティ）"],
   yakuman_type:["雀魂に準ずる","天鳳に準ずる","カスタム"],
   yakuman_custom_memo:[""],
-  yakuman_fukugo:["なし","あり"],
+  yakuman_fukugo:["なし","あり","カスタム"],
   kazoe_yakuman:["13飜以上","なし"],
   sp_daisharin:["なし","あり（清一七対子）"],
   sp_renho:["なし","あり"],
   sp_nagashi_ym:["なし","あり"],
   sp_4mai_chii:["なし","あり（2翻）"],
   sp_shosharin:["なし","あり（混一七対子・6翻）"],
-  furiten_reach:["あり","なし"],
-  open_reach:["なし","あり"],
-  furiten_open_reach:["あり","なし"],
+  furiten_reach:["あり","なし","カスタム"],
+  open_reach:["なし","あり","カスタム"],
+  furiten_open_reach:["あり","なし","カスタム"],
   tsumo_nashi_reach:["不可","可"],
   reach_1000:["あり","なし","あり（局終了時にトビ）","あり（局終了時に0点でトビ）"],
   reach_ankan_okuri:["可","不可"],
@@ -200,17 +200,17 @@ const OPTIONS_3 = {
   tochu_honba:["積む","積まない"],
   tochu_ryukyoku:["なし（3人リーチも続行）","あり"],
   double_ron:["あり","なし（頭ハネ）"],
-  tsumo_yama:["ドラ表示牌の隣までツモり切り","王牌14枚残し"],
+  tsumo_yama:["ドラ表示牌の隣までツモり切り","王牌14枚残し","カスタム"],
   kuitan:["あり","なし"],
   atozuke:["あり","なし"],
   aka_niji:["5索5筒 赤2虹2（計8枚・全ドラ）","赤ドラ各1枚","なし"],
   kita:["共通役牌（北抜きなし）","抜きドラ"],
   hanapai:["あり（空気扱い・一発消えず・嶺上開花なし）","なし"],
-  kan_dora:["先めくり","後めくり"],
+  kan_dora:["先めくり","後めくり","カスタム"],
   reach_1000:["あり","なし","あり（局終了時にトビ）","あり（局終了時に0点でトビ）"],
-  furiten_reach:["可能（見逃しツモ可）","不可"],
-  open_reach:["あり（全晒し・フリテン可・放銃時役満払い）","なし"],
-  furiten_open_reach:["あり","なし"],
+  furiten_reach:["可能（見逃しツモ可）","不可","カスタム"],
+  open_reach:["あり（全晒し・フリテン可・放銃時役満払い）","なし","カスタム"],
+  furiten_open_reach:["あり","なし","カスタム"],
   reach_ankan_okuri:["可","不可"],
   reach_ankan_machi:["可","不可"],
   reach_ankan_mentsu:["可","不可"],
@@ -224,7 +224,7 @@ const OPTIONS_3 = {
   sp_4mai_chii:["あり（2翻）","なし"],
   sp_shosharin:["あり（混一七対子・6翻）","なし"],
   kazoe_yakuman:["14飜以上","13飜以上","なし"],
-  w_yakuman:["なし","あり"],
+  w_yakuman:["なし","あり","カスタム"],
   kokushi_ankan:["あり","なし"],
   shugi_ippatsu:["あり","なし"],
   shugi_ura:["あり","なし"],
@@ -436,7 +436,7 @@ const STORAGE_KEY = 'mahjong_rules_pwa_v1';
 let appData = { rules: [] };
 let editingId = null;
 let deleteTargetId = null;
-const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya']);
+const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman']);
 
 function loadData() {
   try {
@@ -736,19 +736,21 @@ function renderEdit() {
       </div>`;
     }
 
-    // カスタム罰則項目追加UI（customizable=trueのカテゴリ）
-    if (customizable) {
+
+    // カスタム追加項目（全カテゴリ共通）
+    {
       const customItems = rule.settings['custom_' + catKey] || [];
       for (let i = 0; i < customItems.length; i++) {
         const cVal = customItems[i].value || '';
         const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
-        html += `<div class="setting-row">
-          <div class="setting-label">${esc(customItems[i].name||'項目'+(i+1))}
-            <button onclick="removeCustomPenalty('${esc(catKey)}',${i})" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#E53E3E;margin-left:4px;" title="削除">×</button>
+        html += `<div class="swipe-row" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
+          <div class="setting-row swipe-content">
+            <div class="setting-label">${esc(customItems[i].name||'項目'+(i+1))}</div>
+            <div class="setting-value"><select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
+              ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
+            </select></div>
           </div>
-          <div class="setting-value"><select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
-            ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
-          </select></div>
+          <button class="swipe-delete-btn" onclick="removeCustomPenalty('${esc(catKey)}',${i})">削除</button>
         </div>`;
       }
       html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="btn-add-item">＋ 項目を追加</button>`;
@@ -872,6 +874,28 @@ function onCustomPenaltySelect(catKey, idx, val) {
     return;
   }
   // 通常選択した場合はそのまま
+}
+
+// --- スワイプ削除 ---
+let _swipeStartX = 0;
+function swipeStart(e) {
+  _swipeStartX = e.touches[0].clientX;
+  const content = e.currentTarget.querySelector('.swipe-content');
+  if (content) content.style.transition = 'none';
+}
+function swipeMove(e) {
+  const dx = e.touches[0].clientX - _swipeStartX;
+  const content = e.currentTarget.querySelector('.swipe-content');
+  if (content && dx < 0) {
+    content.style.transform = 'translateX(' + Math.max(dx, -60) + 'px)';
+  }
+}
+function swipeEnd(e) {
+  const content = e.currentTarget.querySelector('.swipe-content');
+  if (!content) return;
+  content.style.transition = 'transform 0.2s ease';
+  const cur = parseFloat(content.style.transform.replace(/[^-\d.]/g,'')) || 0;
+  content.style.transform = cur < -30 ? 'translateX(-60px)' : 'translateX(0)';
 }
 function removeCustomPenalty(catKey, idx) {
   const rule = getRule(editingId);
