@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.7<br>2026-03-16 00:13</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.8<br>2026-03-16 08:50</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -758,9 +758,11 @@ function renderEdit() {
         <div class="setting-row ${isDiff?'diff':''} swipe-content">
         <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?' <span class="diff-badge">変更あり</span>':''}
         </div>
-        <div class="setting-value"><select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
+        <div class="setting-value" style="display:flex;align-items:center;gap:4px;">
+          <select data-key="${k}" onchange="onSettingChange('${k}',this.value)" style="flex:1;">
           ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
-        </select></div>
+          </select>${customDropdownKeys.has(k) ? `<button onclick="showEditOptionsDialog('${k}')" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 4px;flex-shrink:0;" title="選択肢を編集">✏️</button>` : ''}
+        </div>
       </div>
         <button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button>
       </div>`;
@@ -1027,6 +1029,113 @@ function showAddOptionDialog(key) {
   saveData();
   renderEdit();
 }
+
+// --- 選択肢編集ダイアログ ---
+function showEditOptionsDialog(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const label = LABELS[key] || key;
+  const opts = getOptions(rule.mode);
+  const defaultOpts = opts[key] || [];
+  const userOpts = rule.settings['user_options_' + key] || [];
+
+  // モーダル要素を作成
+  const overlay = document.createElement('div');
+  overlay.id = 'edit-options-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+  let html = `<div style="background:#fff;border-radius:12px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto;padding:20px;">
+    <h3 style="margin:0 0 16px;font-size:1rem;">📝 ${esc(label)} の選択肢を編集</h3>
+    <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ デフォルト項目は編集できません</div>`;
+
+  // デフォルト選択肢（編集不可）
+  for (const o of defaultOpts) {
+    if (o === 'カスタム') continue;
+    html += `<div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #eee;">
+      <span style="flex:1;font-size:0.85rem;color:#666;">${esc(o)}</span>
+      <span style="font-size:0.7rem;color:#aaa;">デフォルト</span>
+    </div>`;
+  }
+
+  // ユーザー追加選択肢（編集・削除可能）
+  for (let i = 0; i < userOpts.length; i++) {
+    html += `<div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #eee;gap:8px;">
+      <input type="text" value="${esc(userOpts[i])}" data-user-opt-idx="${i}" style="flex:1;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
+      <button onclick="removeUserOptionAndClose('${esc(key)}','${esc(userOpts[i])}')" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
+    </div>`;
+  }
+
+  // カスタム（追加ボタン）
+  html += `<div style="margin-top:12px;">
+    <button onclick="addOptionFromDialog('${esc(key)}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
+  </div>
+  <div style="margin-top:12px;">
+    <button onclick="closeEditOptionsDialog()" style="width:100%;padding:10px;background:#eee;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">閉じる</button>
+  </div>
+  </div>`;
+
+  overlay.innerHTML = html;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeEditOptionsDialog(); });
+  document.body.appendChild(overlay);
+}
+
+function closeEditOptionsDialog() {
+  const overlay = document.getElementById('edit-options-overlay');
+  if (overlay) overlay.remove();
+}
+
+function editUserOption(key, idx, btn) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'user_options_' + key;
+  if (!rule.settings[k] || !rule.settings[k][idx]) return;
+  const input = btn.parentElement.querySelector('input');
+  const newVal = input.value.trim();
+  if (!newVal) return;
+  const oldVal = rule.settings[k][idx];
+  rule.settings[k][idx] = newVal;
+  // 現在選択中の値も更新
+  if (rule.settings[key] === oldVal) {
+    rule.settings[key] = newVal;
+  }
+  saveData();
+  closeEditOptionsDialog();
+  renderEdit();
+}
+
+function removeUserOptionAndClose(key, optVal) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'user_options_' + key;
+  if (!rule.settings[k]) return;
+  rule.settings[k] = rule.settings[k].filter(o => o !== optVal);
+  if (rule.settings[key] === optVal) {
+    const opts = getOptions(rule.mode);
+    rule.settings[key] = (opts[key] || [''])[0];
+  }
+  saveData();
+  closeEditOptionsDialog();
+  renderEdit();
+}
+
+function addOptionFromDialog(key) {
+  const label = LABELS[key] || key;
+  const val = prompt('"' + label + '"に追加する値を入力:');
+  if (!val || !val.trim()) return;
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'user_options_' + key;
+  if (!rule.settings[k]) rule.settings[k] = [];
+  if (!rule.settings[k].includes(val.trim())) {
+    rule.settings[k].push(val.trim());
+  }
+  rule.settings[key] = val.trim();
+  saveData();
+  closeEditOptionsDialog();
+  renderEdit();
+}
+
 function removeUserOption(key, optVal) {
   const rule = getRule(editingId);
   if (!rule) return;
