@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="麻雀のルールを簡単に作成・共有できるWebアプリ。三人麻雀・四人麻雀対応。">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>麻雀ルール共有アプリ</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+  <!-- ホーム画面 -->
+  <div class="screen active" id="screen-home">
+    <div class="header">
+      <span class="header-title">🀄 麻雀ルール共有</span>
+      <span style="font-size:0.7rem;color:var(--text-sub)">v1.0</span>
+    </div>
+    <div class="home-hero">
+      <h1>麻雀ルールブック</h1>
+      <p>ルールを作成して仲間と共有しよう</p>
+    </div>
+    <div class="create-btns">
+      <button class="btn btn-primary" onclick="createRule('四麻')">➕ 四麻作成</button>
+      <button class="btn btn-purple" onclick="createRule('三麻')">➕ 三麻作成</button>
+    </div>
+    <div id="install-banner" class="install-banner" onclick="installPWA()">
+      <p>📱 ホーム画面に追加してアプリとして使えます</p>
+      <button class="btn btn-sm">追加</button>
+    </div>
+    <div class="rule-list" id="rule-list"></div>
+  </div>
+
+  <!-- 編集画面 -->
+  <div class="screen" id="screen-edit">
+    <div class="header">
+      <button class="header-back" onclick="goHome()">← 戻る</button>
+      <span class="header-title" id="edit-mode-label"></span>
+      <button class="btn btn-sm btn-green" onclick="goPreview()">プレビュー</button>
+    </div>
+    <div class="name-input-wrap">
+      <input type="text" class="name-input" id="edit-name" placeholder="ルール名を入力" oninput="onNameChange(this.value)">
+    </div>
+    <div id="base-rule-section" class="base-rule-wrap hidden">
+      <label>基準ルール:</label>
+      <select id="base-rule-select" onchange="onBaseRuleChange(this.value)"></select>
+    </div>
+    <div class="edit-scroll" id="edit-fields"></div>
+  </div>
+
+  <!-- プレビュー画面 -->
+  <div class="screen" id="screen-preview">
+    <div class="header">
+      <button class="header-back" onclick="goEdit()">← 編集に戻る</button>
+      <span class="header-title">出力プレビュー</span>
+      <div style="width:50px"></div>
+    </div>
+    <div class="preview-content">
+      <div id="preview-area"></div>
+    </div>
+    <div class="export-btns">
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="exportImage()">📷 画像を保存</button>
+        <button class="btn btn-orange" onclick="exportPDF()">📄 PDFを保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 削除確認 -->
+<div class="modal-overlay" id="modal-delete">
+  <div class="modal-box">
+    <p>このルールを削除しますか？</p>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-red" onclick="confirmDelete()">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- スナックバー -->
+<div class="snackbar" id="snackbar"></div>
+
+<!-- 外部ライブラリ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+// =====================================================================
+// マスターデータ定義
+// =====================================================================
+
+const OPTIONS_4 = {
+  length:["東南戦","東風戦"],
+  mochi_ten:["25000点","30000点"],
+  kaeshi_ten:["30000点","25000点"],
+  uma:["10-20","10-30","15-5","20-30","なし"],
+  tobi:["あり（0点未満で終了）","あり（0点ちょうどで終了）","なし"],
+  nishiiri:["なし","あり"],
+  ipponba:["300点","1500点"],
+  renchan:["テンパイ連荘","和了連荘"],
+  agariyame:["あり","なし"],
+  tochu_ryukyoku:["あり（九種九牌・四風連打・四槓散了・四家立直・三家和）","一切なし"],
+  tochu_honba:["積む","積まない"],
+  double_ron:["あり","なし（頭ハネ）"],
+  triple_ron:["全員アガリ","流局（三家和）","頭ハネ"],
+  naki_priority:["発声優先（同時はポン優先）","上家優先"],
+  kuitan:["あり（アリアリ）","なし（ナシナシ）"],
+  atozuke:["あり","なし"],
+  kuikae:["禁止","あり"],
+  aka_dora:["各1枚（計3枚）","なし"],
+  kiriage:["あり","なし"],
+  renpai_toitsu:["2符","4符"],
+  nagashi:["あり（流局時成立）","なし"],
+  kokushi_ankan:["あり","なし"],
+  yakuman_type:["雀魂に準ずる","天鳳に準ずる"],
+  yakuman_fukugo:["なし","あり"],
+  kazoe_yakuman:["13飜以上","なし"],
+  furiten_reach:["あり","なし"],
+  open_reach:["なし","あり"],
+  tsumo_nashi_reach:["不可","可"],
+  reach_1000:["不可（1000点未満）","可"],
+  reach_ankan:["待ち不変なら可","不可"],
+  shugi_ippatsu:["あり","なし"],
+  shugi_ura:["あり","なし"],
+  shugi_aka:["あり（鳴き祝儀あり）","あり（鳴き祝儀なし）","なし"],
+  shugi_ym_tsumo:["5枚オール","3枚オール","なし"],
+  shugi_ym_ron:["10枚","5枚","なし"],
+  shugi_kazoe:["対象外","対象"],
+  shugi_memo:[""],
+  pao_daisangen:["あり","なし"],
+  pao_daisushi:["あり","なし"],
+  pao_sukantu:["なし","あり"],
+  pao_tsumo:["パオの人が全額","通常精算"],
+  pao_ron:["パオの人と振込者で折半","振込者が全額"],
+  chombo_batsu:["満貫払い","倍満払い"],
+  chombo_taiou:["やり直し","流局扱い"],
+  pen_goron_taopai:["チョンボ","上がり放棄","なし"],
+  pen_noten_reach:["チョンボ","上がり放棄","なし"],
+  pen_reach_bad_ankan:["チョンボ","上がり放棄","なし"],
+  pen_goron_no_taopai:["上がり放棄","チョンボ","なし"],
+  pen_gonaki_sarashi:["上がり放棄","チョンボ","なし"],
+  pen_kuikae_ihan:["上がり放棄","チョンボ","なし"],
+  pen_tahai:["上がり放棄","チョンボ","なし"],
+  pen_gonaki_hassei:["軽罰符（1000点供託）","上がり放棄","なし"],
+  pen_reach_torikeshi:["軽罰符（1000点供託）","不可","なし"],
+  pen_shouhai:["軽罰符＋山から補充","上がり放棄","なし"],
+};
+
+const OPTIONS_3 = {
+  length:["東南戦","東風戦"],
+  mochi_ten:["35000点","30000点","40000点"],
+  kaeshi_ten:["40000点","35000点"],
+  uma:["+20/±0/-20","+30/±0/-30","なし"],
+  tobi:["あり（0点ちょうどで終了）","あり（0点未満で終了）","なし"],
+  tsumozon:["なし","あり"],
+  fu_keisan:["なし（専用点数表）","あり"],
+  tsumopin:["あり","なし"],
+  ipponba:["1000点（上家取り）","300点","1500点"],
+  tenpai_ryou:["場に2000点","場に3000点"],
+  renchan:["テンパイ連荘（形式テンパイOK）","和了連荘"],
+  agariyame:["あり（トップ時強制終了）","なし"],
+  tochu_ryukyoku:["なし（3人リーチも続行）","あり"],
+  double_ron:["あり","なし（頭ハネ）"],
+  tsumo_yama:["ドラ表示牌の隣までツモり切り","王牌14枚残し"],
+  kuitan:["あり","なし"],
+  atozuke:["あり","なし"],
+  aka_niji:["5索5筒 赤2虹2（計8枚・全ドラ）","赤ドラ各1枚","なし"],
+  kita:["共通役牌（北抜きなし）","抜きドラ"],
+  hanapai:["あり（空気扱い・一発消えず・嶺上開花なし）","なし"],
+  kan_dora:["先めくり","後めくり"],
+  reach_1000:["可（1000点でも可・流局でトビ）","不可"],
+  furiten_reach:["可能（見逃しツモ可）","不可"],
+  open_reach:["あり（全晒し・フリテン可・放銃時役満払い）","なし"],
+  reach_kan:["待ち不変ならOK","不可"],
+  niken_reach:["2軒リーチで残り1人手牌公開","なし"],
+  shiro_pocchi:["あり（リーチ後オールマイティ）","なし"],
+  sp_manzu_honitsu:["あり","なし"],
+  sp_daisharin:["あり（清一七対子）","なし"],
+  sp_renho:["あり","なし"],
+  sp_nagashi_ym:["あり","なし"],
+  sp_4mai_chii:["あり（2翻）","なし"],
+  sp_shosharin:["あり（混一七対子・6翻）","なし"],
+  kazoe_yakuman:["14飜以上","13飜以上","なし"],
+  w_yakuman:["なし","あり"],
+  kokushi_ankan:["あり","なし"],
+  shugi_ippatsu:["あり","なし"],
+  shugi_ura:["あり","なし"],
+  shugi_niji:["あり（鳴き祝儀あり）","あり（鳴き祝儀なし）","なし"],
+  shugi_pocchi:["あり（リーチ後白ポッチツモ）","なし"],
+  shugi_ym_tsumo:["5枚","3枚","なし"],
+  shugi_ym_ron:["10枚","5枚","なし"],
+  shugi_kazoe:["対象外","対象"],
+  tobi_shou:["あり（飛ばされた人が場にチップ2枚）","なし"],
+  tobi_bunpai:["1人飛ばし2枚・2人飛ばし1枚ずつ等","飛ばした人が全取り"],
+  shugi_memo:[""],
+  pao_daisangen:["あり","なし"],
+  pao_daisushi:["あり","なし"],
+  pao_tsumo:["パオが全額（チップ5枚）","通常精算"],
+  pao_ron:["パオと振込者で折半（チップ各5枚）","振込者が全額"],
+  chombo_batsu:["倍満払い","満貫払い"],
+  chombo_taiou:["やり直し","流局扱い"],
+  pen_goron_taopai:["チョンボ","上がり放棄","なし"],
+  pen_noten_reach:["チョンボ","上がり放棄","なし"],
+  pen_reach_bad_ankan:["チョンボ","上がり放棄","なし"],
+  pen_goron_no_taopai:["上がり放棄","チョンボ","なし"],
+  pen_gonaki_sarashi:["上がり放棄","チョンボ","なし"],
+  pen_kuikae_ihan:["上がり放棄","チョンボ","なし"],
+  pen_tahai:["上がり放棄","チョンボ","なし"],
+  pen_gonaki_hassei:["軽罰符（1000点供託）","上がり放棄","なし"],
+  pen_reach_torikeshi:["軽罰符（1000点供託）","不可","なし"],
+  pen_shouhai:["軽罰符＋山から補充","上がり放棄","なし"],
+};
+
+// --- 基準ルール ---
+const _BASE_4_COMMON = {
+  length:"東南戦", mochi_ten:"25000点", kaeshi_ten:"30000点",
+  tobi:"あり（0点未満で終了）", nishiiri:"なし", ipponba:"300点",
+  renchan:"テンパイ連荘", agariyame:"あり",
+  tochu_honba:"積む", naki_priority:"発声優先（同時はポン優先）",
+  kuitan:"あり（アリアリ）", atozuke:"あり", kuikae:"禁止",
+  aka_dora:"各1枚（計3枚）", renpai_toitsu:"2符",
+  kokushi_ankan:"あり", yakuman_fukugo:"なし", kazoe_yakuman:"13飜以上",
+  furiten_reach:"あり", open_reach:"なし", tsumo_nashi_reach:"不可",
+  reach_1000:"不可（1000点未満）", reach_ankan:"待ち不変なら可",
+  shugi_ippatsu:"なし", shugi_ura:"なし", shugi_aka:"なし",
+  shugi_ym_tsumo:"なし", shugi_ym_ron:"なし", shugi_kazoe:"対象外", shugi_memo:"",
+  pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
+  pao_tsumo:"パオの人が全額", pao_ron:"パオの人と振込者で折半",
+  chombo_batsu:"満貫払い", chombo_taiou:"やり直し",
+  pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
+  pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
+  pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
+  pen_gonaki_hassei:"軽罰符（1000点供託）", pen_reach_torikeshi:"軽罰符（1000点供託）",
+  pen_shouhai:"軽罰符＋山から補充",
+};
+
+const BASE_RULES_4 = {
+  "雀魂（四麻・段位戦）":{..._BASE_4_COMMON, uma:"15-5",
+    tochu_ryukyoku:"あり（九種九牌・四風連打・四槓散了・四家立直・三家和）",
+    double_ron:"あり", triple_ron:"全員アガリ", kiriage:"なし", nagashi:"あり（流局時成立）",
+    yakuman_type:"雀魂に準ずる"},
+  "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", tobi:"なし", agariyame:"なし",
+    tochu_ryukyoku:"一切なし", double_ron:"なし（頭ハネ）", triple_ron:"頭ハネ",
+    kiriage:"あり", nagashi:"なし", yakuman_type:"雀魂に準ずる"},
+  "天鳳（四麻）":{..._BASE_4_COMMON, uma:"10-20",
+    tochu_ryukyoku:"あり（九種九牌・四風連打・四槓散了・四家立直・三家和）",
+    double_ron:"あり", triple_ron:"流局（三家和）", kiriage:"なし", nagashi:"あり（流局時成立）",
+    aka_dora:"なし", yakuman_type:"天鳳に準ずる"},
+};
+
+const DEFAULT_4 = {..._BASE_4_COMMON, uma:"10-20",
+  tochu_ryukyoku:"あり（九種九牌・四風連打・四槓散了・四家立直・三家和）",
+  double_ron:"あり", triple_ron:"全員アガリ", kiriage:"あり", nagashi:"あり（流局時成立）",
+  yakuman_type:"雀魂に準ずる",
+  shugi_ippatsu:"あり", shugi_ura:"あり", shugi_aka:"あり（鳴き祝儀あり）",
+  shugi_ym_tsumo:"5枚オール", shugi_ym_ron:"10枚",
+};
+
+const BASE_RULES_3 = {
+  "三人麻雀（標準）":{
+    length:"東南戦", mochi_ten:"35000点", kaeshi_ten:"40000点",
+    uma:"+20/±0/-20", tobi:"あり（0点ちょうどで終了）",
+    tsumozon:"なし", fu_keisan:"なし（専用点数表）", tsumopin:"あり",
+    ipponba:"1000点（上家取り）", tenpai_ryou:"場に2000点",
+    renchan:"テンパイ連荘（形式テンパイOK）", agariyame:"あり（トップ時強制終了）",
+    tochu_ryukyoku:"なし（3人リーチも続行）", double_ron:"あり",
+    tsumo_yama:"ドラ表示牌の隣までツモり切り",
+    kuitan:"あり", atozuke:"あり", aka_niji:"5索5筒 赤2虹2（計8枚・全ドラ）",
+    kita:"共通役牌（北抜きなし）",
+    hanapai:"あり（空気扱い・一発消えず・嶺上開花なし）", kan_dora:"先めくり",
+    reach_1000:"可（1000点でも可・流局でトビ）", furiten_reach:"可能（見逃しツモ可）",
+    open_reach:"あり（全晒し・フリテン可・放銃時役満払い）", reach_kan:"待ち不変ならOK",
+    niken_reach:"2軒リーチで残り1人手牌公開", shiro_pocchi:"あり（リーチ後オールマイティ）",
+    sp_manzu_honitsu:"あり", sp_daisharin:"あり（清一七対子）",
+    sp_renho:"あり", sp_nagashi_ym:"あり",
+    sp_4mai_chii:"あり（2翻）", sp_shosharin:"あり（混一七対子・6翻）",
+    kazoe_yakuman:"14飜以上", w_yakuman:"なし", kokushi_ankan:"あり",
+    shugi_ippatsu:"あり", shugi_ura:"あり",
+    shugi_niji:"あり（鳴き祝儀あり）", shugi_pocchi:"あり（リーチ後白ポッチツモ）",
+    shugi_ym_tsumo:"5枚", shugi_ym_ron:"10枚", shugi_kazoe:"対象外",
+    tobi_shou:"あり（飛ばされた人が場にチップ2枚）",
+    tobi_bunpai:"1人飛ばし2枚・2人飛ばし1枚ずつ等", shugi_memo:"",
+    pao_daisangen:"あり", pao_daisushi:"あり",
+    pao_tsumo:"パオが全額（チップ5枚）", pao_ron:"パオと振込者で折半（チップ各5枚）",
+    chombo_batsu:"倍満払い", chombo_taiou:"やり直し",
+    pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
+    pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
+    pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
+    pen_gonaki_hassei:"軽罰符（1000点供託）", pen_reach_torikeshi:"軽罰符（1000点供託）",
+    pen_shouhai:"軽罰符＋山から補充",
+  }
+};
+const DEFAULT_3 = {...BASE_RULES_3["三人麻雀（標準）"]};
+
+// --- ラベル ---
+const LABELS = {
+  length:"対局の長さ", mochi_ten:"持ち点", kaeshi_ten:"返し点",
+  uma:"ウマ", tobi:"トビ終了", nishiiri:"西入", ipponba:"一本場", tenpai_ryou:"テンパイ料",
+  tsumozon:"ツモ損", fu_keisan:"符計算", tsumopin:"ツモピン",
+  renchan:"連荘条件", agariyame:"アガリやめ・テンパイやめ",
+  tochu_ryukyoku:"途中流局", tochu_honba:"途中流局時の本場",
+  double_ron:"ダブロン", triple_ron:"トリロン",
+  naki_priority:"鳴きの優先順位", tsumo_yama:"ツモ山",
+  kuitan:"喰いタン", atozuke:"後付け", kuikae:"喰い替え",
+  aka_dora:"赤ドラ", aka_niji:"赤ドラ・虹ドラ",
+  kiriage:"切り上げ満貫", renpai_toitsu:"連風牌の対子",
+  nagashi:"流し満貫", kokushi_ankan:"国士の暗槓ロン",
+  yakuman_type:"役満の種類", yakuman_fukugo:"役満の複合・W役満",
+  kazoe_yakuman:"数え役満", w_yakuman:"W役満",
+  kita:"北の扱い", hanapai:"花牌", kan_dora:"カンドラ",
+  furiten_reach:"フリテンリーチ", open_reach:"オープンリーチ",
+  tsumo_nashi_reach:"ツモ番なしリーチ", reach_1000:"1000点リーチ",
+  reach_ankan:"リーチ後の暗槓", reach_kan:"リーチ後のカン",
+  niken_reach:"2軒リーチ時", shiro_pocchi:"白ポッチ",
+  sp_manzu_honitsu:"マンズ混一色（役満）", sp_daisharin:"大車輪",
+  sp_renho:"人和（役満）", sp_nagashi_ym:"流し役満",
+  sp_4mai_chii:"四枚使い七対子", sp_shosharin:"小車輪",
+  shugi_ippatsu:"一発祝儀", shugi_ura:"裏ドラ祝儀",
+  shugi_aka:"赤ドラ祝儀", shugi_niji:"虹牌祝儀", shugi_pocchi:"白ポッチ祝儀",
+  shugi_ym_tsumo:"役満祝儀（ツモ）", shugi_ym_ron:"役満祝儀（ロン）",
+  shugi_kazoe:"数え役満祝儀", shugi_memo:"特記事項（レート等）",
+  tobi_shou:"トビ賞", tobi_bunpai:"トビ賞分配",
+  pao_daisangen:"大三元パオ", pao_daisushi:"大四喜パオ", pao_sukantu:"四槓子パオ",
+  pao_tsumo:"パオ支払い（ツモ）", pao_ron:"パオ支払い（ロン）",
+  chombo_batsu:"チョンボ罰符", chombo_taiou:"チョンボ対処",
+  pen_goron_taopai:"誤ロン・誤ツモ（倒牌）", pen_noten_reach:"ノーテンリーチ流局",
+  pen_reach_bad_ankan:"リーチ後不正暗槓",
+  pen_goron_no_taopai:"誤ロン・誤ツモ（倒牌なし）",
+  pen_gonaki_sarashi:"誤鳴き（牌晒し）", pen_kuikae_ihan:"喰い替え違反",
+  pen_tahai:"多牌", pen_gonaki_hassei:"誤鳴き（発声のみ）",
+  pen_reach_torikeshi:"リーチ取消", pen_shouhai:"少牌",
+};
+
+// --- カテゴリ ---
+const CATEGORIES_4 = [
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","ipponba"]],
+  ["2. 進行・連荘ルール",["renchan","agariyame","tochu_ryukyoku","tochu_honba","double_ron","triple_ron","naki_priority"]],
+  ["3. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_fukugo","kazoe_yakuman"]],
+  ["4. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000","reach_ankan"]],
+  ["5. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","shugi_memo"]],
+  ["6. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
+  ["7. チョンボ",["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]],
+  ["8. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]],
+  ["9. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]],
+];
+
+const CATEGORIES_3 = [
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","kaeshi_ten","uma","tobi","tsumozon","fu_keisan","tsumopin","ipponba","tenpai_ryou"]],
+  ["2. 進行・連荘ルール",["renchan","agariyame","tochu_ryukyoku","double_ron","tsumo_yama"]],
+  ["3. 役・ドラ・牌の扱い",["kuitan","atozuke","aka_niji","kita","hanapai","kan_dora"]],
+  ["4. リーチ関連",["reach_1000","furiten_reach","open_reach","reach_kan"]],
+  ["5. 特殊役・ローカルルール",["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin","kazoe_yakuman","w_yakuman","kokushi_ankan"]],
+  ["6. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai","shugi_memo"]],
+  ["7. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]],
+  ["8. チョンボ",["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]],
+  ["9. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]],
+  ["10. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]],
+];
+
+// =====================================================================
+// アプリ状態管理
+// =====================================================================
+const STORAGE_KEY = 'mahjong_rules_pwa_v1';
+let appData = { rules: [] };
+let editingId = null;
+let deleteTargetId = null;
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) appData = JSON.parse(raw);
+  } catch(e) { appData = { rules: [] }; }
+}
+function saveData() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+}
+
+function getRule(id) { return appData.rules.find(r => r.id === id); }
+function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
+function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
+function getBaseRules(mode) { return mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3; }
+function getDefault(mode) { return mode === '四麻' ? {...DEFAULT_4} : {...DEFAULT_3}; }
+
+// =====================================================================
+// 画面遷移
+// =====================================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goHome() {
+  editingId = null;
+  renderHome();
+  showScreen('home');
+}
+
+function goEdit() {
+  renderEdit();
+  showScreen('edit');
+}
+
+function goPreview() {
+  saveData();
+  renderPreview();
+  showScreen('preview');
+}
+
+// =====================================================================
+// ホーム画面
+// =====================================================================
+function renderHome() {
+  const list = document.getElementById('rule-list');
+  if (appData.rules.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">🀄</div><p>ルールがまだありません<br>上のボタンから作成しましょう</p></div>';
+    return;
+  }
+  list.innerHTML = appData.rules.map(r => `
+    <div class="rule-card" onclick="editRule('${r.id}')">
+      <div class="rule-card-info">
+        <div class="rule-card-name">${esc(r.name)}</div>
+        <div class="rule-card-mode">
+          <span class="badge ${r.mode==='四麻'?'badge-4ma':'badge-3ma'}">${r.mode}</span>
+          ${r.base_rule ? esc(r.base_rule) : ''}
+        </div>
+      </div>
+      <div class="rule-card-actions">
+        <button class="icon-btn" onclick="event.stopPropagation();editRule('${r.id}')" title="編集">✏️</button>
+        <button class="icon-btn delete" onclick="event.stopPropagation();askDelete('${r.id}')" title="削除">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// =====================================================================
+// ルールCRUD
+// =====================================================================
+function createRule(mode) {
+  const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const def = getDefault(mode);
+  const rule = {
+    id, mode,
+    name: '新規ルール',
+    base_rule: mode === '四麻' ? '雀魂（四麻・段位戦）' : '',
+    settings: {...def}
+  };
+  appData.rules.push(rule);
+  saveData();
+  editRule(id);
+}
+
+function editRule(id) {
+  editingId = id;
+  goEdit();
+}
+
+function askDelete(id) {
+  deleteTargetId = id;
+  document.getElementById('modal-delete').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modal-delete').classList.remove('show');
+  deleteTargetId = null;
+}
+function confirmDelete() {
+  if (deleteTargetId) {
+    appData.rules = appData.rules.filter(r => r.id !== deleteTargetId);
+    saveData();
+  }
+  closeModal();
+  renderHome();
+  showSnack('ルールを削除しました');
+}
+
+// =====================================================================
+// 編集画面
+// =====================================================================
+function renderEdit() {
+  const rule = getRule(editingId);
+  if (!rule) { goHome(); return; }
+
+  document.getElementById('edit-name').value = rule.name;
+  document.getElementById('edit-mode-label').textContent = rule.mode === '四麻' ? '四人麻雀' : '三人麻雀';
+
+  // 基準ルール（四麻のみ）
+  const brSection = document.getElementById('base-rule-section');
+  const brSelect = document.getElementById('base-rule-select');
+  if (rule.mode === '四麻') {
+    brSection.classList.remove('hidden');
+    brSelect.innerHTML = Object.keys(BASE_RULES_4).map(k =>
+      `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(k)}</option>`
+    ).join('');
+  } else {
+    brSection.classList.add('hidden');
+  }
+
+  const cats = getCategories(rule.mode);
+  const opts = getOptions(rule.mode);
+  const base = rule.mode === '四麻' ? getBaseRules('四麻')[rule.base_rule] || {} : null;
+
+  const fields = document.getElementById('edit-fields');
+  let html = '';
+
+  for (const [catName, keys] of cats) {
+    html += `<div class="category-section"><div class="category-header">■ ${esc(catName)}</div>`;
+    for (const k of keys) {
+      const val = rule.settings[k] ?? '';
+      const isDiff = base && val !== (base[k] ?? '');
+
+      if (k === 'shugi_memo') {
+        html += `<div class="setting-row">
+          <div class="setting-label">📝 ${esc(LABELS[k] || k)}</div>
+          <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)">${esc(val)}</textarea>
+        </div>`;
+        continue;
+      }
+
+      const options = opts[k] || [val];
+      html += `<div class="setting-row ${isDiff?'diff':''}">
+        <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?'<span class="diff-badge">変更</span>':''}</div>
+        <select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
+          ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
+        </select>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  fields.innerHTML = html;
+}
+
+function onNameChange(val) {
+  const rule = getRule(editingId);
+  if (rule) { rule.name = val; saveData(); }
+}
+function onBaseRuleChange(val) {
+  const rule = getRule(editingId);
+  if (rule) { rule.base_rule = val; saveData(); renderEdit(); }
+}
+function onSettingChange(key, val) {
+  const rule = getRule(editingId);
+  if (rule) { rule.settings[key] = val; saveData(); }
+
+  // 差分更新（四麻のみ）
+  if (rule && rule.mode === '四麻') {
+    const base = getBaseRules('四麻')[rule.base_rule] || {};
+    const row = document.querySelector(`[data-key="${key}"]`)?.closest('.setting-row');
+    if (row) {
+      const isDiff = val !== (base[key] ?? '');
+      row.classList.toggle('diff', isDiff);
+      const badge = row.querySelector('.diff-badge');
+      if (isDiff && !badge) {
+        row.querySelector('.setting-label').insertAdjacentHTML('beforeend','<span class="diff-badge">変更</span>');
+      } else if (!isDiff && badge) {
+        badge.remove();
+      }
+    }
+  }
+}
+
+// =====================================================================
+// プレビュー画面
+// =====================================================================
+function renderPreview() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+
+  const cats = getCategories(rule.mode);
+  const base = rule.mode === '四麻' ? getBaseRules('四麻')[rule.base_rule] || {} : null;
+  const modeInfo = rule.mode === '四麻' ? `基準: ${rule.base_rule}` : '三人麻雀ルール';
+
+  let html = `<div class="pv-header"><h2>${esc(rule.name)}（${rule.mode}）</h2><p>${esc(modeInfo)}</p></div>`;
+
+  for (const [catName, keys] of cats) {
+    html += `<div class="pv-cat">■ ${esc(catName)}</div>`;
+    for (const k of keys) {
+      if (k === 'shugi_memo') {
+        const memo = rule.settings[k] || '';
+        if (memo) html += `<div class="pv-memo">📝 ${esc(memo)}</div>`;
+        continue;
+      }
+      const val = rule.settings[k] ?? '';
+      const isDiff = base && val !== (base[k] ?? '');
+      html += `<div class="pv-row ${isDiff?'diff':''}">
+        <span class="pv-key">${esc(LABELS[k]||k)}</span>
+        <span class="pv-val">${esc(val)}</span>
+      </div>`;
+    }
+  }
+
+  document.getElementById('preview-area').innerHTML = html;
+}
+
+// =====================================================================
+// エクスポート
+// =====================================================================
+async function exportImage() {
+  const el = document.getElementById('preview-area');
+  try {
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const link = document.createElement('a');
+    link.download = (getRule(editingId)?.name || 'rule') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showSnack('📷 画像を保存しました');
+  } catch(e) { showSnack('画像の保存に失敗しました'); }
+}
+
+async function exportPDF() {
+  const el = document.getElementById('preview-area');
+  try {
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgData = canvas.toDataURL('image/png');
+    const pdfW = 210, pdfH = 297;
+    const ratio = Math.min(pdfW / canvas.width, (pdfH - 20) / canvas.height);
+    const w = canvas.width * ratio, h = canvas.height * ratio;
+    pdf.addImage(imgData, 'PNG', (pdfW - w) / 2, 10, w, h);
+    pdf.save((getRule(editingId)?.name || 'rule') + '.pdf');
+    showSnack('📄 PDFを保存しました');
+  } catch(e) { showSnack('PDFの保存に失敗しました'); }
+}
+
+// =====================================================================
+// ユーティリティ
+// =====================================================================
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showSnack(msg) {
+  const el = document.getElementById('snackbar');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// =====================================================================
+// PWA インストール
+// =====================================================================
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => {
+      document.getElementById('install-banner').classList.remove('show');
+      deferredPrompt = null;
+    });
+  }
+}
+
+// =====================================================================
+// Service Worker 登録
+// =====================================================================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// =====================================================================
+// 初期化
+// =====================================================================
+loadData();
+renderHome();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+NotoSansCJKjp-Bold.otf
+.DS_Store
+test_*.png
