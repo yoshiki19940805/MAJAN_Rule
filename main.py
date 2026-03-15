@@ -86,7 +86,7 @@ OPTIONS_4 = {
     # 7. 罰則（状況別）
     "chombo_batsu":  ["満貫払い", "倍満払い", "カスタム"],
     "chombo_memo":   [""],
-    "chombo_taiou":  ["やり直し", "流局扱い"],
+    "chombo_taiou":  ["やり直し", "流局扱い", "親なら流局"],
     "pen_goron_taopai":       ["チョンボ", "上がり放棄", "なし"],
     "pen_noten_reach":        ["チョンボ", "上がり放棄", "なし"],
     "pen_reach_bad_ankan":    ["チョンボ", "上がり放棄", "なし"],
@@ -230,7 +230,7 @@ OPTIONS_3 = {
     "pao_ron":       ["パオと振込者で折半（チップ各5枚）", "振込者が全額"],
     # 8. 罰則（状況別）
     "chombo_batsu":  ["倍満払い", "満貫払い"],
-    "chombo_taiou":  ["やり直し", "流局扱い"],
+    "chombo_taiou":  ["やり直し", "流局扱い", "親なら流局"],
     "pen_goron_taopai":       ["チョンボ", "上がり放棄", "なし"],
     "pen_noten_reach":        ["チョンボ", "上がり放棄", "なし"],
     "pen_reach_bad_ankan":    ["チョンボ", "上がり放棄", "なし"],

@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.4<br>2026-03-15 20:53</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.5<br>2026-03-15 21:11</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -225,7 +225,7 @@ const OPTIONS_3 = {
   pao_ron:["パオと振込者で折半（チップ各5枚）","振込者が全額"],
   chombo_batsu:["倍満払い","満貫払い","カスタム"],
   chombo_memo:[""],
-  chombo_taiou:["やり直し","流局扱い"],
+  chombo_taiou:["やり直し","流局扱い","親なら流局"],
   pen_goron_taopai:["チョンボ","上がり放棄","なし"],
   pen_noten_reach:["チョンボ","上がり放棄","なし"],
   pen_reach_bad_ankan:["チョンボ","上がり放棄","なし"],
@@ -370,28 +370,32 @@ const LABELS = {
 // --- カテゴリ ---
 const CATEGORIES_4 = [
   ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","ipponba","ipponba_custom"]],
-  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba","double_ron","triple_ron","naki_priority"]],
-  ["3. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]],
-  ["4. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000","reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
-  ["5. 祝儀（チップ）",["shugi_type","shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","shugi_memo"]],
-  ["6. 特殊牌",[]],
-  ["7. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
-  ["8. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]],
-  ["9. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]],
-  ["10. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]],
+  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","double_ron","triple_ron","naki_priority"]],
+  ["3. 途中流局",["tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba"]],
+  ["4. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]],
+  ["5. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000"]],
+  ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
+  ["7. 祝儀（チップ）",["shugi_type","shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","shugi_memo"]],
+  ["8. 特殊牌",[]],
+  ["9. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
+  ["10. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["11. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["12. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 const CATEGORIES_3 = [
   ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","tsumozon","fu_keisan","tsumopin","ipponba","ipponba_custom","tenpai_ryou"]],
-  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","tochu_ryukyoku","double_ron","tsumo_yama"]],
-  ["3. 役・ドラ・牌の扱い",["kuitan","atozuke","aka_niji","kita","hanapai","kan_dora"]],
-  ["4. リーチ関連",["reach_1000","furiten_reach","open_reach","reach_kan"]],
-  ["5. 特殊役・ローカルルール",["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin","kazoe_yakuman","w_yakuman","kokushi_ankan"]],
-  ["6. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai","shugi_memo"]],
-  ["7. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]],
-  ["8. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]],
-  ["9. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]],
-  ["10. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]],
+  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","double_ron","tsumo_yama"]],
+  ["3. 途中流局",["tochu_ryukyoku"]],
+  ["4. 役・ドラ・牌の扱い",["kuitan","atozuke","aka_niji","kita","hanapai","kan_dora"]],
+  ["5. リーチ関連",["reach_1000","furiten_reach","open_reach"]],
+  ["6. リーチ後のカン",["reach_kan"]],
+  ["7. 特殊役・ローカルルール",["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin","kazoe_yakuman","w_yakuman","kokushi_ankan"]],
+  ["8. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai","shugi_memo"]],
+  ["9. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]],
+  ["10. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["11. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["12. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 // =====================================================================
@@ -478,6 +482,7 @@ function renderHome() {
         </div>
       </div>
       <div class="rule-card-actions">
+        <button class="icon-btn" onclick="event.stopPropagation();duplicateRule('${r.id}')" title="コピー">📋</button>
         <button class="icon-btn" onclick="event.stopPropagation();editRule('${r.id}')" title="編集">✏️</button>
         <button class="icon-btn delete" onclick="event.stopPropagation();askDelete('${r.id}')" title="削除">🗑️</button>
       </div>
@@ -525,6 +530,19 @@ function confirmDelete() {
   showSnack('ルールを削除しました');
 }
 
+function duplicateRule(id) {
+  const src = getRule(id);
+  if (!src) return;
+  const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = newId;
+  copy.name = src.name + '（コピー）';
+  appData.rules.push(copy);
+  saveData();
+  renderHome();
+  showSnack('ルールをコピーしました');
+}
+
 // =====================================================================
 // 編集画面
 // =====================================================================
@@ -562,7 +580,8 @@ function renderEdit() {
   // テキストエリアとして描画するキー
   const textareaKeys = new Set(['shugi_memo','yakuman_custom_memo','chombo_memo']);
 
-  for (const [catName, keys] of cats) {
+  for (const cat of cats) {
+    const catName = cat[0], keys = cat[1], customizable = cat[2] || false;
     // 特殊牌カテゴリ（空keys）は専用UIを描画
     if (catName.includes('特殊牌')) {
       html += `<div class="category-section"><h2 class="section-title">${esc(catName)}</h2><div class="setting-list">`;
@@ -646,6 +665,23 @@ function renderEdit() {
         </select></div>
       </div>`;
     }
+    // カスタム項目追加UI（customizable=trueのカテゴリ）
+    if (customizable) {
+      const catKey = catName.replace(/^\d+\.\s*/, '');
+      const customItems = rule.settings['custom_' + catKey] || [];
+      for (let i = 0; i < customItems.length; i++) {
+        html += `<div class="setting-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <input type="text" value="${esc(customItems[i].name||'')}" oninput="updateCustomPenalty('${esc(catKey)}',${i},'name',this.value)"
+              placeholder="項目名" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;margin-right:8px;">
+            <button onclick="removeCustomPenalty('${esc(catKey)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;">削除</button>
+          </div>
+          <input type="text" value="${esc(customItems[i].value||'')}" oninput="updateCustomPenalty('${esc(catKey)}',${i},'value',this.value)"
+            placeholder="設定内容" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+        </div>`;
+      }
+      html += `<button onclick="addCustomPenalty('${esc(catKey)}')" style="width:100%;padding:8px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;margin-top:4px;">＋ 項目を追加</button>`;
+    }
     html += '</div></div>';
   }
   fields.innerHTML = html;
@@ -710,6 +746,34 @@ function updateCustomTile(idx, field, val) {
   saveData();
 }
 
+// --- カスタム罰則項目 CRUD ---
+function addCustomPenalty(catKey) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'custom_' + catKey;
+  if (!rule.settings[k]) rule.settings[k] = [];
+  rule.settings[k].push({name:'', value:''});
+  saveData();
+  renderEdit();
+}
+function removeCustomPenalty(catKey, idx) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'custom_' + catKey;
+  if (!rule.settings[k]) return;
+  rule.settings[k].splice(idx, 1);
+  saveData();
+  renderEdit();
+}
+function updateCustomPenalty(catKey, idx, field, val) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'custom_' + catKey;
+  if (!rule.settings[k] || !rule.settings[k][idx]) return;
+  rule.settings[k][idx][field] = val;
+  saveData();
+}
+
 // =====================================================================
 // プレビュー画面
 // =====================================================================
@@ -723,7 +787,8 @@ function renderPreview() {
 
   let html = `<div class="pv-header"><h2>${esc(rule.name)}（${rule.mode}）</h2><p>${esc(modeInfo)}</p></div>`;
 
-  for (const [catName, keys] of cats) {
+  for (const cat of cats) {
+    const catName = cat[0], keys = cat[1], customizable = cat[2] || false;
     // 特殊牌カテゴリ
     if (catName.includes('特殊牌')) {
       const tiles = rule.settings.custom_tiles || [];
@@ -776,6 +841,16 @@ function renderPreview() {
         <span class="pv-val">${esc(val)}</span>
       </div>`;
     }
+    // カスタム罰則項目のプレビュー表示
+    if (customizable) {
+      const catKey = catName.replace(/^\d+\.\s*/, '');
+      const customItems = rule.settings['custom_' + catKey] || [];
+      for (const item of customItems) {
+        if (item.name || item.value) {
+          html += `<div class="pv-row"><span class="pv-key">${esc(item.name||'(未設定)')}</span><span class="pv-val">${esc(item.value||'')}</span></div>`;
+        }
+      }
+    }
   }
 
   document.getElementById('preview-area').innerHTML = html;
@@ -802,11 +877,27 @@ async function exportPDF() {
     const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgData = canvas.toDataURL('image/png');
-    const pdfW = 210, pdfH = 297;
-    const ratio = Math.min(pdfW / canvas.width, (pdfH - 20) / canvas.height);
-    const w = canvas.width * ratio, h = canvas.height * ratio;
-    pdf.addImage(imgData, 'PNG', (pdfW - w) / 2, 10, w, h);
+    const pdfW = 190; // 左右10mmマージン
+    const pageH = 277; // 上下10mmマージン
+    const imgW = pdfW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let y = 0;
+    let page = 0;
+    while (y < imgH) {
+      if (page > 0) pdf.addPage();
+      // キャンバスから部分を切り出し
+      const srcY = (y / imgH) * canvas.height;
+      const srcH = Math.min((pageH / imgH) * canvas.height, canvas.height - srcY);
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = srcH;
+      sliceCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+      const sliceData = sliceCanvas.toDataURL('image/png');
+      const sliceH = (srcH * imgW) / canvas.width;
+      pdf.addImage(sliceData, 'PNG', 10, 10, imgW, sliceH);
+      y += pageH;
+      page++;
+    }
     pdf.save((getRule(editingId)?.name || 'rule') + '.pdf');
     showSnack('📄 PDFを保存しました');
   } catch(e) { showSnack('PDFの保存に失敗しました'); }
