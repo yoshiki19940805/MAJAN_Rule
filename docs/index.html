@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.0<br>2026-03-15 23:37</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.1<br>2026-03-15 23:45</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -38,9 +38,12 @@
   <!-- 編集画面 -->
   <div class="screen" id="screen-edit">
     <div class="header">
-      <button class="header-back" onclick="goHome()">← 戻る</button>
+      <button class="header-back" onclick="goHomeWithConfirm()">← 戻る</button>
       <span class="header-title" id="edit-mode-label"></span>
-      <button class="btn btn-sm btn-green" onclick="goPreview()">プレビュー</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-green" onclick="saveAndGoHome()">保存</button>
+        <button class="btn btn-sm btn-green" onclick="goPreview()">プレビュー</button>
+      </div>
     </div>
     <div class="name-input-wrap">
       <label>ルール名</label>
@@ -164,16 +167,16 @@ const OPTIONS_4 = {
   chombo_batsu:["満貫払い","倍満払い","カスタム"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局"],
-  pen_goron_taopai:["チョンボ","上がり放棄","なし"],
-  pen_noten_reach:["チョンボ","上がり放棄","なし"],
-  pen_reach_bad_ankan:["チョンボ","上がり放棄","なし"],
-  pen_goron_no_taopai:["上がり放棄","チョンボ","なし"],
-  pen_gonaki_sarashi:["上がり放棄","チョンボ","なし"],
-  pen_kuikae_ihan:["上がり放棄","チョンボ","なし"],
-  pen_tahai:["上がり放棄","チョンボ","なし"],
-  pen_gonaki_hassei:["軽罰符（1000点供託）","上がり放棄","なし"],
-  pen_reach_torikeshi:["軽罰符（1000点供託）","不可","なし"],
-  pen_shouhai:["軽罰符＋山から補充","上がり放棄","なし"],
+  pen_goron_taopai:["チョンボ","アガリ放棄","軽罰符","カスタム"],
+  pen_noten_reach:["チョンボ","アガリ放棄","軽罰符","カスタム"],
+  pen_reach_bad_ankan:["チョンボ","アガリ放棄","軽罰符","カスタム"],
+  pen_goron_no_taopai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_sarashi:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_kuikae_ihan:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_tahai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_hassei:["軽罰符","アガリ放棄","チョンボ","カスタム"],
+  pen_reach_torikeshi:["軽罰符","アガリ放棄","チョンボ","カスタム"],
+  pen_shouhai:["軽罰符","アガリ放棄","チョンボ","カスタム"],
 };
 
 const OPTIONS_3 = {
@@ -243,16 +246,16 @@ const OPTIONS_3 = {
   chombo_batsu:["倍満払い","満貫払い","カスタム"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局"],
-  pen_goron_taopai:["チョンボ","上がり放棄","なし"],
-  pen_noten_reach:["チョンボ","上がり放棄","なし"],
-  pen_reach_bad_ankan:["チョンボ","上がり放棄","なし"],
-  pen_goron_no_taopai:["上がり放棄","チョンボ","なし"],
-  pen_gonaki_sarashi:["上がり放棄","チョンボ","なし"],
-  pen_kuikae_ihan:["上がり放棄","チョンボ","なし"],
-  pen_tahai:["上がり放棄","チョンボ","なし"],
-  pen_gonaki_hassei:["軽罰符（1000点供託）","上がり放棄","なし"],
-  pen_reach_torikeshi:["軽罰符（1000点供託）","不可","なし"],
-  pen_shouhai:["軽罰符＋山から補充","上がり放棄","なし"],
+  pen_goron_taopai:["チョンボ","アガリ放棄","軽罰符","カスタム"],
+  pen_noten_reach:["チョンボ","アガリ放棄","軽罰符","カスタム"],
+  pen_reach_bad_ankan:["チョンボ","アガリ放棄","軽罰符","カスタム"],
+  pen_goron_no_taopai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_sarashi:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_kuikae_ihan:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_tahai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_hassei:["軽罰符","アガリ放棄","チョンボ","カスタム"],
+  pen_reach_torikeshi:["軽罰符","アガリ放棄","チョンボ","カスタム"],
+  pen_shouhai:["軽罰符","アガリ放棄","チョンボ","カスタム"],
 };
 
 // --- 基準ルール ---
@@ -436,7 +439,8 @@ const STORAGE_KEY = 'mahjong_rules_pwa_v1';
 let appData = { rules: [] };
 let editingId = null;
 let deleteTargetId = null;
-const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman']);
+let _editSnapshot = null;  // 編集前のスナップショット
+const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman','pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
 
 function loadData() {
   try {
@@ -480,8 +484,25 @@ function showScreen(id) {
 
 function goHome() {
   editingId = null;
+  _editSnapshot = null;
   renderHome();
   showScreen('home');
+}
+
+function goHomeWithConfirm() {
+  if (confirm('保存せずに戻りますか？\n変更内容は破棄されます。')) {
+    // スナップショットを復元
+    if (_editSnapshot) {
+      appData = JSON.parse(_editSnapshot);
+      saveData();
+    }
+    goHome();
+  }
+}
+
+function saveAndGoHome() {
+  saveData();
+  goHome();
 }
 
 function goEdit() {
@@ -525,6 +546,7 @@ function renderHome() {
 // ルールCRUD
 // =====================================================================
 function createRule(mode) {
+  _editSnapshot = JSON.stringify(appData);
   const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const def = getDefault(mode);
   const rule = {
@@ -535,10 +557,12 @@ function createRule(mode) {
   };
   appData.rules.push(rule);
   saveData();
-  editRule(id);
+  editingId = id;
+  goEdit();
 }
 
 function editRule(id) {
+  _editSnapshot = JSON.stringify(appData);
   editingId = id;
   goEdit();
 }
