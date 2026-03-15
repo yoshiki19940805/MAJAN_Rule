@@ -370,9 +370,19 @@ select:focus { border-color: var(--accent); }
 .swipe-content.diff {
   background: #FFF5F5;
 }
-.swipe-delete-btn {
-  position: absolute; right: 0; top: 0; bottom: 0; width: 60px;
+.swipe-actions {
+  position: absolute; right: 0; top: 0; bottom: 0;
   z-index: 1;
+  display: flex;
+}
+.swipe-edit-btn {
+  width: 60px;
+  background: #3182CE; color: #fff; border: none;
+  font-family: var(--font); font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.swipe-delete-btn {
+  width: 60px;
   background: var(--highlight); color: #fff; border: none;
   font-family: var(--font); font-size: 0.8rem; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;

@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.8<br>2026-03-16 08:50</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.9<br>2026-03-16 08:55</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -754,17 +754,17 @@ function renderEdit() {
       // 選択中の値がリストに無ければ追加
       if (val && !options.includes(val)) options = [val, ...options];
 
-      html += `<div class="swipe-row" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
+      const hasEdit = customDropdownKeys.has(k);
+      const actionsWidth = hasEdit ? 120 : 60;
+      html += `<div class="swipe-row" data-actions-width="${actionsWidth}" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
         <div class="setting-row ${isDiff?'diff':''} swipe-content">
         <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?' <span class="diff-badge">変更あり</span>':''}
         </div>
-        <div class="setting-value" style="display:flex;align-items:center;gap:4px;">
-          <select data-key="${k}" onchange="onSettingChange('${k}',this.value)" style="flex:1;">
+        <div class="setting-value"><select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
           ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
-          </select>${customDropdownKeys.has(k) ? `<button onclick="showEditOptionsDialog('${k}')" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 4px;flex-shrink:0;" title="選択肢を編集">✏️</button>` : ''}
-        </div>
+        </select></div>
       </div>
-        <button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button>
+        <div class="swipe-actions" style="width:${actionsWidth}px;">${hasEdit ? `<button class="swipe-edit-btn" onclick="showEditOptionsDialog('${k}')">編集</button>` : ''}<button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button></div>
       </div>`;
     }
 
@@ -923,15 +923,17 @@ function swipeMove(e) {
   const dx = e.touches[0].clientX - _swipeStartX;
   const content = e.currentTarget.querySelector('.swipe-content');
   if (!content) return;
-  const newX = Math.min(0, Math.max(-60, _swipeStartOffset + dx));
+  const maxSlide = parseInt(e.currentTarget.dataset.actionsWidth) || 60;
+  const newX = Math.min(0, Math.max(-maxSlide, _swipeStartOffset + dx));
   content.style.transform = 'translateX(' + newX + 'px)';
 }
 function swipeEnd(e) {
   const content = e.currentTarget.querySelector('.swipe-content');
   if (!content) return;
   content.style.transition = 'transform 0.2s ease';
+  const maxSlide = parseInt(e.currentTarget.dataset.actionsWidth) || 60;
   const cur = parseFloat(content.style.transform.replace(/[^-\d.]/g,'')) || 0;
-  content.style.transform = cur < -30 ? 'translateX(-60px)' : 'translateX(0)';
+  content.style.transform = cur < -(maxSlide / 2) ? 'translateX(-' + maxSlide + 'px)' : 'translateX(0)';
 }
 // --- 既存項目の削除 ---
 function removeSettingKey(key) {
