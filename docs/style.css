@@ -360,11 +360,14 @@ select:focus { border-color: var(--accent); }
 }
 .swipe-row:last-of-type { border-bottom: none; }
 .swipe-content {
+  position: relative; z-index: 2;
+  background: #fff;
   transition: transform 0.2s ease;
   border-bottom: none !important;
 }
 .swipe-delete-btn {
   position: absolute; right: 0; top: 0; bottom: 0; width: 60px;
+  z-index: 1;
   background: var(--highlight); color: #fff; border: none;
   font-family: var(--font); font-size: 0.8rem; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
