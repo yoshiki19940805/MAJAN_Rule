@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="麻雀のルールを簡単に作成・共有できるWebアプリ。三人麻雀・四人麻雀対応。">
-<meta name="theme-color" content="#0f1117">
+<meta name="theme-color" content="#F0F2F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>麻雀ルール共有アプリ</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -43,10 +43,12 @@
       <button class="btn btn-sm btn-green" onclick="goPreview()">プレビュー</button>
     </div>
     <div class="name-input-wrap">
+      <label>ルール名</label>
       <input type="text" class="name-input" id="edit-name" placeholder="ルール名を入力" oninput="onNameChange(this.value)">
     </div>
     <div id="base-rule-section" class="base-rule-wrap hidden">
-      <label>基準ルール:</label>
+      <label>比較基準（ベースルール）</label>
+
       <select id="base-rule-select" onchange="onBaseRuleChange(this.value)"></select>
     </div>
     <div class="edit-scroll" id="edit-fields"></div>
@@ -507,15 +509,19 @@ function renderEdit() {
   const fields = document.getElementById('edit-fields');
   let html = '';
 
+  if (base) {
+    html += '<div class="info-box">💡 色が変わっている項目は、設定した基準ルールからの変更点です。</div>';
+  }
+
   for (const [catName, keys] of cats) {
-    html += `<div class="category-section"><div class="category-header">■ ${esc(catName)}</div>`;
+    html += `<div class="category-section"><h2 class="section-title">${esc(catName)}</h2><div class="setting-list">`;
     for (const k of keys) {
       const val = rule.settings[k] ?? '';
       const isDiff = base && val !== (base[k] ?? '');
 
       if (k === 'shugi_memo') {
-        html += `<div class="setting-row">
-          <div class="setting-label">📝 ${esc(LABELS[k] || k)}</div>
+        html += `<div class="setting-row-textarea">
+          <label>📝 ${esc(LABELS[k] || k)}</label>
           <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)">${esc(val)}</textarea>
         </div>`;
         continue;
@@ -523,13 +529,13 @@ function renderEdit() {
 
       const options = opts[k] || [val];
       html += `<div class="setting-row ${isDiff?'diff':''}">
-        <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?'<span class="diff-badge">変更</span>':''}</div>
-        <select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
+        <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?' <span class="diff-badge">変更あり</span>':''}</div>
+        <div class="setting-value"><select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
           ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
-        </select>
+        </select></div>
       </div>`;
     }
-    html += '</div>';
+    html += '</div></div>';
   }
   fields.innerHTML = html;
 }
