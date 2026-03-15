@@ -404,11 +404,12 @@ const CATEGORIES_4 = [
   ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
   ["7. 祝儀（チップ）",["shugi_type","shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe"]],
   ["8. 特殊牌",[]],
-  ["9. ローカルルール",["shiro_pocchi","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin"]],
-  ["10. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
-  ["11. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
-  ["12. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["13. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
+  ["9. ローカル役",["shiro_pocchi","sp_4mai_chii","sp_shosharin"]],
+  ["10. ローカル役満",["sp_daisharin","sp_renho","sp_nagashi_ym"]],
+  ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
+  ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["14. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 const CATEGORIES_3 = [
@@ -419,12 +420,13 @@ const CATEGORIES_3 = [
   ["5. リーチ関連",["reach_1000","furiten_reach","open_reach","furiten_open_reach"]],
   ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
   ["7. 特殊役",["kazoe_yakuman","w_yakuman","kokushi_ankan"]],
-  ["8. ローカルルール",["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin"]],
-  ["9. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]],
-  ["10. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]],
-  ["11. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
-  ["12. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["13. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
+  ["8. ローカル役",["niken_reach","shiro_pocchi","sp_4mai_chii","sp_shosharin"]],
+  ["9. ローカル役満",["sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]],
+  ["10. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]],
+  ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]],
+  ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["14. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 // =====================================================================
@@ -740,33 +742,16 @@ function renderEdit() {
     if (customizable) {
       const customItems = rule.settings['custom_' + catKey] || [];
       for (let i = 0; i < customItems.length; i++) {
-        html += `<div class="setting-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <input type="text" value="${esc(customItems[i].name||'')}" oninput="updateCustomPenalty('${esc(catKey)}',${i},'name',this.value)"
-              placeholder="項目名" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;margin-right:8px;">
-            <button onclick="removeCustomPenalty('${esc(catKey)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;">削除</button>
+        html += `<div class="setting-row">
+          <div class="setting-label">${esc(customItems[i].name||'項目'+(i+1))}
+            <button onclick="removeCustomPenalty('${esc(catKey)}',${i})" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#E53E3E;margin-left:4px;" title="削除">×</button>
           </div>
-          <input type="text" value="${esc(customItems[i].value||'')}" oninput="updateCustomPenalty('${esc(catKey)}',${i},'value',this.value)"
-            placeholder="設定内容" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+          <div class="setting-value"><input type="text" value="${esc(customItems[i].value||'')}" oninput="updateCustomPenalty('${esc(catKey)}',${i},'value',this.value)"
+            placeholder="設定内容" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;"></div>
         </div>`;
       }
-      html += `<button onclick="addCustomPenalty('${esc(catKey)}')" style="width:100%;padding:8px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;margin-top:4px;">＋ 項目を追加</button>`;
+      html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="btn-add-item">＋ 項目を追加</button>`;
     }
-
-    // ユーザー追加項目
-    const userItems = rule.settings['user_items_' + catKey] || [];
-    for (let i = 0; i < userItems.length; i++) {
-      html += `<div class="setting-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <input type="text" value="${esc(userItems[i].name||'')}" oninput="updateUserItem('${esc(catKey)}',${i},'name',this.value)"
-            placeholder="項目名" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;margin-right:8px;">
-          <button onclick="removeUserItem('${esc(catKey)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;">削除</button>
-        </div>
-        <input type="text" value="${esc(userItems[i].value||'')}" oninput="updateUserItem('${esc(catKey)}',${i},'value',this.value)"
-          placeholder="設定内容" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-      </div>`;
-    }
-    html += `<button onclick="addUserItem('${esc(catKey)}')" style="width:100%;padding:8px;background:#718096;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;margin-top:4px;">＋ 項目を追加</button>`;
 
     // 大項目ごとの特記事項
     const catMemo = rule.settings['memo_' + catKey] || '';
@@ -848,6 +833,17 @@ function addCustomPenalty(catKey) {
   const k = 'custom_' + catKey;
   if (!rule.settings[k]) rule.settings[k] = [];
   rule.settings[k].push({name:'', value:''});
+  saveData();
+  renderEdit();
+}
+function addCustomPenaltyWithPrompt(catKey) {
+  const name = prompt('追加する項目名を入力してください:');
+  if (!name || !name.trim()) return;
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'custom_' + catKey;
+  if (!rule.settings[k]) rule.settings[k] = [];
+  rule.settings[k].push({name:name.trim(), value:''});
   saveData();
   renderEdit();
 }

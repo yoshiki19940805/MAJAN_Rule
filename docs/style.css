@@ -342,6 +342,17 @@ select:focus { border-color: var(--accent); }
 .install-banner p { flex: 1; font-size: 0.8rem; font-weight: 600; color: #fff; }
 .install-banner .btn { padding: 6px 14px; font-size: 0.75rem; background: #fff; color: var(--accent); }
 
+/* --- 項目追加ボタン --- */
+.btn-add-item {
+  width: 100%; padding: 10px;
+  background: var(--bg); border: 1px dashed var(--border);
+  border-radius: var(--radius-sm); cursor: pointer;
+  font-family: var(--font); font-size: 0.85rem; font-weight: 500;
+  color: var(--accent); margin-top: 4px;
+  transition: all var(--transition);
+}
+.btn-add-item:hover { background: #EBF8FF; border-color: var(--accent); }
+
 /* --- Utilities --- */
 .hidden { display: none !important; }
 

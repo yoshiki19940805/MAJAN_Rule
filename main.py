@@ -386,11 +386,12 @@ CATEGORIES_4 = [
     ("6. リーチ後の暗槓", ["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]),
     ("7. 祝儀（チップ）", ["shugi_type","shugi_ippatsu","shugi_ura","shugi_aka","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe"]),
     ("8. 特殊牌", []),
-    ("9. ローカルルール", ["shiro_pocchi","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin"]),
-    ("10. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]),
-    ("11. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("12. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
-    ("13. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
+    ("9. ローカル役", ["shiro_pocchi","sp_4mai_chii","sp_shosharin"]),
+    ("10. ローカル役満", ["sp_daisharin","sp_renho","sp_nagashi_ym"]),
+    ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]),
+    ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
+    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
+    ("14. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
 ]
 
 CATEGORIES_3 = [
@@ -401,12 +402,13 @@ CATEGORIES_3 = [
     ("5. リーチ関連", ["reach_1000","furiten_reach","open_reach","furiten_open_reach"]),
     ("6. リーチ後の暗槓", ["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]),
     ("7. 特殊役", ["kazoe_yakuman","w_yakuman","kokushi_ankan"]),
-    ("8. ローカルルール", ["niken_reach","shiro_pocchi","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym","sp_4mai_chii","sp_shosharin"]),
-    ("9. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]),
-    ("10. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
-    ("11. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("12. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
-    ("13. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
+    ("8. ローカル役", ["niken_reach","shiro_pocchi","sp_4mai_chii","sp_shosharin"]),
+    ("9. ローカル役満", ["sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]),
+    ("10. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]),
+    ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
+    ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
+    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
+    ("14. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
 ]
 
 # =====================================================================
