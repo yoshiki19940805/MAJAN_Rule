@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mahjong-rule-v20';
+const CACHE_NAME = 'mahjong-rule-v21';
 const ASSETS = [
   './',
   './index.html',
