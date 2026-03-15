@@ -24,15 +24,20 @@ if not os.path.exists(FONT_PATH):
 OPTIONS_4 = {
     # 1. 基本設定
     "length":        ["東南戦", "東風戦"],
-    "mochi_ten":     ["25000点", "30000点"],
-    "kaeshi_ten":    ["30000点", "25000点"],
-    "uma":           ["10-20", "10-30", "15-5", "20-30", "なし"],
+    "mochi_ten":     ["25000点", "30000点", "カスタム"],
+    "mochi_ten_custom": [""],
+    "kaeshi_ten":    ["30000点", "25000点", "カスタム"],
+    "kaeshi_ten_custom": [""],
+    "uma":           ["10-20", "10-30", "15-5", "20-30", "なし", "カスタム"],
+    "uma_custom":    [""],
     "tobi":          ["あり（0点未満で終了）", "あり（0点ちょうどで終了）", "なし"],
     "nishiiri":      ["なし", "あり"],
-    "ipponba":       ["300点", "1500点"],
+    "ipponba":       ["300点", "1500点", "カスタム"],
+    "ipponba_custom": [""],
     # 2. 進行
     "renchan":       ["テンパイ連荘", "和了連荘"],
-    "agariyame":     ["あり", "なし"],
+    "oras_oya":      ["アガリ止め・テンパイ止めあり", "アガリ止め・テンパイ止めなし", "カスタム"],
+    "oras_oya_custom": [""],
     "tochu_kyushu":  ["あり", "なし"],
     "tochu_sufon":   ["あり", "なし"],
     "tochu_sukan":   ["あり", "なし"],
@@ -96,9 +101,10 @@ OPTIONS_4 = {
 
 # --- 四麻 基準ルール ---
 _BASE_4_COMMON = {
-    "length": "東南戦", "mochi_ten": "25000点", "kaeshi_ten": "30000点",
-    "tobi": "あり（0点未満で終了）", "ipponba": "300点",
-    "renchan": "テンパイ連荘", "agariyame": "あり",
+    "length": "東南戦", "mochi_ten": "25000点", "mochi_ten_custom": "",
+    "kaeshi_ten": "30000点", "kaeshi_ten_custom": "",
+    "tobi": "あり（0点未満で終了）", "ipponba": "300点", "ipponba_custom": "",
+    "renchan": "テンパイ連荘", "oras_oya": "アガリ止め・テンパイ止めあり", "oras_oya_custom": "",
     "tochu_kyushu": "あり", "tochu_sufon": "あり", "tochu_sukan": "あり",
     "tochu_sucha": "あり", "tochu_sancha": "あり",
     "tochu_honba": "積む", "naki_priority": "発声優先（同時ならポン・カン優先）",
@@ -127,14 +133,15 @@ _BASE_4_COMMON = {
 BASE_RULES_4 = {
     "雀魂（四麻・段位戦）": {
         **_BASE_4_COMMON,
-        "uma": "10-20", "nishiiri": "あり",
+        "uma": "10-20", "uma_custom": "", "nishiiri": "あり",
         "double_ron": "あり", "triple_ron": "全員アガリ",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
         "yakuman_type": "雀魂に準ずる",
     },
     "Mリーグ公式（四麻）": {
         **_BASE_4_COMMON,
-        "uma": "10-30", "nishiiri": "なし", "tobi": "なし", "agariyame": "なし",
+        "uma": "10-30", "uma_custom": "", "nishiiri": "なし", "tobi": "なし",
+        "oras_oya": "アガリ止め・テンパイ止めなし",
         "tochu_kyushu": "なし", "tochu_sufon": "なし", "tochu_sukan": "なし",
         "tochu_sucha": "なし", "tochu_sancha": "なし",
         "double_ron": "なし（頭ハネ）", "triple_ron": "頭ハネ",
