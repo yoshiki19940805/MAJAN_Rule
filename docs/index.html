@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.8<br>2026-03-15 23:22</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v1.9<br>2026-03-15 23:28</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -510,7 +510,6 @@ function renderHome() {
         <div class="rule-card-name">${esc(r.name)}</div>
         <div class="rule-card-mode">
           <span class="badge ${r.mode==='四麻'?'badge-4ma':'badge-3ma'}">${r.mode}</span>
-          ${r.base_rule ? esc(r.base_rule) : ''}
         </div>
       </div>
       <div class="rule-card-actions">
@@ -741,12 +740,15 @@ function renderEdit() {
     if (customizable) {
       const customItems = rule.settings['custom_' + catKey] || [];
       for (let i = 0; i < customItems.length; i++) {
+        const cVal = customItems[i].value || '';
+        const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
         html += `<div class="setting-row">
           <div class="setting-label">${esc(customItems[i].name||'項目'+(i+1))}
             <button onclick="removeCustomPenalty('${esc(catKey)}',${i})" style="background:none;border:none;cursor:pointer;font-size:0.7rem;color:#E53E3E;margin-left:4px;" title="削除">×</button>
           </div>
-          <div class="setting-value"><input type="text" value="${esc(customItems[i].value||'')}" oninput="updateCustomPenalty('${esc(catKey)}',${i},'value',this.value)"
-            placeholder="設定内容" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;"></div>
+          <div class="setting-value"><select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
+            ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
+          </select></div>
         </div>`;
       }
       html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="btn-add-item">＋ 項目を追加</button>`;
@@ -848,9 +850,28 @@ function addCustomPenaltyWithPrompt(catKey) {
   if (!rule) return;
   const k = 'custom_' + catKey;
   if (!rule.settings[k]) rule.settings[k] = [];
-  rule.settings[k].push({name:name.trim(), value:''});
+  const value = prompt('"' + name.trim() + '"の値を入力してください:');
+  if (!value || !value.trim()) return;
+  rule.settings[k].push({name:name.trim(), value:value.trim()});
   saveData();
   renderEdit();
+}
+function onCustomPenaltySelect(catKey, idx, val) {
+  if (val === 'カスタム') {
+    const rule = getRule(editingId);
+    if (!rule) return;
+    const k = 'custom_' + catKey;
+    const items = rule.settings[k] || [];
+    const itemName = items[idx] ? items[idx].name : '項目';
+    const newVal = prompt('"' + itemName + '"の値を入力してください:');
+    if (newVal && newVal.trim()) {
+      items[idx].value = newVal.trim();
+      saveData();
+    }
+    renderEdit();
+    return;
+  }
+  // 通常選択した場合はそのまま
 }
 function removeCustomPenalty(catKey, idx) {
   const rule = getRule(editingId);
@@ -900,7 +921,8 @@ function updateUserItem(catKey, idx, field, val) {
 
 // --- カスタムドロップダウン選択肢追加 ---
 function showAddOptionDialog(key) {
-  const val = prompt('追加する選択肢を入力してください:');
+  const label = LABELS[key] || key;
+  const val = prompt('"' + label + '"の値を入力してください:');
   if (!val || !val.trim()) return;
   const rule = getRule(editingId);
   if (!rule) return;
