@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.1<br>2026-03-15 23:45</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v2.2<br>2026-03-15 23:55</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -289,13 +289,13 @@ const _BASE_4_COMMON = {
 };
 
 const BASE_RULES_4 = {
-  "雀魂（四麻・段位戦）":{..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
+  "雀魂（四麻・段位戦）":{..._BASE_4_COMMON, uma:"5-15", nishiiri:"あり",
     double_ron:"あり", triple_ron:"全員アガリ", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"雀魂に準ずる"},
   "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", uma_custom:"", nishiiri:"なし", tobi:"なし", oras_oya:"アガリ止め・テンパイ止めなし",
     tochu_kyushu:"なし", tochu_sufon:"なし", tochu_sukan:"なし", tochu_sucha:"なし", tochu_sancha:"なし",
     double_ron:"なし（頭ハネ）", triple_ron:"頭ハネ",
-    kiriage:"あり", nagashi:"なし", yakuman_type:"雀魂に準ずる"},
+    kiriage:"あり", nagashi:"なし", yakuman_type:"カスタム"},
   "天鳳（四麻）":{..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
     double_ron:"あり", triple_ron:"流局（三家和）", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"天鳳に準ずる"},
@@ -701,7 +701,10 @@ function renderEdit() {
       }
     }
 
+    const deletedKeys = new Set(rule.settings.deleted_keys || []);
     for (const k of renderKeys) {
+      // 削除済みキーはスキップ
+      if (deletedKeys.has(k)) continue;
       const val = rule.settings[k] ?? '';
       const isDiff = base && val !== (base[k] ?? '');
 
@@ -751,12 +754,15 @@ function renderEdit() {
       // 選択中の値がリストに無ければ追加
       if (val && !options.includes(val)) options = [val, ...options];
 
-      html += `<div class="setting-row ${isDiff?'diff':''}">
+      html += `<div class="swipe-row" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
+        <div class="setting-row ${isDiff?'diff':''} swipe-content">
         <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?' <span class="diff-badge">変更あり</span>':''}
         </div>
         <div class="setting-value"><select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
           ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
         </select></div>
+      </div>
+        <button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button>
       </div>`;
     }
 
@@ -921,6 +927,40 @@ function swipeEnd(e) {
   const cur = parseFloat(content.style.transform.replace(/[^-\d.]/g,'')) || 0;
   content.style.transform = cur < -30 ? 'translateX(-60px)' : 'translateX(0)';
 }
+// --- 既存項目の削除 ---
+function removeSettingKey(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  if (!rule.settings.deleted_keys) rule.settings.deleted_keys = [];
+  if (!rule.settings.deleted_keys.includes(key)) {
+    rule.settings.deleted_keys.push(key);
+  }
+  delete rule.settings[key];
+  // _customキーも削除
+  if (rule.settings[key + '_custom'] !== undefined) delete rule.settings[key + '_custom'];
+  // user_optionsも削除
+  if (rule.settings['user_options_' + key]) delete rule.settings['user_options_' + key];
+  saveData();
+  renderEdit();
+}
+
+// --- プルダウン追加値の削除 ---
+function removeUserOption(key, idx) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const uoKey = 'user_options_' + key;
+  if (!rule.settings[uoKey]) return;
+  const removedVal = rule.settings[uoKey][idx];
+  rule.settings[uoKey].splice(idx, 1);
+  // 現在選択中の値が削除された場合、デフォルトに戻す
+  if (rule.settings[key] === removedVal) {
+    const opts = getOptions(rule.mode);
+    rule.settings[key] = (opts[key] && opts[key][0]) || '';
+  }
+  saveData();
+  renderEdit();
+}
+
 function removeCustomPenalty(catKey, idx) {
   const rule = getRule(editingId);
   if (!rule) return;
@@ -1106,43 +1146,82 @@ async function exportImage() {
   const el = document.getElementById('preview-area');
   try {
     const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-    const link = document.createElement('a');
-    link.download = (getRule(editingId)?.name || 'rule') + '.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showSnack('📷 画像を保存しました');
+    const fileName = (getRule(editingId)?.name || 'rule') + '.png';
+    // Web Share API が使えればそちらを使う（iOS写真アプリ保存可能）
+    if (navigator.share && navigator.canShare) {
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: fileName });
+            showSnack('📷 共有しました');
+          } catch(e) { /* ユーザーがキャンセル */ }
+        } else {
+          // canShareが非対応の場合はダウンロード
+          const link = document.createElement('a');
+          link.download = fileName;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          showSnack('📷 画像を保存しました');
+        }
+      }, 'image/png');
+    } else {
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showSnack('📷 画像を保存しました');
+    }
   } catch(e) { showSnack('画像の保存に失敗しました'); }
 }
 
 async function exportPDF() {
   const el = document.getElementById('preview-area');
   try {
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    // 各カテゴリブロックを個別にキャプチャして改ページ制御
+    const blocks = el.querySelectorAll('.pv-category, .pv-header, .pv-memo, h3');
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfW = 190; // 左右10mmマージン
-    const pageH = 277; // 上下10mmマージン
-    const imgW = pdfW;
-    const imgH = (canvas.height * imgW) / canvas.width;
-    let y = 0;
-    let page = 0;
-    while (y < imgH) {
-      if (page > 0) pdf.addPage();
-      // キャンバスから部分を切り出し
-      const srcY = (y / imgH) * canvas.height;
-      const srcH = Math.min((pageH / imgH) * canvas.height, canvas.height - srcY);
-      const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width = canvas.width;
-      sliceCanvas.height = srcH;
-      sliceCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-      const sliceData = sliceCanvas.toDataURL('image/png');
-      const sliceH = (srcH * imgW) / canvas.width;
-      pdf.addImage(sliceData, 'PNG', 10, 10, imgW, sliceH);
-      y += pageH;
-      page++;
+    const pdfW = 190;
+    const pageH = 277;
+    let curY = 10; // 上マージン
+
+    // ブロックがない場合は全体を1枚でキャプチャ
+    if (blocks.length === 0) {
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const imgH = (canvas.height * pdfW) / canvas.width;
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, pdfW, Math.min(imgH, pageH));
+    } else {
+      for (const block of blocks) {
+        const canvas = await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        const imgH = (canvas.height * pdfW) / canvas.width;
+        // ページに収まらない場合は改ページ
+        if (curY + imgH > pageH + 10 && curY > 10) {
+          pdf.addPage();
+          curY = 10;
+        }
+        // ブロック自体がページより大きい場合はスライス分割
+        if (imgH > pageH) {
+          let sy = 0;
+          while (sy < canvas.height) {
+            if (curY > 10) { pdf.addPage(); curY = 10; }
+            const sliceH = Math.min((pageH / pdfW) * canvas.width, canvas.height - sy);
+            const sc = document.createElement('canvas');
+            sc.width = canvas.width; sc.height = sliceH;
+            sc.getContext('2d').drawImage(canvas, 0, sy, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+            const h = (sliceH * pdfW) / canvas.width;
+            pdf.addImage(sc.toDataURL('image/png'), 'PNG', 10, curY, pdfW, h);
+            curY += h;
+            sy += sliceH;
+          }
+        } else {
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, curY, pdfW, imgH);
+          curY += imgH;
+        }
+      }
     }
     pdf.save((getRule(editingId)?.name || 'rule') + '.pdf');
-    showSnack('📄 PDFを保存しました');
+    showSnack('📄 PDFをダウンロードしました');
   } catch(e) { showSnack('PDFの保存に失敗しました'); }
 }
 

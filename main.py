@@ -147,7 +147,7 @@ _BASE_4_COMMON = {
 BASE_RULES_4 = {
     "雀魂（四麻・段位戦）": {
         **_BASE_4_COMMON,
-        "uma": "10-20", "uma_custom": "", "nishiiri": "あり",
+        "uma": "5-15", "uma_custom": "", "nishiiri": "あり",
         "double_ron": "あり", "triple_ron": "全員アガリ",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
         "yakuman_type": "雀魂に準ずる",
@@ -160,7 +160,7 @@ BASE_RULES_4 = {
         "tochu_sucha": "なし", "tochu_sancha": "なし",
         "double_ron": "なし（頭ハネ）", "triple_ron": "頭ハネ",
         "kiriage": "あり", "nagashi": "なし",
-        "yakuman_type": "雀魂に準ずる",
+        "yakuman_type": "カスタム",
     },
     "天鳳（四麻）": {
         **_BASE_4_COMMON,
