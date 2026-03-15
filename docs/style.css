@@ -365,6 +365,9 @@ select:focus { border-color: var(--accent); }
   transition: transform 0.2s ease;
   border-bottom: none !important;
 }
+.swipe-content.diff {
+  background: var(--highlight-bg);
+}
 .swipe-delete-btn {
   position: absolute; right: 0; top: 0; bottom: 0; width: 60px;
   z-index: 1;
