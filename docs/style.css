@@ -361,13 +361,14 @@ select:focus { border-color: var(--accent); }
 .swipe-row:last-of-type { border-bottom: none; }
 .swipe-content {
   position: relative; z-index: 2;
-  width: 100%;
+  box-sizing: border-box;
+  width: 100%; min-width: 100%;
   background: #fff;
   transition: transform 0.2s ease;
   border-bottom: none !important;
 }
 .swipe-content.diff {
-  background: var(--highlight-bg);
+  background: #FFF5F5;
 }
 .swipe-delete-btn {
   position: absolute; right: 0; top: 0; bottom: 0; width: 60px;
