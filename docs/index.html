@@ -11,31 +11,17 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
+<!-- React / Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
 <div class="app" id="app">
-  <!-- ホーム画面 -->
-  <div class="screen active" id="screen-home">
-    <div class="header">
-      <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v5.4<br>2026-03-16 16:35</span>
-    </div>
-    <div class="home-hero">
-      <h1>麻雀ルールブック</h1>
-      <p>ルールを作成して仲間と共有しよう</p>
-    </div>
-    <div class="create-btns">
-      <button class="btn btn-primary" onclick="createRule('四麻')">➕ 四麻作成</button>
-      <button class="btn btn-purple" onclick="createRule('三麻')">➕ 三麻作成</button>
-    </div>
-    <div class="btn-row" style="margin-top:1rem; text-align:center;">
-      <button class="btn btn-ghost" style="border:1px solid var(--border);" onclick="showScreen('custom-base-manager')">⚙️ 標準ルールの管理</button>
-    </div>
-    <div id="install-banner" class="install-banner" onclick="installPWA()">
-      <p>📱 ホーム画面に追加してアプリとして使えます</p>
-      <button class="btn btn-sm">追加</button>
-    </div>
-    <div class="rule-list" id="rule-list"></div>
+  <!-- ホーム画面 (React化) -->
+  <div class="screen active" style="padding:0; background-color: #f8fafc;" id="screen-home">
+    <div id="react-home-root" style="flex:1; display:flex; flex-direction:column;"></div>
   </div>
 
   <!-- 編集画面 -->
@@ -616,31 +602,17 @@ function copySharedRule() {
 }
 
 // =====================================================================
-// ホーム画面
+// ホーム画面 (React連携)
 // =====================================================================
 function renderHome() {
-  const list = document.getElementById('rule-list');
-  if (appData.rules.length === 0) {
-    list.innerHTML = '<div class="empty-state"><div class="emoji">🀄</div><p>ルールがまだありません<br>上のボタンから作成しましょう</p></div>';
-    return;
-  }
-  list.innerHTML = appData.rules.map(r => `
-    <div class="rule-card" onclick="editRule('${r.id}')">
-      <div class="rule-card-info">
-        <div class="rule-card-name">${esc(r.name)}</div>
-        <div class="rule-card-mode">
-          <span class="badge ${r.mode==='四麻'?'badge-4ma':'badge-3ma'}">${r.mode}</span>
-          ${r.readonly ? '<span class="badge" style="background:#718096;color:#fff;">閲覧専用</span>' : ''}
-        </div>
-      </div>
-      <div class="rule-card-actions">
-        <button class="icon-btn" onclick="event.stopPropagation();shareRule('${r.id}')" title="共有リンク作成">🔗</button>
-        <button class="icon-btn" onclick="event.stopPropagation();duplicateRule('${r.id}')" title="コピー">📋</button>
-        <button class="icon-btn" onclick="event.stopPropagation();editRule('${r.id}')" title="編集">✏️</button>
-        <button class="icon-btn delete" onclick="event.stopPropagation();askDelete('${r.id}')" title="削除">🗑️</button>
-      </div>
-    </div>
-  `).join('');
+  const tryRender = () => {
+    if (window._renderReactHome) {
+      window._renderReactHome();
+    } else {
+      setTimeout(tryRender, 50);
+    }
+  };
+  tryRender();
 }
 
 let isSharedMode = false;
@@ -1610,14 +1582,16 @@ let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  document.getElementById('install-banner').classList.add('show');
+  if (window._triggerReactPWABanner) {
+    window._triggerReactPWABanner();
+  }
 });
 function installPWA() {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(() => {
-      document.getElementById('install-banner').classList.remove('show');
       deferredPrompt = null;
+      if (window._hideReactPWABanner) window._hideReactPWABanner();
     });
   }
 }
@@ -1841,6 +1815,253 @@ loadData();
 if (!checkSharedRule()) {
   renderHome();
 }
+</script>
+<script type="text/babel">
+  const { useState, useCallback, useEffect } = React;
+
+  // ==========================================
+  // 1. アイコン群 (Lucide Icons)
+  // ==========================================
+  const IconSettings = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+  const IconUsers4 = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
+  const IconUsers3 = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="22" y1="11" x2="16" y2="11"></line></svg>;
+  const IconShare = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>;
+  const IconCopy = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>;
+  const IconEdit = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>;
+  const IconTrash = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
+  const IconLock = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
+  const IconCheck = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>;
+  const IconPlus = ({ size, className }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+
+  // ==========================================
+  // 2. 設定値・標準テーマ定義
+  // ==========================================
+  const CONFIG = {
+    strings: {
+      appTitle: "麻雀ルール共有",
+      manageStandardRules: "標準ルール管理",
+      tab4p: "四人麻雀",
+      tab3p: "三人麻雀",
+      create4pRule: "新しい四人麻雀ルールを作成",
+      create3pRule: "新しい三人麻雀ルールを作成",
+      ruleListTitleSuffix: "のルール",
+      actionShare: "共有",
+      actionCopy: "コピー",
+      actionEdit: "編集",
+      actionDelete: "削除",
+      versionPrefix: "v",
+      emptyRules: "ルールが作成されていません",
+    },
+    appVersion: "5.5(React)",
+    buildDate: "2026-03-16 17:20",
+  };
+
+  const THEME = {
+    fontFamily: "font-sans",
+    bgApp: "bg-slate-50",
+    bgHeader: "bg-white",
+    bgList: "bg-white",
+    bgTabContainer: "bg-slate-200/60 p-1 rounded-lg",
+    tabActive: "bg-white shadow-sm text-slate-800 font-bold rounded-md",
+    tabInactive: "text-slate-500 hover:text-slate-700 font-medium rounded-md",
+    textMain: "text-slate-800",
+    textSub: "text-slate-500",
+    textMuted: "text-slate-400",
+    border: "border-slate-200",
+    theme4p: "bg-blue-600 active:bg-blue-700 text-white rounded-xl shadow-sm",
+    theme3p: "bg-emerald-600 active:bg-emerald-700 text-white rounded-xl shadow-sm",
+    indicator4p: "bg-blue-400",
+    indicator3p: "bg-emerald-400",
+    listContainer: "rounded-xl border shadow-sm",
+    listItem: "border-b",
+    btnAction: "rounded-md active:bg-slate-100 text-slate-400 hover:text-slate-600",
+    btnActionDanger: "rounded-md active:bg-red-50 active:text-red-600 text-slate-400 hover:text-red-600",
+    readOnlyIcon: "text-amber-500",
+    iconSize: { sm: 14, md: 16, lg: 20 }
+  };
+
+  const ActionButton = ({ icon, label, onClick, disabled, isDanger }) => {
+    const baseStyle = "p-1.5 transition-colors flex items-center justify-center";
+    const colorStyle = isDanger ? THEME.btnActionDanger : THEME.btnAction;
+    const disabledStyle = disabled ? "opacity-30 cursor-not-allowed" : "cursor-pointer active:scale-95";
+
+    return (
+      <button 
+        onClick={onClick} 
+        disabled={disabled} 
+        aria-label={label}
+        className={`${baseStyle} ${disabledStyle} ${!disabled ? colorStyle : ''}`}
+      >
+        {icon}
+      </button>
+    );
+  };
+
+  // ==========================================
+  // 3. メインコンポーネント
+  // ==========================================
+  function App({ rulesFromVanilla }) {
+    const [activeTab, setActiveTab] = useState(4); // 4 = 四人麻雀, 3 = 三人麻雀
+    const [showPwaBanner, setShowPwaBanner] = useState(false);
+    
+    // VanillaJS側で保存されたルールをフィルタリング
+    const displayedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab);
+
+    // PWAインストールバナー表示用
+    useEffect(() => {
+      window._triggerReactPWABanner = () => setShowPwaBanner(true);
+      window._hideReactPWABanner = () => setShowPwaBanner(false);
+      // PWAイベントがすでに発火済み（deferredPromptがセットされている）場合はバナーを表示
+      if (window.deferredPrompt) {
+        setShowPwaBanner(true);
+      }
+      return () => {
+        window._triggerReactPWABanner = null;
+        window._hideReactPWABanner = null;
+      };
+    }, []);
+
+    const handleInstallPWA = () => {
+      if (window.installPWA) window.installPWA();
+    };
+
+    const handleAction = (action, rule) => {
+      switch(action) {
+        case 'share': window.shareRule(rule.id); break;
+        case 'copy': window.duplicateRule(rule.id); break;
+        case 'edit': window.editRule(rule.id); break;
+        case 'delete': window.askDelete(rule.id); break;
+      }
+    };
+
+    return (
+      <div className={`relative flex flex-col flex-1 overflow-hidden ${THEME.fontFamily} ${THEME.bgApp} ${THEME.textMain}`}>
+        
+        {/* 固定ヘッダー */}
+        <header className={`flex justify-between items-center px-4 pt-3 pb-2 z-20 shrink-0 ${THEME.bgHeader}`}>
+          <h1 className="text-lg font-bold tracking-tight truncate pr-2" style={{margin:0}}>
+            {CONFIG.strings.appTitle}
+          </h1>
+          <button 
+            onClick={() => window.showScreen('custom-base-manager')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors active:scale-95 ${THEME.bgHeader} shadow-sm ${THEME.border}`}
+          >
+            <IconSettings size={THEME.iconSize.sm} />
+            {CONFIG.strings.manageStandardRules}
+          </button>
+        </header>
+
+        {/* タブ切り替え（セグメントコントロール） */}
+        <div className={`px-4 pb-3 z-20 shrink-0 border-b ${THEME.bgHeader} ${THEME.border}`}>
+          <div className={`flex ${THEME.bgTabContainer}`}>
+            <button 
+              onClick={() => setActiveTab(4)}
+              className={`flex-1 py-1.5 text-sm transition-all flex justify-center items-center gap-1.5 ${activeTab === 4 ? THEME.tabActive : THEME.tabInactive}`}
+            >
+              <IconUsers4 size={16} />
+              {CONFIG.strings.tab4p}
+            </button>
+            <button 
+              onClick={() => setActiveTab(3)}
+              className={`flex-1 py-1.5 text-sm transition-all flex justify-center items-center gap-1.5 ${activeTab === 3 ? THEME.tabActive : THEME.tabInactive}`}
+            >
+              <IconUsers3 size={16} />
+              {CONFIG.strings.tab3p}
+            </button>
+          </div>
+        </div>
+
+        {/* スクロール可能なメインコンテンツ */}
+        <main className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-6 pb-24 relative">
+          
+          {/* インストールバナー */}
+          {showPwaBanner && (
+            <div onClick={handleInstallPWA} className="bg-blue-50 text-blue-700 text-xs font-bold px-4 py-3 mb-4 rounded-xl border border-blue-100 flex items-center justify-between cursor-pointer shadow-sm active:scale-95 transition-transform">
+              <span>📱 ホーム画面に追加してアプリとして使う</span>
+              <button className="bg-blue-600 text-white px-3 py-1.5 rounded-md shadow-sm">追加</button>
+            </div>
+          )}
+
+          {/* 新規作成ボタン */}
+          <section>
+            <button 
+              onClick={() => window.createRule(activeTab === 4 ? '四麻' : '三麻')}
+              className={`w-full flex flex-row items-center justify-center gap-2 p-4 transition-transform active:scale-95 font-bold text-sm ${activeTab === 4 ? THEME.theme4p : THEME.theme3p}`}
+              style={{color: "white"}} // override vanilla reset
+            >
+              <IconPlus size={THEME.iconSize.lg} />
+              {activeTab === 4 ? CONFIG.strings.create4pRule : CONFIG.strings.create3pRule}
+            </button>
+          </section>
+
+          {/* ルール一覧 */}
+          <section>
+            <h2 className={`text-sm font-bold mb-2 px-1 ${THEME.textSub}`} style={{margin: "0 0 8px 0"}}>
+              {activeTab === 4 ? CONFIG.strings.tab4p : CONFIG.strings.tab3p}{CONFIG.strings.ruleListTitleSuffix} 
+              <span className="text-xs font-normal ml-1">({displayedRules.length})</span>
+            </h2>
+            
+            <div className={`overflow-hidden ${THEME.bgList} ${THEME.listContainer}`}>
+              {displayedRules.map((rule, index) => (
+                <div 
+                  key={rule.id} 
+                  className={`flex flex-row items-center justify-between p-3 transition-colors cursor-pointer active:bg-slate-50 ${index !== displayedRules.length - 1 ? THEME.listItem : ''} ${THEME.border}`}
+                  onClick={() => handleAction('edit', rule)}
+                >
+                  
+                  {/* ルール名とインジケーター */}
+                  <div className="flex-1 min-w-0 pr-2 flex flex-col justify-center">
+                    <div className="flex flex-row items-center gap-2">
+                        {rule.readonly ? (
+                            <IconLock size={14} className={`shrink-0 ${THEME.readOnlyIcon}`} title="閲覧専用" />
+                        ) : (
+                            <div className={`w-1.5 h-4 rounded-full shrink-0 ${activeTab === 4 ? THEME.indicator4p : THEME.indicator3p}`}></div>
+                        )}
+                        <h3 className={`text-sm font-bold truncate leading-tight ${THEME.textMain}`} style={{margin:0}}>
+                            {rule.name}
+                        </h3>
+                    </div>
+                  </div>
+
+                  {/* アクションボタン */}
+                  <div className="flex flex-row items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    <ActionButton icon={<IconShare size={THEME.iconSize.md} />} label={CONFIG.strings.actionShare} onClick={() => handleAction('share', rule)} />
+                    <ActionButton icon={<IconCopy size={THEME.iconSize.md} />} label={CONFIG.strings.actionCopy} onClick={() => handleAction('copy', rule)} />
+                    <ActionButton icon={<IconEdit size={THEME.iconSize.md} />} label={CONFIG.strings.actionEdit} onClick={() => handleAction('edit', rule)} disabled={rule.readonly} />
+                    <ActionButton icon={<IconTrash size={THEME.iconSize.md} />} label={CONFIG.strings.actionDelete} onClick={() => handleAction('delete', rule)} disabled={rule.readonly} isDanger />
+                  </div>
+                </div>
+              ))}
+
+              {displayedRules.length === 0 && (
+                <div className={`text-center py-10 ${THEME.textMuted}`}>
+                  <p className="text-sm font-medium" style={{margin:0}}>{CONFIG.strings.emptyRules}</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </main>
+
+        {/* フッター情報 */}
+        <footer className={`absolute bottom-0 w-full pb-safe py-3 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent text-center text-[10px] pointer-events-none ${THEME.textMuted}`}>
+          <p className="mt-4" style={{margin:0}}>
+            {CONFIG.strings.versionPrefix}{CONFIG.appVersion} 
+            <span className="mx-1.5">•</span> 
+            {CONFIG.buildDate}
+          </p>
+        </footer>
+      </div>
+    );
+  }
+
+  // Vanilla JSからのレンダリングフック
+  window._renderReactHome = function() {
+    if (!window.reactRoot) {
+      window.reactRoot = ReactDOM.createRoot(document.getElementById('react-home-root'));
+    }
+    // VanillaJSの現在のステートを伝播させて再描画
+    window.reactRoot.render(<App rulesFromVanilla={appData.rules} />);
+  }
 </script>
 </body>
 </html>
