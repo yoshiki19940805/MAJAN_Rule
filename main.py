@@ -122,10 +122,8 @@ _BASE_4_COMMON = {
     "tsumo_yama": "王牌14枚残し",
     "kuitan": "あり", "atozuke": "あり", "kuikae": "禁止",
     "aka_dora": "各1枚（計3枚）", "kan_dora": "先めくり", "renpai_toitsu": "2符",
-    "kokushi_ankan": "あり", "shiro_pocchi": "なし", "yakuman_fukugo": "なし", "kazoe_yakuman": "13飜以上",
+    "kokushi_ankan": "あり", "yakuman_fukugo": "なし", "kazoe_yakuman": "13飜以上",
     "yakuman_custom_memo": "",
-    "sp_daisharin": "なし", "sp_renho": "なし", "sp_nagashi_ym": "なし",
-    "sp_4mai_chii": "なし", "sp_shosharin": "なし",
     "furiten_reach": "あり", "open_reach": "なし", "furiten_open_reach": "なし",
     "tsumo_nashi_reach": "不可",
     "reach_1000": "なし",
@@ -181,6 +179,10 @@ DEFAULT_4 = {
     "pen_kuikae_ihan": "アガリ放棄", "pen_tahai": "アガリ放棄",
     "pen_gonaki_hassei": "軽罰符", "pen_reach_torikeshi": "軽罰符",
     "pen_shouhai": "軽罰符",
+    # ローカル役（雀魂・天酹にはない）
+    "shiro_pocchi": "なし",
+    "sp_daisharin": "なし", "sp_renho": "なし", "sp_nagashi_ym": "なし",
+    "sp_4mai_chii": "なし", "sp_shosharin": "なし",
 }
 
 # --- 三麻 選択肢 ---
