@@ -548,17 +548,11 @@ def main(page: ft.Page):
 
         draw.rectangle([(0, 0), (800, 120)], fill='#1A202C')
         draw.text((25, 25), f"{rule_data['name']} ({rule_data['mode']})", fill='#FFFFFF', font=font_title)
-        is_4ma = rule_data['mode'] == '四麻'
-        if is_4ma:
-            draw.text((25, 70), f"基準: {rule_data['base_rule']}", fill='#A0AEC0', font=font)
-        else:
-            draw.text((25, 70), "三人麻雀ルール", fill='#A0AEC0', font=font)
+        draw.text((25, 70), f"基準: {get_base_rule_name(rule_data['base_rule'], None)}", fill='#A0AEC0', font=font)
 
         y = 140
-        base = None
-        if is_4ma:
-            bd = get_base_dict('四麻')
-            base = bd.get(rule_data["base_rule"], list(bd.values())[0])
+        bd = get_base_dict(rule_data['mode'])
+        base = bd.get(rule_data['base_rule'], list(bd.values())[0] if bd else {})
         categories = get_categories(rule_data['mode'])
 
         for cat_title, cat_keys in categories:
@@ -636,12 +630,9 @@ def main(page: ft.Page):
         name = rd["name"].replace(" ", "_").replace("/", "_")
         path = os.path.join(os.path.expanduser("~"), "Desktop", f"{name}.pdf")
         a4_w, a4_h = 595, 842
-        is_4ma = rd["mode"] == "四麻"
         categories = get_categories(rd["mode"])
-        base = None
-        if is_4ma:
-            bd = get_base_dict("四麻", page)
-            base = bd.get(rd.get("base_rule", ""), list(bd.values())[0])
+        bd = get_base_dict(rd["mode"], page)
+        base = bd.get(rd.get("base_rule", ""), list(bd.values())[0] if bd else {})
 
         try:
             if os.path.exists(FONT_PATH):
@@ -788,12 +779,13 @@ tr.diff td{{color:#e53e3e}}
             on_change=on_change, border_color="transparent", color=C_SUB,
             width=180, text_size=10, alignment=ft.alignment.center_right, content_padding=6)
 
-        is_4ma = current_state["rule_data"]["mode"] == "四麻"
-        is_diff = False
-        if is_4ma:
-            bd = get_base_dict("四麻", page)
+        mode = current_state["rule_data"]["mode"]
+        bd = get_base_dict(mode, page)
+        if bd:
             b_dict = bd.get(current_state["rule_data"]["base_rule"], {})
             is_diff = (dict_key not in b_dict) or (cur_val != str(b_dict.get(dict_key, "")))
+        else:
+            is_diff = False
 
         bg = C_HIGHLIGHT_BG if is_diff else C_SURFACE
         lc = C_HIGHLIGHT if is_diff else C_TEXT
@@ -1046,7 +1038,7 @@ tr.diff td{{color:#e53e3e}}
                     bgcolor=C_SURFACE, text_style=ft.TextStyle(color=C_TEXT)),
                     padding=ft.padding.symmetric(horizontal=14, vertical=6)),
             ]
-            if mode == "四麻":
+            if True:
                 ec.append(ft.Container(content=ft.Row([
                     ft.Text("比較基準:", weight=ft.FontWeight.BOLD, color=C_TEXT, size=11),
                     ft.Dropdown(value=rd.get("base_rule"), options=[ft.dropdown.Option(k, text=get_base_rule_name(k, page)) for k in bd.keys()],
