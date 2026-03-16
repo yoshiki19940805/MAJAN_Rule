@@ -43,9 +43,10 @@
     <div class="header">
       <button class="header-back" onclick="goHomeWithConfirm()">← 戻る</button>
       <span class="header-title" id="edit-mode-label"></span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-sm btn-green" onclick="saveAndGoHome()">保存</button>
-        <button class="btn btn-sm btn-green" onclick="goPreview()">プレビュー</button>
+      <div style="display:flex;gap:6px" id="edit-header-btns">
+        <button class="btn btn-sm btn-green" id="btn-save" onclick="saveAndGoHome()">保存</button>
+        <button class="btn btn-sm btn-green" id="btn-preview" onclick="goPreview()">プレビュー</button>
+        <button class="btn btn-sm btn-purple" id="btn-copy-shared" style="display:none;" onclick="copySharedRule()">コピーして保存</button>
       </div>
     </div>
     <div class="name-input-wrap">
@@ -594,9 +595,22 @@ function goEdit() {
 }
 
 function goPreview() {
-  saveData();
+  if (!isSharedMode) saveData();
   renderPreview();
   showScreen('preview');
+}
+
+function copySharedRule() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  rule.id = newId;
+  rule.name = rule.name + '（コピー）';
+  isSharedMode = false;
+  editingId = newId;
+  saveData();
+  renderEdit();
+  showSnack('ルールをコピーして保存しました');
 }
 
 // =====================================================================
@@ -617,12 +631,84 @@ function renderHome() {
         </div>
       </div>
       <div class="rule-card-actions">
+        <button class="icon-btn" onclick="event.stopPropagation();shareRule('${r.id}')" title="共有リンク作成">🔗</button>
         <button class="icon-btn" onclick="event.stopPropagation();duplicateRule('${r.id}')" title="コピー">📋</button>
         <button class="icon-btn" onclick="event.stopPropagation();editRule('${r.id}')" title="編集">✏️</button>
         <button class="icon-btn delete" onclick="event.stopPropagation();askDelete('${r.id}')" title="削除">🗑️</button>
       </div>
     </div>
   `).join('');
+}
+
+let isSharedMode = false;
+
+// =====================================================================
+// 共有機能 (エクスポート＆インポート)
+// =====================================================================
+function shareRule(id) {
+  const rule = getRule(id);
+  if (!rule) return;
+  
+  // 不要な肥大化データの除外 (例: custom_tiles が空なら除外)
+  const exportData = {
+    m: rule.mode,
+    n: rule.name,
+    b: rule.base_rule,
+    s: rule.settings
+  };
+  
+  try {
+    const jsonStr = JSON.stringify(exportData);
+    const base64Str = btoa(encodeURIComponent(jsonStr));
+    const url = new URL(window.location.href);
+    url.searchParams.set('share', base64Str);
+    
+    navigator.clipboard.writeText(url.href).then(() => {
+      showSnack('🔗 共有リンクをコピーしました');
+    }).catch(() => {
+      alert('リンクのコピーに失敗しました。以下のURLをコピーしてください：\n\n' + url.href);
+    });
+  } catch (e) {
+    showSnack('共有リンクの生成に失敗しました');
+  }
+}
+
+function checkSharedRule() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const shareData = urlParams.get('share');
+  if (shareData) {
+    try {
+      const jsonStr = decodeURIComponent(atob(shareData));
+      const parsed = JSON.parse(jsonStr);
+      
+      const id = 'shared_' + Date.now();
+      const sharedRule = {
+        id: id,
+        mode: parsed.m || '四麻',
+        name: parsed.n || '共有ルール',
+        base_rule: parsed.b || '',
+        settings: parsed.s || {}
+      };
+      
+      // 既存のリストには入れず一時データとして扱う
+      appData.rules.push(sharedRule); 
+      isSharedMode = true;
+      editingId = id;
+      
+      // URLからパラメータを消去
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      
+      renderEdit();
+      showScreen('edit');
+      return true;
+    } catch (e) {
+      alert('共有ルールの読み込みに失敗しました。リンクが不正か壊れています。');
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }
+  return false;
 }
 
 // =====================================================================
@@ -642,12 +728,14 @@ function createRule(mode) {
   };
   appData.rules.push(rule);
   saveData();
+  isSharedMode = false;
   editingId = id;
   goEdit();
 }
 
 function editRule(id) {
   _editSnapshot = JSON.stringify(appData);
+  isSharedMode = false;
   editingId = id;
   goEdit();
 }
@@ -688,18 +776,27 @@ function duplicateRule(id) {
 // =====================================================================
 function renderEdit() {
   const rule = getRule(editingId);
-  if (!rule) { goHome(); return; }
-  if (!rule.settings.custom_tiles) rule.settings.custom_tiles = [];
+  if (!rule) return goHome();
 
-  document.getElementById('edit-name').value = rule.name;
-  document.getElementById('edit-mode-label').textContent = rule.mode === '四麻' ? '四人麻雀' : '三人麻雀';
+  const titleEl = document.getElementById('edit-mode-label');
+  titleEl.innerHTML = `<span class="badge ${rule.mode==='四麻'?'badge-4ma':'badge-3ma'}">${rule.mode}</span> ${isSharedMode ? '（共有ルール）' : 'ルールの編集'}`;
 
-  // 基準ルール
-  const brSection = document.getElementById('base-rule-section');
+  const nameInput = document.getElementById('edit-name');
+  nameInput.value = rule.name;
+  nameInput.disabled = isSharedMode;
+
   const brSelect = document.getElementById('base-rule-select');
+  brSelect.disabled = isSharedMode;
+
+  const brSection = document.getElementById('base-rule-section');
   const bases = getBaseRules(rule.mode);
   
-  if (true) {
+  // ヘッダーボタンの表示切り替え
+  document.getElementById('btn-save').style.display = isSharedMode ? 'none' : 'block';
+  document.getElementById('btn-preview').style.display = isSharedMode ? 'none' : 'block';
+  document.getElementById('btn-copy-shared').style.display = isSharedMode ? 'block' : 'none';
+
+  if (brSection) { // Check if brSection exists
     brSection.classList.remove('hidden');
     let customKeys = Object.keys(bases).filter(k => k.startsWith('__custom__'));
     
@@ -754,24 +851,26 @@ function renderEdit() {
         html += `<div class="custom-tile-card" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:8px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <strong>特殊牌 #${i+1}</strong>
-            <button onclick="removeCustomTile(${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;">削除</button>
+            ${!isSharedMode ? `<button onclick="removeCustomTile(${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;">削除</button>` : ''}
           </div>
           <div style="margin-bottom:6px;">
             <label style="font-size:0.75rem;color:#666;">牌の名称</label>
-            <input type="text" value="${esc(tiles[i].name||'')}" oninput="updateCustomTile(${i},'name',this.value)" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;" placeholder="例: 金牌">
+            <input type="text" value="${esc(tiles[i].name||'')}" oninput="updateCustomTile(${i},'name',this.value)" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;" placeholder="例: 金牌" ${isSharedMode ? 'disabled' : ''}>
           </div>
           <div>
             <label style="font-size:0.75rem;color:#666;">効果・説明</label>
-            <textarea oninput="updateCustomTile(${i},'effect',this.value)" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;min-height:50px;resize:vertical;" placeholder="例: ドラ+チップ3枚">${esc(tiles[i].effect||'')}</textarea>
+            <textarea oninput="updateCustomTile(${i},'effect',this.value)" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;min-height:50px;resize:vertical;" placeholder="例: ドラ+チップ3枚" ${isSharedMode ? 'disabled' : ''}>${esc(tiles[i].effect||'')}</textarea>
           </div>
         </div>`;
       }
-      html += `<button onclick="addCustomTile()" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">＋ 特殊牌を追加</button>`;
+      if (!isSharedMode) {
+        html += `<button onclick="addCustomTile()" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.9rem;">＋ 特殊牌を追加</button>`;
+      }
       // 特記事項
       const catMemo = rule.settings['memo_' + catKey] || '';
       html += `<div class="setting-row-textarea" style="margin-top:8px;">
         <label>📝 特記事項</label>
-        <textarea data-key="memo_${catKey}" oninput="onSettingChange('memo_${catKey}',this.value)" placeholder="このカテゴリの特記事項...">${esc(catMemo)}</textarea>
+        <textarea data-key="memo_${catKey}" oninput="onSettingChange('memo_${catKey}',this.value)" placeholder="このカテゴリの特記事項..." ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
       </div>`;
       html += '</div></div>';
       continue;
@@ -810,7 +909,7 @@ function renderEdit() {
             <label>📝 ${esc(LABELS[k] || k)}</label>
             <input type="text" data-key="${k}" value="${esc(val)}"
               oninput="onSettingChange('${k}',this.value)"
-              placeholder="自由入力..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+              placeholder="自由入力..." style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;" ${isSharedMode ? 'disabled' : ''}>
           </div>`;
         }
         continue;
@@ -821,7 +920,7 @@ function renderEdit() {
         if (rule.settings.yakuman_type === 'カスタム') {
           html += `<div class="setting-row-textarea">
             <label>📝 ${esc(LABELS[k] || k)}</label>
-            <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム役満の詳細を入力...">${esc(val)}</textarea>
+            <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム役満の詳細を入力..." ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
           </div>`;
         }
         continue;
@@ -832,7 +931,7 @@ function renderEdit() {
         if (rule.settings.chombo_batsu === 'カスタム') {
           html += `<div class="setting-row-textarea">
             <label>📝 ${esc(LABELS[k] || k)}</label>
-            <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム罰符の詳細を入力...">${esc(val)}</textarea>
+            <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム罰符の詳細を入力..." ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
           </div>`;
         }
         continue;
@@ -852,11 +951,11 @@ function renderEdit() {
         <div class="setting-row ${isDiff?'diff':''} swipe-content">
         <div class="setting-label">${esc(LABELS[k] || k)}${isDiff?' <span class="diff-badge">変更あり</span>':''}
         </div>
-        <div class="setting-value"><select data-key="${k}" onchange="onSettingChange('${k}',this.value)">
+        <div class="setting-value"><select data-key="${k}" onchange="onSettingChange('${k}',this.value)" ${isSharedMode ? 'disabled' : ''}>
           ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
         </select></div>
       </div>
-        <div class="swipe-actions" style="width:120px;"><button class="swipe-edit-btn" onclick="showEditOptionsDialog('${k}')">編集</button><button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button></div>
+        ${!isSharedMode ? `<div class="swipe-actions" style="width:120px;"><button class="swipe-edit-btn" onclick="showEditOptionsDialog('${k}')">編集</button><button class="swipe-delete-btn" onclick="removeSettingKey('${k}')">削除</button></div>` : ''}
       </div>`;
     }
 
@@ -875,21 +974,23 @@ function renderEdit() {
         html += `<div class="swipe-row" data-actions-width="120" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
           <div class="setting-row ${isDiff?'diff':''} swipe-content">
             <div class="setting-label">${esc(itemName)}${isDiff?' <span class="diff-badge">変更あり</span>':''}</div>
-            <div class="setting-value"><select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
+            <div class="setting-value"><select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)" ${isSharedMode ? 'disabled' : ''}>
               ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
             </select></div>
           </div>
-          <div class="swipe-actions" style="width:120px;"><button class="swipe-edit-btn" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">編集</button><button class="swipe-delete-btn" onclick="removeCustomPenalty('${esc(catKey)}',${i})">削除</button></div>
+          ${!isSharedMode ? `<div class="swipe-actions" style="width:120px;"><button class="swipe-edit-btn" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">編集</button><button class="swipe-delete-btn" onclick="removeCustomPenalty('${esc(catKey)}',${i})">削除</button></div>` : ''}
         </div>`;
       }
-      html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="btn-add-item">＋ 項目を追加</button>`;
+      if (!isSharedMode) {
+        html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="btn-add-item">＋ 項目を追加</button>`;
+      }
     }
 
     // 大項目ごとの特記事項
     const catMemo = rule.settings['memo_' + catKey] || '';
     html += `<div class="setting-row-textarea" style="margin-top:8px;">
       <label>📝 特記事項</label>
-      <textarea data-key="memo_${catKey}" oninput="onSettingChange('memo_${catKey}',this.value)" placeholder="このカテゴリの特記事項...">${esc(catMemo)}</textarea>
+      <textarea data-key="memo_${catKey}" oninput="onSettingChange('memo_${catKey}',this.value)" placeholder="このカテゴリの特記事項..." ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
     </div>`;
 
     html += '</div></div>';
@@ -1515,7 +1616,9 @@ if ('serviceWorker' in navigator) {
 // 初期化
 // =====================================================================
 loadData();
-renderHome();
+if (!checkSharedRule()) {
+  renderHome();
+}
 
 // =====================================================================
 // 標準ルールの管理
