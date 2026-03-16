@@ -647,6 +647,20 @@ function showScreen(id) {
   window.scrollTo(0, 0);
 }
 
+function showBaseRuleManager(mode) {
+  document.getElementById('base_manager_overlay').style.display = 'none';
+  showScreen('custom-base-manager');
+  renderCustomBaseList();
+}
+
+function createCustomBaseRule(mode) {
+  createNewCustomBase(mode);
+}
+
+function createCustomBaseRule(mode) {
+  createNewCustomBase(mode);
+}
+
 function goHome() {
   editingId = null;
   _editSnapshot = null;
