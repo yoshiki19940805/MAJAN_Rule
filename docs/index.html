@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.1<br>2026-03-16 09:05</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.2<br>2026-03-16 09:10</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -778,14 +778,14 @@ function renderEdit() {
       for (let i = 0; i < customItems.length; i++) {
         const cVal = customItems[i].value || '';
         const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
-        html += `<div class="swipe-row" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
+        html += `<div class="swipe-row" data-actions-width="120" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
           <div class="setting-row swipe-content">
             <div class="setting-label">${esc(customItems[i].name||'項目'+(i+1))}</div>
             <div class="setting-value"><select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
               ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
             </select></div>
           </div>
-          <button class="swipe-delete-btn" onclick="removeCustomPenalty('${esc(catKey)}',${i})">削除</button>
+          <div class="swipe-actions" style="width:120px;"><button class="swipe-edit-btn" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">編集</button><button class="swipe-delete-btn" onclick="removeCustomPenalty('${esc(catKey)}',${i})">削除</button></div>
         </div>`;
       }
       html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="btn-add-item">＋ 項目を追加</button>`;
@@ -968,6 +968,20 @@ function removeUserOption(key, idx) {
     const opts = getOptions(rule.mode);
     rule.settings[key] = (opts[key] && opts[key][0]) || '';
   }
+  saveData();
+  renderEdit();
+}
+
+// --- カスタム追加項目の編集 ---
+function editCustomPenaltyName(catKey, idx) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const k = 'custom_' + catKey;
+  if (!rule.settings[k] || !rule.settings[k][idx]) return;
+  const item = rule.settings[k][idx];
+  const newName = prompt('項目名を入力してください:', item.name || '');
+  if (newName === null) return;
+  item.name = newName.trim();
   saveData();
   renderEdit();
 }
