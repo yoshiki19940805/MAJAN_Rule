@@ -95,19 +95,19 @@ OPTIONS_4 = {
     "pao_tsumo":     ["パオの人が全額", "通常精算"],
     "pao_ron":       ["パオの人と振込者で折半", "振込者が全額"],
     # 7. 罰則（状況別）
-    "chombo_batsu":  ["満貫払い", "倍満払い", "カスタム"],
+    "chombo_batsu": ["満貫払い", "倍満払い", "カスタム", "なし"],
     "chombo_memo":   [""],
-    "chombo_taiou":  ["やり直し", "流局扱い", "親なら流局"],
-    "pen_goron_taopai":       ["チョンボ", "アガリ放棄", "軽罰符", "カスタム"],
-    "pen_noten_reach":        ["チョンボ", "アガリ放棄", "軽罰符", "カスタム"],
-    "pen_reach_bad_ankan":    ["チョンボ", "アガリ放棄", "軽罰符", "カスタム"],
-    "pen_goron_no_taopai":    ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_gonaki_sarashi":     ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_kuikae_ihan":        ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_tahai":              ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_gonaki_hassei":      ["軽罰符", "アガリ放棄", "チョンボ", "カスタム"],
-    "pen_reach_torikeshi":    ["軽罰符", "アガリ放棄", "チョンボ", "カスタム"],
-    "pen_shouhai":            ["軽罰符", "アガリ放棄", "チョンボ", "カスタム"],
+    "chombo_taiou": ["やり直し", "流局扱い", "親なら流局", "なし"],
+    "pen_goron_taopai": ["チョンボ", "アガリ放棄", "軽罰符", "カスタム", "なし"],
+    "pen_noten_reach": ["チョンボ", "アガリ放棄", "軽罰符", "カスタム", "なし"],
+    "pen_reach_bad_ankan": ["チョンボ", "アガリ放棄", "軽罰符", "カスタム", "なし"],
+    "pen_goron_no_taopai": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_gonaki_sarashi": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_kuikae_ihan": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_tahai": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_gonaki_hassei": ["軽罰符", "アガリ放棄", "チョンボ", "カスタム", "なし"],
+    "pen_reach_torikeshi": ["軽罰符", "アガリ放棄", "チョンボ", "カスタム", "なし"],
+    "pen_shouhai": ["軽罰符", "アガリ放棄", "チョンボ", "カスタム", "なし"],
 }
 
 # --- 四麻 基準ルール ---
@@ -137,6 +137,15 @@ BASE_RULES_4 = {
         "double_ron": "あり", "triple_ron": "全員アガリ",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
         "yakuman_type": "雀魂に準ずる",
+        "chombo_batsu": "なし", "chombo_taiou": "なし",
+        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
+        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
+        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
+        "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
+        "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
+        "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
+        "pao_tsumo": "パオの人が全額", "pao_ron": "パオの人と振込者で折半",
+        "sp_daisharin": "なし", "sp_renho": "なし", "sp_nagashi_ym": "なし", "sp_4mai_chii": "なし", "sp_shosharin": "なし",
     },
     "Mリーグ公式（四麻）": {
         **_BASE_4_COMMON,
@@ -154,6 +163,15 @@ BASE_RULES_4 = {
         "double_ron": "あり", "triple_ron": "流局（三家和）",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
         "yakuman_type": "天鳳に準ずる",
+        "chombo_batsu": "なし", "chombo_taiou": "なし",
+        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
+        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
+        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
+        "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
+        "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
+        "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
+        "pao_tsumo": "パオの人が全額", "pao_ron": "パオの人と振込者で折半",
+        "sp_daisharin": "なし", "sp_renho": "なし", "sp_nagashi_ym": "なし", "sp_4mai_chii": "なし", "sp_shosharin": "なし",
     },
 }
 
@@ -258,18 +276,18 @@ OPTIONS_3 = {
     "pao_tsumo":     ["パオが全額（チップ5枚）", "通常精算"],
     "pao_ron":       ["パオと振込者で折半（チップ各5枚）", "振込者が全額"],
     # 8. 罰則（状況別）
-    "chombo_batsu":  ["倍満払い", "満貫払い"],
-    "chombo_taiou":  ["やり直し", "流局扱い", "親なら流局"],
-    "pen_goron_taopai":       ["チョンボ", "アガリ放棄", "軽罰符", "カスタム"],
-    "pen_noten_reach":        ["チョンボ", "アガリ放棄", "軽罰符", "カスタム"],
-    "pen_reach_bad_ankan":    ["チョンボ", "アガリ放棄", "軽罰符", "カスタム"],
-    "pen_goron_no_taopai":    ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_gonaki_sarashi":     ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_kuikae_ihan":        ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_tahai":              ["アガリ放棄", "チョンボ", "軽罰符", "カスタム"],
-    "pen_gonaki_hassei":      ["軽罰符", "アガリ放棄", "チョンボ", "カスタム"],
-    "pen_reach_torikeshi":    ["軽罰符", "アガリ放棄", "チョンボ", "カスタム"],
-    "pen_shouhai":            ["軽罰符", "アガリ放棄", "チョンボ", "カスタム"],
+    "chombo_batsu": ["倍満払い", "満貫払い", "なし"],
+    "chombo_taiou": ["やり直し", "流局扱い", "親なら流局", "なし"],
+    "pen_goron_taopai": ["チョンボ", "アガリ放棄", "軽罰符", "カスタム", "なし"],
+    "pen_noten_reach": ["チョンボ", "アガリ放棄", "軽罰符", "カスタム", "なし"],
+    "pen_reach_bad_ankan": ["チョンボ", "アガリ放棄", "軽罰符", "カスタム", "なし"],
+    "pen_goron_no_taopai": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_gonaki_sarashi": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_kuikae_ihan": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_tahai": ["アガリ放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
+    "pen_gonaki_hassei": ["軽罰符", "アガリ放棄", "チョンボ", "カスタム", "なし"],
+    "pen_reach_torikeshi": ["軽罰符", "アガリ放棄", "チョンボ", "カスタム", "なし"],
+    "pen_shouhai": ["軽罰符", "アガリ放棄", "チョンボ", "カスタム", "なし"],
 }
 
 BASE_RULES_3 = {
@@ -319,6 +337,30 @@ BASE_RULES_3 = {
 }
 
 DEFAULT_3 = BASE_RULES_3["三人麻雀（標準）"].copy()
+BASE_RULES_3.update({
+    "雀魂（三麻・段位戦）": {
+        **DEFAULT_3,
+        "tsumozon": "あり", "kita": "抜きドラ",
+        "chombo_batsu": "なし", "chombo_taiou": "なし",
+        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
+        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
+        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
+        "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_niji": "なし", "shugi_pocchi": "なし",
+        "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
+        "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
+        "pao_tsumo": "パオが全額（チップ5枚）", "pao_ron": "パオと振込者で折半（チップ各5枚）",
+    },
+    "天鳳（三麻）": {
+        **DEFAULT_3,
+        "tsumozon": "あり", "kita": "抜きドラ",
+        "chombo_batsu": "なし", "chombo_taiou": "なし",
+        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
+        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
+        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
+        "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_niji": "なし", "shugi_pocchi": "なし",
+        "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
+    },
+})
 
 # --- ラベル ---
 LABELS = {
@@ -454,9 +496,11 @@ def main(page: ft.Page):
         cr = page.client_storage.get("mahjong_custom_base_rules")
         if not cr:
             cr = {
-                "preset_jantama": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂段位戦"].copy()},
-                "preset_tenhou": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳段位戦"].copy()},
-                "preset_mleague": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ"].copy()}
+                "preset_jantama_4": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂（四麻・段位戦）"].copy()},
+                "preset_tenhou_4": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳（四麻）"].copy()},
+                "preset_mleague_4": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ公式（四麻）"].copy()},
+                "preset_jantama_3": {"name": "雀魂（三麻・段位戦）", "mode": "三麻", "settings": BASE_RULES_3["雀魂（三麻・段位戦）"].copy()},
+                "preset_tenhou_3": {"name": "天鳳（三麻）", "mode": "三麻", "settings": BASE_RULES_3["天鳳（三麻）"].copy()}
             }
             page.client_storage.set("mahjong_custom_base_rules", cr)
         
@@ -777,9 +821,11 @@ tr.diff td{{color:#e53e3e}}
         cr = page.client_storage.get("mahjong_custom_base_rules")
         if not cr:
             cr = {
-                "preset_jantama": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂段位戦"].copy()},
-                "preset_tenhou": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳段位戦"].copy()},
-                "preset_mleague": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ"].copy()}
+                "preset_jantama_4": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂（四麻・段位戦）"].copy()},
+                "preset_tenhou_4": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳（四麻）"].copy()},
+                "preset_mleague_4": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ公式（四麻）"].copy()},
+                "preset_jantama_3": {"name": "雀魂（三麻・段位戦）", "mode": "三麻", "settings": BASE_RULES_3["雀魂（三麻・段位戦）"].copy()},
+                "preset_tenhou_3": {"name": "天鳳（三麻）", "mode": "三麻", "settings": BASE_RULES_3["天鳳（三麻）"].copy()}
             }
             page.client_storage.set("mahjong_custom_base_rules", cr)
 
