@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.9<br>2026-03-16 12:10</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.0<br>2026-03-16 12:15</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -540,6 +540,7 @@ function getDefault(mode) { return mode === '四麻' ? {...DEFAULT_4} : {...DEFA
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
+  if (id === 'custom-base-manager') renderCustomBaseManager();
   window.scrollTo(0, 0);
 }
 
@@ -676,9 +677,12 @@ function renderEdit() {
   const bases = getBaseRules(rule.mode);
   if (rule.mode === '四麻') {
     brSection.classList.remove('hidden');
-    brSelect.innerHTML = Object.keys(BASE_RULES_4).map(k =>
-      `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(k)}</option>`
-    ).join('');
+    let presetHtml = Object.keys(BASE_RULES_4).map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(k)}</option>`).join('');
+    let customHtml = Object.keys(bases).filter(k => k.startsWith('__custom__')).map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+    
+    let selectHtml = `<optgroup label="プリセット">${presetHtml}</optgroup>`;
+    if (customHtml) selectHtml += `<optgroup label="カスタム">${customHtml}</optgroup>`;
+    brSelect.innerHTML = selectHtml;
   } else {
     brSection.classList.add('hidden');
   }
