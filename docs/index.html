@@ -2065,8 +2065,7 @@ if (!checkSharedRule()) {
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
-                      disabled={isReadOnly}
-                      className={isReadOnly ? "flex items-center justify-center opacity-30 cursor-not-allowed font-inherit" : "flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"}
+                      className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
                       aria-label="削除"
                     >
                       <span className="material-symbols-outlined text-[22px]">delete</span>
