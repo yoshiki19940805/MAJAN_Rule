@@ -13,15 +13,52 @@
 <link rel="stylesheet" href="style.css">
 <!-- React / Tailwind -->
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    important: '#react-home-root', // Reactルート内ではTailwindクラスを優先させる
+    corePlugins: {
+      preflight: false, // 既存のstyle.cssと競合するため無効化
+    }
+  }
+</script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  /* React用のスクロールバー非表示とアニメーションはここに隔離 */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @keyframes slideUp {
+    from { transform: translate(-50%, 100%); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+  }
+  .toast-enter { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  
+  /* preflight無効化の代償として必要なTailwindリセットをReact側にのみ適用 */
+  #react-home-root * {
+    border-color: #e5e7eb;
+    border-style: solid;
+    border-width: 0;
+    box-sizing: border-box;
+  }
+  #react-home-root button {
+    background-color: transparent;
+    background-image: none;
+    line-height: inherit;
+    color: inherit;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: 100%;
+    text-transform: none;
+  }
+</style>
 </head>
 <body>
-<div class="app" id="app">
+<div class="app" id="app" style="background-color: transparent;"> <!-- style.cssの背景を上書きさせない -->
   <!-- ホーム画面 (React化) -->
-  <div class="screen active" style="padding:0; background-color: #f8fafc;" id="screen-home">
-    <div id="react-home-root" style="flex:1; display:flex; flex-direction:column;"></div>
+  <div class="screen active" style="padding:0; background-color: transparent;" id="screen-home">
+    <div id="react-home-root" style="flex:1; display:flex; flex-direction:column; height: 100%;"></div>
   </div>
 
   <!-- 編集画面 -->
@@ -1939,7 +1976,7 @@ if (!checkSharedRule()) {
         
         {/* 固定ヘッダー */}
         <header className={`flex justify-between items-center px-4 pt-3 pb-2 z-20 shrink-0 ${THEME.bgHeader}`}>
-          <h1 className="text-lg font-bold tracking-tight truncate pr-2" style={{margin:0}}>
+          <h1 className="text-lg font-bold tracking-tight truncate pr-2">
             {CONFIG.strings.appTitle}
           </h1>
           <button 
@@ -1987,7 +2024,6 @@ if (!checkSharedRule()) {
             <button 
               onClick={() => window.createRule(activeTab === 4 ? '四麻' : '三麻')}
               className={`w-full flex flex-row items-center justify-center gap-2 p-4 transition-transform active:scale-95 font-bold text-sm ${activeTab === 4 ? THEME.theme4p : THEME.theme3p}`}
-              style={{color: "white"}} // override vanilla reset
             >
               <IconPlus size={THEME.iconSize.lg} />
               {activeTab === 4 ? CONFIG.strings.create4pRule : CONFIG.strings.create3pRule}
@@ -1996,7 +2032,7 @@ if (!checkSharedRule()) {
 
           {/* ルール一覧 */}
           <section>
-            <h2 className={`text-sm font-bold mb-2 px-1 ${THEME.textSub}`} style={{margin: "0 0 8px 0"}}>
+            <h2 className={`text-sm font-bold mb-2 px-1 ${THEME.textSub}`}>
               {activeTab === 4 ? CONFIG.strings.tab4p : CONFIG.strings.tab3p}{CONFIG.strings.ruleListTitleSuffix} 
               <span className="text-xs font-normal ml-1">({displayedRules.length})</span>
             </h2>
@@ -2017,7 +2053,7 @@ if (!checkSharedRule()) {
                         ) : (
                             <div className={`w-1.5 h-4 rounded-full shrink-0 ${activeTab === 4 ? THEME.indicator4p : THEME.indicator3p}`}></div>
                         )}
-                        <h3 className={`text-sm font-bold truncate leading-tight ${THEME.textMain}`} style={{margin:0}}>
+                        <h3 className={`text-sm font-bold truncate leading-tight ${THEME.textMain}`}>
                             {rule.name}
                         </h3>
                     </div>
@@ -2035,7 +2071,7 @@ if (!checkSharedRule()) {
 
               {displayedRules.length === 0 && (
                 <div className={`text-center py-10 ${THEME.textMuted}`}>
-                  <p className="text-sm font-medium" style={{margin:0}}>{CONFIG.strings.emptyRules}</p>
+                  <p className="text-sm font-medium">{CONFIG.strings.emptyRules}</p>
                 </div>
               )}
             </div>
@@ -2044,7 +2080,7 @@ if (!checkSharedRule()) {
 
         {/* フッター情報 */}
         <footer className={`absolute bottom-0 w-full pb-safe py-3 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent text-center text-[10px] pointer-events-none ${THEME.textMuted}`}>
-          <p className="mt-4" style={{margin:0}}>
+          <p className="mt-4">
             {CONFIG.strings.versionPrefix}{CONFIG.appVersion} 
             <span className="mx-1.5">•</span> 
             {CONFIG.buildDate}
