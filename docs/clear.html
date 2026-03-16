@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>キャッシュクリア中...</title>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding: 50px;">
+    <h2>最新版へアップデートしています...</h2>
+    <p>数秒お待ちください。</p>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+                // キャッシュストレージも全て削除
+                caches.keys().then(function(names) {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                    // 完了したらトップページへリダイレクト
+                    setTimeout(() => {
+                        window.location.replace("./index.html?clear=" + Date.now());
+                    }, 1000);
+                });
+            });
+        } else {
+            window.location.replace("./index.html?clear=" + Date.now());
+        }
+    </script>
+</body>
+</html>
