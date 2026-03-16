@@ -31,6 +31,7 @@
             textMuted: 'var(--color-text-muted)',
             border: 'var(--color-border)',
             danger: 'var(--color-danger)',
+            highlightBg: 'var(--color-highlight-bg)',
             segmentedBg: 'var(--color-segmented-bg)',
             readonlyBg: 'var(--color-readonly-bg)',
           }
@@ -47,18 +48,19 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
   :root {
-    --color-bg: #F5F5F7;
+    --color-bg: #F2F2F7;
     --color-surface: #FFFFFF;
     --color-primary: #007AFF;
-    --color-text: #1C1C1E;
-    --color-text-muted: #8E8E93;
-    --color-border: #E5E5EA;
+    --color-text: #000000;
+    --color-text-muted: #8A8A8E;
+    --color-border: #C6C6C8;
     --color-danger: #FF3B30;
+    --color-highlight-bg: #EAF4FF;
     --color-segmented-bg: #E3E3E8;
     --color-readonly-bg: #F9F9FA;
     
-    --app-max-width: 100%;
-    --app-padding: 5vw;
+    --app-max-width: 40rem;
+    --app-padding: 0;
   }
   
   body {
@@ -67,6 +69,35 @@
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent; 
   }
+
+  .swipe-item {
+      position: relative;
+      overflow: hidden;
+      border-bottom: 0.5px solid var(--color-border);
+  }
+  .swipe-item:last-child { border-bottom: none; }
+  
+  .swipe-content {
+      position: relative;
+      z-index: 10;
+      background-color: var(--color-surface);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 16px;
+  }
+  
+  .swipe-actions {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+      display: flex;
+      z-index: 5;
+  }
+
+  .is-changed .swipe-content { background-color: var(--color-highlight-bg); }
+  .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
 
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
@@ -122,26 +153,76 @@
   </div>
 
   <!-- 編集画面 -->
-  <div class="screen" id="screen-edit">
-    <div class="header">
-      <button class="header-back" onclick="goHomeWithConfirm()">← 戻る</button>
-      <span class="header-title" id="edit-mode-label"></span>
-      <div style="display:flex;gap:6px" id="edit-header-btns">
-        <button class="btn btn-sm btn-green" id="btn-save" onclick="saveAndGoHome()">保存</button>
-        <button class="btn btn-sm btn-green" id="btn-preview" onclick="goPreview()">プレビュー</button>
-        <button class="btn btn-sm btn-purple" id="btn-copy-shared" style="display:none;" onclick="copySharedRule()">コピーして保存</button>
-      </div>
-    </div>
-    <div class="name-input-wrap">
-      <label>ルール名</label>
-      <input type="text" class="name-input" id="edit-name" placeholder="ルール名を入力" oninput="onNameChange(this.value)">
-    </div>
-    <div id="base-rule-section" class="base-rule-wrap hidden">
-      <label>比較基準（ベースルール）</label>
+  <div class="screen bg-theme-bg" id="screen-edit">
+    <nav class="shrink-0 pt-12 pb-3 px-4 flex items-center justify-between bg-theme-bg/90 backdrop-blur-md sticky top-0 z-40 border-b border-theme-border/50">
+        <button class="flex items-center text-theme-primary font-medium active:opacity-50 transition-opacity" onclick="goHomeWithConfirm()">
+            <span class="material-symbols-outlined text-[24px] -ml-2">chevron_left</span>戻る
+        </button>
+        <div class="font-bold text-[17px] text-theme-text" id="edit-mode-label"></div>
+        <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity" onclick="saveAndGoHome()" id="btn-save">
+            完了
+        </button>
+        <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity" onclick="copySharedRule()" id="btn-copy-shared" style="display:none;">
+            コピー
+        </button>
+    </nav>
 
-      <select id="base-rule-select" onchange="onBaseRuleChange(this.value)"></select>
+    <main class="flex-1 overflow-y-auto pb-32 w-full">
+        <div class="px-4 pt-6 pb-2 w-full">
+            <input type="text" id="edit-name" placeholder="ルール名を入力" class="w-full text-2xl font-bold bg-transparent border-none outline-none placeholder-theme-textMuted mb-5" oninput="onNameChange(this.value)">
+            
+            <div id="base-rule-section" class="bg-theme-surface rounded-xl p-4 flex flex-col shadow-sm border border-theme-border/30 hidden">
+                <div class="flex items-center justify-between w-full">
+                  <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">標準ルール</span>
+                  
+                  <div class="relative flex-1 flex justify-end items-center min-w-0">
+                      <select id="base-rule-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onBaseRuleChange(this.value)"></select>
+                      <span id="standard-rule-display" class="text-theme-textMuted text-sm font-medium pr-6 text-right truncate w-full pointer-events-none block"></span>
+                      <span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">unfold_more</span>
+                  </div>
+                </div>
+            </div>
+            
+            <div class="mt-3 flex items-start gap-1.5 text-[11px] text-theme-textMuted px-1">
+                <span class="material-symbols-outlined text-[14px] text-theme-primary">info</span>
+                <p>標準ルールから変更した項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
+            </div>
+        </div>
+
+        <div id="edit-fields" class="px-4 flex flex-col gap-6 mt-2 w-full"></div>
+    </main>
+
+    <div class="fixed bottom-0 w-full max-w-[40rem] bg-theme-bg/95 backdrop-blur-md border-t border-theme-border/50 p-4 pb-8 z-40 flex gap-3">
+        <button class="flex-1 bg-theme-surface text-theme-text border border-theme-border py-3 rounded-xl font-semibold shadow-sm active:bg-gray-50 flex justify-center items-center gap-1 transition-all" onclick="goPreview()" id="btn-preview">
+            <span class="material-symbols-outlined text-[20px]">preview</span> プレビュー
+        </button>
+        <button class="flex-1 bg-theme-primary text-white py-3 rounded-xl font-semibold shadow-sm active:scale-95 flex justify-center items-center gap-1 transition-all" onclick="openActionSheet()" id="btn-share-options">
+            <span class="material-symbols-outlined text-[20px]">ios_share</span> 共有・出力
+        </button>
     </div>
-    <div class="edit-scroll" id="edit-fields"></div>
+
+    <!-- Action Sheet Overlay -->
+    <div id="action-sheet-overlay" class="fixed inset-0 bg-black/40 z-[60] hidden transition-opacity duration-300 opacity-0" onclick="closeActionSheet()"></div>
+    
+    <!-- Action Sheet -->
+    <div id="action-sheet" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[40rem] z-[70] transition-transform duration-300 translate-y-full px-3 pb-8 pt-2">
+        <div class="bg-white/95 backdrop-blur-xl rounded-2xl overflow-hidden mb-2">
+            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => shareRule(editingId), 300)">
+                <span class="material-symbols-outlined text-[20px]">link</span>共有URLを発行
+            </button>
+            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => exportPDF(), 300)">
+                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>PDFとして出力
+            </button>
+            <button class="w-full py-4 text-theme-primary text-[17px] active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => exportImage(), 300)">
+                <span class="material-symbols-outlined text-[20px]">image</span>画像として保存
+            </button>
+        </div>
+        <div class="bg-white rounded-2xl overflow-hidden">
+            <button class="w-full py-4 text-theme-danger text-[17px] font-semibold active:bg-gray-200" onclick="closeActionSheet()">
+                キャンセル
+            </button>
+        </div>
+    </div>
   </div>
   <!-- 標準ルールの管理画面 -->
   <div class="screen bg-theme-bg" id="screen-custom-base-manager" style="padding-bottom: 5rem;">
@@ -919,6 +1000,10 @@ function renderEdit() {
       saveData();
     }
     brSelect.innerHTML = customKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+    
+    // Update standard-rule-display
+    const displaySpan = document.getElementById('standard-rule-display');
+    if (displaySpan) displaySpan.innerText = getBaseRuleName(rule.base_rule) || '';
   } else {
     brSection.classList.add('hidden');
   }
@@ -928,14 +1013,8 @@ function renderEdit() {
   const base = getBaseRules(rule.mode)[rule.base_rule] || null;
 
   const fields = document.getElementById('edit-fields');
-  // Reset existing classes and apply Tailwind paddings
-  fields.className = "no-scrollbar px-4 pb-24 pt-4";
   
   let html = '';
-
-  if (base) {
-    html += '<div class="bg-blue-50 text-blue-800 p-3 rounded-lg mb-4 text-[13px] flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">lightbulb</span>色が変わっている項目は、設定した基準ルールからの変更点です。</div>';
-  }
 
   const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai'];
   const chomboMovedKeys = new Set();
@@ -944,14 +1023,16 @@ function renderEdit() {
   }
 
   for (const cat of cats) {
-    const catName = cat[0], keys = cat[1], customizable = cat[2] || false;
-    const catKey = catName.replace(/^\d+\.\s*/, '');
+    const catNameLong = cat[0], keys = cat[1], customizable = cat[2] || false;
+    const catName = catNameLong.includes('.') ? catNameLong.split('.')[1].trim() : catNameLong;
+    const catKey = catNameLong.replace(/^\d+\.\s*/, '');
 
-    if (catName.includes('特殊牌')) {
-      html += `<div class="mb-6"><h2 class="text-[14px] font-bold text-theme-textMuted mb-3 px-1">${esc(catName)}</h2><div class="flex flex-col gap-3">`;
+    const catDivContent = [];
+
+    if (catNameLong.includes('特殊牌')) {
       const tiles = rule.settings.custom_tiles || [];
       for (let i = 0; i < tiles.length; i++) {
-        html += `<div class="relative bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm">
+        catDivContent.push(`<div class="relative bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm mb-3">
           <div class="flex justify-between items-center mb-3">
             <strong class="text-[14px] text-theme-text">特殊牌 #${i+1}</strong>
             ${!isSharedMode ? `<button onclick="removeCustomTile(${i})" class="bg-theme-danger/10 text-theme-danger px-3 py-1 rounded-full border border-theme-danger/20 text-[11px] font-bold">削除</button>` : ''}
@@ -964,84 +1045,116 @@ function renderEdit() {
             <label class="block text-[11px] font-bold text-theme-textMuted mb-1">効果・説明</label>
             <textarea oninput="updateCustomTile(${i},'effect',this.value)" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text min-h-[60px] outline-none focus:border-theme-primary/50 transition-colors" placeholder="例: ドラ+チップ3枚" ${isSharedMode ? 'disabled' : ''}>${esc(tiles[i].effect||'')}</textarea>
           </div>
-        </div>`;
+        </div>`);
       }
       if (!isSharedMode) {
-        html += `<button onclick="addCustomTile()" class="w-full bg-theme-surface border border-dashed border-theme-primary/50 text-theme-primary rounded-xl py-3 text-[14px] font-bold flex items-center justify-center gap-1 active:bg-theme-primary/5 transition-colors"><span class="material-symbols-outlined text-[20px]">add</span>特殊牌を追加</button>`;
+        catDivContent.push(`<button onclick="addCustomTile()" class="w-full bg-theme-surface border border-dashed border-theme-primary/50 text-theme-primary rounded-xl py-3 text-[14px] font-bold flex items-center justify-center gap-1 active:bg-theme-primary/5 transition-colors"><span class="material-symbols-outlined text-[20px]">add</span>特殊牌を追加</button>`);
       }
-      const catMemo = rule.settings['memo_' + catKey] || '';
-      html += `<div class="mt-3 bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm">
-        <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">edit_note</span>特記事項</label>
-        <textarea data-key="memo_${catKey}" oninput="onSettingChange('memo_${catKey}',this.value)" placeholder="このカテゴリの特記事項..." class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none focus:border-theme-primary/50 min-h-[60px]" ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
-      </div>`;
-      html += '</div></div>';
-      continue;
-    }
-
-    html += `<div class="mb-6"><h2 class="text-[14px] font-bold text-theme-textMuted mb-3 px-1">${esc(catName)}</h2><div class="flex flex-col gap-3">`;
-
-    let renderKeys = [...keys];
-    if (catName.includes('チョンボ')) {
-      for (const pk of chomboMovedKeys) { if (!renderKeys.includes(pk)) renderKeys.push(pk); }
     } else {
-      renderKeys = renderKeys.filter(k => !chomboMovedKeys.has(k) || keys.includes(k) && catName.includes('チョンボ'));
-      if (catName.includes('上がり放棄') || catName.includes('軽罰符')) renderKeys = renderKeys.filter(k => !chomboMovedKeys.has(k));
-    }
+      let renderKeys = [...keys];
+      if (catNameLong.includes('チョンボ')) {
+        for (const pk of chomboMovedKeys) { if (!renderKeys.includes(pk)) renderKeys.push(pk); }
+      } else {
+        renderKeys = renderKeys.filter(k => !chomboMovedKeys.has(k) || keys.includes(k) && catNameLong.includes('チョンボ'));
+        if (catNameLong.includes('上がり放棄') || catNameLong.includes('軽罰符')) renderKeys = renderKeys.filter(k => !chomboMovedKeys.has(k));
+      }
 
-    const deletedKeys = new Set(rule.settings.deleted_keys || []);
-    for (const k of renderKeys) {
-      if (deletedKeys.has(k)) continue;
-      const val = rule.settings[k] ?? '';
-      const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
+      const deletedKeys = new Set(rule.settings.deleted_keys || []);
+      
+      let itemHtmls = [];
+      for (const k of renderKeys) {
+        if (deletedKeys.has(k)) continue;
+        const val = rule.settings[k] ?? '';
+        const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
 
-      if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
-        const parentKey = k.replace('_custom', '');
-        if (rule.settings[parentKey] === 'カスタム') {
-          html += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm">
-            <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">draw</span>${esc(LABELS[k] || k)}</label>
-            <input type="text" data-key="${k}" value="${esc(val)}" oninput="onSettingChange('${k}',this.value)" placeholder="自由入力..." class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none focus:border-theme-primary/50" ${isSharedMode ? 'disabled' : ''}>
-          </div>`;
+        if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
+          const parentKey = k.replace('_custom', '');
+          if (rule.settings[parentKey] === 'カスタム') {
+            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
+              <label class="text-[11px] font-bold text-theme-primary">📝 ${esc(LABELS[k] || k)}</label>
+              <input type="text" data-key="${k}" value="${esc(val)}" oninput="onSettingChange('${k}',this.value)" placeholder="自由入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" ${isSharedMode ? 'disabled' : ''}>
+            </div>`);
+          }
+          continue;
         }
-        continue;
-      }
 
-      if (k === 'yakuman_custom_memo' && rule.settings.yakuman_type === 'カスタム') {
-        html += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm"><label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">draw</span>${esc(LABELS[k] || k)}</label><textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム役満の詳細を入力..." class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none min-h-[60px]" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea></div>`;
-        continue;
-      }
-      if (k === 'chombo_memo' && rule.settings.chombo_batsu === 'カスタム') {
-        html += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm"><label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">draw</span>${esc(LABELS[k] || k)}</label><textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム罰符の詳細を入力..." class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none min-h-[60px]" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea></div>`;
-        continue;
-      }
+        if (k === 'yakuman_custom_memo') {
+          if (rule.settings.yakuman_type === 'カスタム') {
+            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 mx-4">
+              <label class="text-[11px] font-bold text-theme-primary mb-1 block">📝 ${esc(LABELS[k] || k)}</label>
+              <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム役満の詳細を入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" rows="2" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
+            </div>`);
+          }
+          continue;
+        }
 
-      let options = opts[k] || [val];
-      const userOptions = rule.settings['user_options_' + k] || [];
-      if (userOptions.length > 0) options = [...options.filter(o => o !== 'カスタム'), ...userOptions, ...(options.includes('カスタム') ? ['カスタム'] : [])];
-      if (val && !options.includes(val)) options = [val, ...options];
+        if (k === 'chombo_memo') {
+          if (rule.settings.chombo_batsu === 'カスタム') {
+            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 mx-4">
+              <label class="text-[11px] font-bold text-theme-primary mb-1 block">📝 ${esc(LABELS[k] || k)}</label>
+              <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム罰符の詳細を入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" rows="2" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
+            </div>`);
+          }
+          continue;
+        }
 
-      html += `<div class="relative overflow-hidden rounded-xl bg-theme-surface border border-theme-border/30 shadow-sm" data-actions-width="120" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
-        <div class="absolute inset-y-0 right-0 flex w-[120px] swipe-actions z-0">
-          ${!isSharedMode ? `<button class="bg-gray-400 text-white flex-1 font-medium flex flex-col items-center justify-center text-[10px]" onclick="showEditOptionsDialog('${k}')"><span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集</button><button class="bg-theme-danger text-white flex-1 font-medium flex flex-col items-center justify-center text-[10px]" onclick="removeSettingKey('${k}')"><span class="material-symbols-outlined text-[20px] mb-0.5">delete</span>削除</button>` : ''}
-        </div>
-        <div class="relative bg-theme-surface flex items-center justify-between px-4 py-3 min-h-[64px] swipe-content z-10">
-          <div class="flex flex-col gap-1.5 w-full mr-4">
-            <label class="text-[13px] font-medium text-theme-textMuted flex items-center gap-2">
-              <span class="material-symbols-outlined text-[16px]">settings</span>${esc(LABELS[k] || k)}
-              ${isDiff ? '<span class="bg-theme-danger/10 text-theme-danger px-1.5 py-0.5 rounded text-[10px] font-bold ml-1">変更あり</span>' : ''}
-            </label>
-            <div class="relative w-full">
-              <select data-key="${k}" onchange="onSettingChange('${k}',this.value)" class="w-full bg-transparent text-[15px] font-bold ${isDiff ? 'text-theme-primary' : 'text-theme-text'} outline-none appearance-none pr-8 truncate" ${isSharedMode ? 'disabled' : ''}>
-                ${options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
-              </select>
-              ${!isSharedMode ? '<span class="material-symbols-outlined absolute right-0 top-1/2 -translate-y-1/2 text-theme-textMuted pointer-events-none text-[20px]">chevron_right</span>' : ''}
+        let options = opts[k] || [val];
+        const userOptions = rule.settings['user_options_' + k] || [];
+        if (userOptions.length > 0) {
+          options = [...options.filter(o => o !== 'カスタム'), ...userOptions, ...(options.includes('カスタム') ? ['カスタム'] : [])];
+        }
+        if (val && !options.includes(val)) options = [val, ...options];
+
+        const isCustom = val === 'カスタム';
+        const optionsHtml = [...options, 'カスタム'].filter((v, i, a) => a.indexOf(v) === i).map(opt => `<option value="${esc(opt)}" ${val === opt ? 'selected' : ''}>${esc(opt)}</option>`).join('');
+        const customAttrValue = rule.settings[k + '_custom'] || '';
+
+        itemHtmls.push(`
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}">
+                ${!isSharedMode ? `
+                <div class="swipe-actions">
+                    <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showEditOptionsDialog('${k}')">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
+                    </button>
+                    <button class="bg-theme-danger text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="removeSettingKey('${k}')">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">delete</span>削除
+                    </button>
+                </div>
+                ` : ''}
+                
+                <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)"' : ''}>
+                    <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(LABELS[k] || k)}</span>
+                        
+                        <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
+                            <span class="text-[15px] truncate pr-6 text-right w-full block pointer-events-none ${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                                ${esc(val)}
+                            </span>
+                            <span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
+                                unfold_more
+                            </span>
+                            <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onSettingChange('${k}', this.value)" ${isSharedMode ? 'disabled' : ''}>
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="custom-input-area overflow-hidden transition-all duration-300 ${isCustom ? 'max-h-[100px] mt-3 opacity-100' : 'max-h-0 opacity-0'}">
+                        <input type="text" placeholder="独自のルール内容を入力" 
+                            class="w-full text-sm bg-theme-bg rounded-lg px-3 py-2.5 outline-none border border-theme-border/50 focus:border-theme-primary transition-colors" 
+                            value="${esc(customAttrValue)}" 
+                            data-key="${k}_custom"
+                            oninput="onSettingChange('${k}_custom', this.value)"
+                            ${isSharedMode ? 'disabled' : ''}>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>`;
-    }
+        `);
+      }
 
-    const customItems = rule.settings['custom_' + catKey] || [];
-    for (let i = 0; i < customItems.length; i++) {
+      // カスタム追加項目（全カテゴリ共通）
+      const customItems = rule.settings['custom_' + catKey] || [];
+      for (let i = 0; i < customItems.length; i++) {
         const cVal = customItems[i].value || '';
         const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
         const itemName = customItems[i].name || ('項目'+(i+1));
@@ -1049,38 +1162,76 @@ function renderEdit() {
         const bItem = baseCustomItems.find(x => x.name === itemName);
         const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
 
-        html += `<div class="relative overflow-hidden rounded-xl bg-theme-surface border border-theme-border/30 shadow-sm" data-actions-width="120" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
-        <div class="absolute inset-y-0 right-0 flex w-[120px] swipe-actions z-0">
-          ${!isSharedMode ? `<button class="bg-gray-400 text-white flex-1 font-medium flex flex-col items-center justify-center text-[10px]" onclick="editCustomPenaltyName('${esc(catKey)}',${i})"><span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集</button><button class="bg-theme-danger text-white flex-1 font-medium flex flex-col items-center justify-center text-[10px]" onclick="removeCustomPenalty('${esc(catKey)}',${i})"><span class="material-symbols-outlined text-[20px] mb-0.5">delete</span>削除</button>` : ''}
-        </div>
-        <div class="relative bg-theme-surface flex items-center justify-between px-4 py-3 min-h-[64px] swipe-content z-10">
-          <div class="flex flex-col gap-1.5 w-full mr-4">
-            <label class="text-[13px] font-medium text-theme-textMuted flex items-center gap-2">
-              <span class="material-symbols-outlined text-[16px]">settings</span>${esc(itemName)}
-              ${isDiff ? '<span class="bg-theme-danger/10 text-theme-danger px-1.5 py-0.5 rounded text-[10px] font-bold ml-1">変更あり</span>' : ''}
-            </label>
-            <div class="relative w-full">
-              <select onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)" class="w-full bg-transparent text-[15px] font-bold ${isDiff ? 'text-theme-primary' : 'text-theme-text'} outline-none appearance-none pr-8 truncate" ${isSharedMode ? 'disabled' : ''}>
-                ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
-              </select>
-              ${!isSharedMode ? '<span class="material-symbols-outlined absolute right-0 top-1/2 -translate-y-1/2 text-theme-textMuted pointer-events-none text-[20px]">chevron_right</span>' : ''}
+        itemHtmls.push(`
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
+                ${!isSharedMode ? `
+                <div class="swipe-actions">
+                    <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
+                    </button>
+                    <button class="bg-theme-danger text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="removeCustomPenalty('${esc(catKey)}',${i})">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">delete</span>削除
+                    </button>
+                </div>
+                ` : ''}
+                
+                <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)"' : ''}>
+                    <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(itemName)}</span>
+                        
+                        <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
+                            <span class="text-[15px] truncate pr-6 text-right w-full block pointer-events-none ${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                                ${esc(cVal)}
+                            </span>
+                            <span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
+                                unfold_more
+                            </span>
+                            <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)" ${isSharedMode ? 'disabled' : ''}>
+                                ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>`;
-    }
-    if (!isSharedMode) {
-      html += `<button onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')" class="w-full bg-theme-surface border border-dashed border-theme-primary/50 text-theme-primary rounded-xl py-3 text-[14px] font-bold flex items-center justify-center gap-1 active:bg-theme-primary/5 transition-colors mt-2"><span class="material-symbols-outlined text-[20px]">add</span>項目を追加</button>`;
+        `);
+      }
+
+      if (itemHtmls.length > 0 || !isSharedMode) {
+        catDivContent.push(`<div class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 flex flex-col w-full overflow-hidden">
+          ${itemHtmls.join('')}
+          ${!isSharedMode ? `
+          <button class="w-full text-left px-4 py-3.5 text-[15px] text-theme-primary font-medium active:bg-gray-50 flex items-center gap-1 transition-colors" onclick="addCustomPenaltyWithPrompt('${esc(catKey)}')">
+              <span class="material-symbols-outlined text-[20px]">add_circle</span>
+              新しい項目を追加
+          </button>
+          ` : ''}
+        </div>`);
+      }
     }
 
     const catMemo = rule.settings['memo_' + catKey] || '';
-    html += `<div class="mt-3 bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm">
-      <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">edit_note</span>特記事項</label>
-      <textarea data-key="memo_${catKey}" oninput="onSettingChange('memo_${catKey}',this.value)" placeholder="このカテゴリの特記事項..." class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none focus:border-theme-primary/50 min-h-[60px]" ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
-    </div>`;
+    catDivContent.push(`
+        <div class="mt-3 w-full">
+            <div class="bg-theme-surface rounded-xl p-3 shadow-sm border border-theme-border/30 relative flex flex-col">
+                <div class="flex items-center gap-1.5 mb-2 text-theme-textMuted">
+                    <span class="material-symbols-outlined text-[16px]">edit_note</span>
+                    <span class="text-[12px] font-medium tracking-wide">${catName} の特記事項</span>
+                </div>
+                <textarea placeholder="自由にメモや追加ルールを記載できます..." 
+                    class="w-full bg-transparent border-none text-[14px] text-theme-text outline-none resize-none placeholder-gray-400 leading-relaxed" 
+                    rows="2" 
+                    oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; onSettingChange('memo_${catKey}',this.value)"
+                    ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
+            </div>
+        </div>
+    `);
 
-    html += '</div></div>';
+    html += `<div class="flex flex-col w-full mb-6">
+        <h2 class="text-[13px] font-semibold text-theme-textMuted tracking-wider ml-4 mb-1.5">${esc(catNameLong)}</h2>
+        ${catDivContent.join('')}
+    </div>`;
   }
+  
   fields.innerHTML = html;
 }
 
@@ -1119,19 +1270,37 @@ function onSettingChange(key, val) {
   // 差分更新（四麻・三麻共通）
   if (rule) {
     const base = getBaseRules(rule.mode)[rule.base_rule] || {};
-    const row = document.querySelector(`[data-key="${key}"]`)?.closest('.setting-row');
-    if (row) {
+    // 新UIでは swipe-item クラスを持った親要素に is-changed クラスを付与する
+    const swipeRow = document.querySelector(`[data-id="${key}"]`);
+    if (swipeRow) {
       const isDiff = (!(key in base) || val !== String(base[key] || ""));
-      row.classList.toggle('diff', isDiff);
-      const badge = row.querySelector('.diff-badge');
-      if (isDiff && !badge) {
-        row.querySelector('.setting-label').insertAdjacentHTML('beforeend','<span class="diff-badge">変更あり</span>');
-      } else if (!isDiff && badge) {
-        badge.remove();
-      }
+      swipeRow.classList.toggle('is-changed', isDiff);
     }
   }
 }
+
+    function openActionSheet() {
+        const overlay = document.getElementById('action-sheet-overlay');
+        const sheet = document.getElementById('action-sheet');
+        
+        overlay.classList.remove('hidden');
+        // trigger reflow
+        void overlay.offsetWidth;
+        overlay.classList.remove('opacity-0');
+        sheet.classList.remove('translate-y-full');
+    }
+
+    function closeActionSheet() {
+        const overlay = document.getElementById('action-sheet-overlay');
+        const sheet = document.getElementById('action-sheet');
+        
+        overlay.classList.add('opacity-0');
+        sheet.classList.add('translate-y-full');
+        
+        setTimeout(() => {
+            overlay.classList.add('hidden');
+        }, 300);
+    }
 
 // --- 特殊牌 CRUD ---
 function addCustomTile() {
