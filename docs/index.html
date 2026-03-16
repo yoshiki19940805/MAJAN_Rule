@@ -1671,7 +1671,14 @@ function renderCustomBaseManager() {
     return;
   }
 
+  const def4 = localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4';
+  const def3 = localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3';
+
   for (const [id, rule] of Object.entries(customBaseRules)) {
+    const isDefault = (rule.mode === '四麻' && def4 === '__custom__' + id) || (rule.mode === '三麻' && def3 === '__custom__' + id);
+    const btnStyle = isDefault ? 'background:#3182CE;color:#fff;border:none;' : 'background:transparent;color:#666;border:1px solid #ccc;';
+    const btnText = isDefault ? '★ デフォルト' : '☆ デフォルトに設定';
+    
     const div = document.createElement('div');
     div.className = 'rule-item swipe-item';
     div.innerHTML = `
@@ -1680,7 +1687,10 @@ function renderCustomBaseManager() {
           <div style="font-weight:bold">${esc(rule.name)}</div>
           <div style="font-size:0.8rem; color:var(--text-sub)">${rule.mode}</div>
         </div>
-        <div style="color:var(--primary)">編集 ＞</div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+          <div style="color:#3182CE; font-size:0.9rem;">編集 ＞</div>
+          <button onclick="event.stopPropagation(); setDefaultBaseRule('${rule.mode}', '${id}')" style="font-size:0.75rem; padding:4px 8px; border-radius:4px; cursor:pointer; ${btnStyle}">${btnText}</button>
+        </div>
       </div>
       <div class="swipe-action swipe-delete" onclick="deleteCustomBase('${id}')">削除</div>
     `;

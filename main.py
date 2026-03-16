@@ -827,15 +827,28 @@ tr.diff td{{color:#e53e3e}}
         if not cr:
             list_items.append(ft.Container(content=ft.Text("標準ルールはありません", color=C_SUB, text_align=ft.TextAlign.CENTER), padding=ft.padding.symmetric(vertical=20)))
         else:
+            def set_default_custom(mode, cid):
+                k = "mahjong_default_base_4ma" if mode == "四麻" else "mahjong_default_base_3ma"
+                page.client_storage.set(k, f"__custom__{cid}")
+                show_custom_base_manager()
+
+            def4 = page.client_storage.get("mahjong_default_base_4ma") or "__custom__preset_jantama_4"
+            def3 = page.client_storage.get("mahjong_default_base_3ma") or "__custom__preset_zoo_3"
+
             for cid, rule in cr.items():
+                is_default = (rule.get("mode") == "四麻" and def4 == f"__custom__{cid}") or (rule.get("mode") == "三麻" and def3 == f"__custom__{cid}")
                 list_items.append(
                     ft.Container(
                         content=ft.Row([
                             ft.Column([
-                                ft.Text(rule.get("name", "名称未設定"), weight=ft.FontWeight.BOLD, color=C_TEXT),
+                                ft.Row([
+                                    ft.Text(rule.get("name", "名称未設定"), weight=ft.FontWeight.BOLD, color=C_TEXT),
+                                    ft.Container(content=ft.Text("★デフォルト", size=10, color=C_SURFACE, weight=ft.FontWeight.BOLD), bgcolor=C_ACCENT, padding=ft.padding.symmetric(horizontal=4, vertical=2), border_radius=4, visible=is_default)
+                                ], spacing=4),
                                 ft.Text(rule.get("mode", ""), size=12, color=C_SUB)
                             ]),
                             ft.Row([
+                                ft.IconButton(ft.Icons.STAR_BORDER if not is_default else ft.Icons.STAR, icon_color=C_SUB if not is_default else C_ACCENT, on_click=lambda e, m=rule.get("mode", "四麻"), i=cid: set_default_custom(m, i), tooltip="デフォルトに設定"),
                                 ft.IconButton(ft.Icons.EDIT, icon_color=C_ACCENT, on_click=lambda e, i=cid: show_custom_base_editor(i)),
                                 ft.IconButton(ft.Icons.DELETE, icon_color="#E53E3E", on_click=lambda e, i=cid: delete_custom(i)),
                             ])
