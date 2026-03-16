@@ -449,8 +449,30 @@ def main(page: ft.Page):
         except Exception:
             pass
 
-    def get_base_dict(mode):
-        return BASE_RULES_4 if mode == "四麻" else BASE_RULES_3
+    def get_base_dict(mode, page=None):
+        if not page: return {}
+        cr = page.client_storage.get("mahjong_custom_base_rules")
+        if not cr:
+            cr = {
+                "preset_jantama": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂段位戦"].copy()},
+                "preset_tenhou": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳段位戦"].copy()},
+                "preset_mleague": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ"].copy()}
+            }
+            page.client_storage.set("mahjong_custom_base_rules", cr)
+        
+        base = {}
+        for cid, rule in cr.items():
+            if rule.get("mode") == mode:
+                base[f"__custom__{cid}"] = rule.get("settings", {})
+        return base
+
+    def get_base_rule_name(k, page):
+        if k and str(k).startswith("__custom__"):
+            cid = str(k).replace("__custom__", "")
+            cr = page.client_storage.get("mahjong_custom_base_rules") or {}
+            if cid in cr:
+                return cr[cid].get("name", "標準ルール")
+        return k
 
     def get_options_dict(mode):
         return OPTIONS_4 if mode == "四麻" else OPTIONS_3
@@ -751,11 +773,166 @@ tr.diff td{{color:#e53e3e}}
     def on_click_create_4ma(e): create_new_rule("四麻")
     def on_click_create_3ma(e): create_new_rule("三麻")
 
+    def show_custom_base_manager():
+        cr = page.client_storage.get("mahjong_custom_base_rules")
+        if not cr:
+            cr = {
+                "preset_jantama": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂段位戦"].copy()},
+                "preset_tenhou": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳段位戦"].copy()},
+                "preset_mleague": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ"].copy()}
+            }
+            page.client_storage.set("mahjong_custom_base_rules", cr)
+
+        def delete_custom(cid):
+            if cid in cr:
+                del cr[cid]
+                page.client_storage.set("mahjong_custom_base_rules", cr)
+                show_custom_base_manager()
+
+        def create_new_custom(mode):
+            import time
+            cid = "custom_" + str(int(time.time() * 1000))
+            def_sets = DEFAULT_4.copy() if mode == "四麻" else DEFAULT_3.copy()
+            cr[cid] = {"name": f"新規標準ルール({mode})", "mode": mode, "settings": def_sets}
+            page.client_storage.set("mahjong_custom_base_rules", cr)
+            show_custom_base_editor(cid)
+
+        list_items = []
+        if not cr:
+            list_items.append(ft.Container(content=ft.Text("標準ルールはありません", color=C_SUB, text_align=ft.TextAlign.CENTER), padding=ft.padding.symmetric(vertical=20)))
+        else:
+            for cid, rule in cr.items():
+                list_items.append(
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Column([
+                                ft.Text(rule.get("name", "名称未設定"), weight=ft.FontWeight.BOLD, color=C_TEXT),
+                                ft.Text(rule.get("mode", ""), size=12, color=C_SUB)
+                            ]),
+                            ft.Row([
+                                ft.IconButton(ft.Icons.EDIT, icon_color=C_ACCENT, on_click=lambda e, i=cid: show_custom_base_editor(i)),
+                                ft.IconButton(ft.Icons.DELETE, icon_color="#E53E3E", on_click=lambda e, i=cid: delete_custom(i)),
+                            ])
+                        ], alignment=ft.alignment.space_between),
+                        padding=10, bgcolor=C_SURFACE, border_radius=8,
+                        border=ft.border.all(1, C_BORDER), margin=ft.margin.only(bottom=10)
+                    )
+                )
+
+        page.views.append(
+            ft.View(
+                "/custom_base_manager",
+                [
+                    ft.Container(
+                        content=ft.Row([
+                            ft.TextButton("← ホーム", on_click=lambda _: page.go("/"), style=ft.ButtonStyle(color=C_TEXT)),
+                            ft.Text("標準ルールの管理", size=16, weight=ft.FontWeight.BOLD, color=C_TEXT),
+                            ft.Container(width=50)
+                        ], alignment=ft.alignment.space_between),
+                        padding=ft.padding.symmetric(horizontal=10, vertical=10),
+                        bgcolor=C_SURFACE, border=ft.border.only(bottom=ft.border.BorderSide(1, C_BORDER))
+                    ),
+                    ft.Container(
+                        content=ft.Row([
+                            ft.ElevatedButton("+ 新規作成(四麻)", on_click=lambda _: create_new_custom("四麻"), bgcolor=C_ACCENT, color=C_SURFACE),
+                            ft.ElevatedButton("+ 新規作成(三麻)", on_click=lambda _: create_new_custom("三麻"), bgcolor=C_ACCENT, color=C_SURFACE),
+                        ], alignment=ft.alignment.space_between),
+                        padding=15
+                    ),
+                    ft.Container(content=ft.Column(list_items, scroll=ft.ScrollMode.HIDDEN), expand=True, padding=ft.padding.symmetric(horizontal=15))
+                ],
+                bgcolor=page.bgcolor, padding=0
+            )
+        )
+        page.update()
+
+    def show_custom_base_editor(cid):
+        cr = page.client_storage.get("mahjong_custom_base_rules") or {}
+        if cid not in cr: return
+        rule = cr[cid]
+        mode = rule.get("mode", "四麻")
+        settings = rule.get("settings", {})
+        
+        name_field = ft.TextField(value=rule.get("name", ""), label="ルール名", width=300, border_color=C_BORDER, color=C_TEXT)
+
+        def save_and_back(e):
+            n = name_field.value.strip() or "名称未設定"
+            if cid in cr:
+                cr[cid]["name"] = n
+                page.client_storage.set("mahjong_custom_base_rules", cr)
+            show_custom_base_manager()
+
+        def update_val(key, val):
+            if cid in cr:
+                cr[cid]["settings"][key] = val
+                page.client_storage.set("mahjong_custom_base_rules", cr)
+
+        def do_copy(e):
+            src = e.control.value
+            if not src: return
+            if src in cr:
+                cr[cid]["settings"] = cr[src]["settings"].copy()
+                page.client_storage.set("mahjong_custom_base_rules", cr)
+            show_custom_base_editor(cid)
+
+        # 既存の標準ルールからコピー
+        opts_cp = [ft.dropdown.Option(str(k), text=v.get("name", "")) for k, v in cr.items() if v.get("mode") == mode and k != cid]
+        opts_cp.insert(0, ft.dropdown.Option("", text="-- コピー元を選択 --"))
+        cp_dd = ft.Dropdown(label="既存からコピー", options=opts_cp, on_change=do_copy, width=300, border_color=C_BORDER, color=C_TEXT)
+
+        items = [ft.Container(content=ft.Column([name_field, cp_dd], spacing=10), padding=15, bgcolor=C_SURFACE, border_radius=8, margin=ft.margin.only(bottom=10))]
+
+        cats = get_categories(mode)
+        opts = get_options_dict(mode)
+
+        for cat_title, cat_keys in cats:
+            items.append(ft.Container(content=ft.Text(cat_title, weight=ft.FontWeight.BOLD, color=C_TEXT), padding=ft.padding.only(top=10, bottom=5)))
+            for k in cat_keys:
+                val = settings.get(k, "")
+                label = LABELS.get(k, k)
+                is_text = (k in opts and opts[k] and opts[k][0] == "")
+                
+                if is_text:
+                    tf = ft.TextField(value=str(val), label="↳ "+label, width=300, border_color=C_BORDER, color=C_TEXT, on_change=lambda e, key=k: update_val(key, e.control.value))
+                    parent_key = k.replace("_custom", "")
+                    tf.visible = (settings.get(parent_key, "") == "カスタム")
+                    items.append(tf)
+                else:
+                    o_list = [ft.dropdown.Option(str(o)) for o in opts.get(k, [])]
+                    def on_change_dd(e, key=k):
+                        update_val(key, e.control.value)
+                        show_custom_base_editor(cid) 
+                    items.append(ft.Dropdown(value=str(val), label=label, options=o_list, on_change=on_change_dd, width=300, border_color=C_BORDER, color=C_TEXT))
+
+        page.views.append(
+            ft.View(
+                f"/custom_base_editor/{cid}",
+                [
+                    ft.Container(
+                        content=ft.Row([
+                            ft.TextButton("← 戻る", on_click=lambda _: show_custom_base_manager(), style=ft.ButtonStyle(color=C_TEXT)),
+                            ft.Text(f"編集: {mode}", size=16, weight=ft.FontWeight.BOLD, color=C_TEXT),
+                            ft.ElevatedButton("保存", on_click=save_and_back, bgcolor=C_ACCENT, color=C_SURFACE)
+                        ], alignment=ft.alignment.space_between),
+                        padding=ft.padding.symmetric(horizontal=10, vertical=10),
+                        bgcolor=C_SURFACE, border=ft.border.only(bottom=ft.border.BorderSide(1, C_BORDER))
+                    ),
+                    ft.Container(content=ft.Column(items, scroll=ft.ScrollMode.HIDDEN), expand=True, padding=15)
+                ],
+                bgcolor=page.bgcolor, padding=0
+            )
+        )
+        page.update()
+
     # --- Routing ---
     def route_change(route):
         page.views.clear()
 
-        if page.route == "/" or route is None and page.route == "/":
+        if page.route == "/custom_base_manager":
+            show_custom_base_manager()
+        elif page.route.startswith("/custom_base_editor/"):
+            show_custom_base_editor(page.route.split("/")[-1])
+        elif page.route == "/" or route is None and page.route == "/":
             cards = []
             for r in saved_data["rules"]:
                 cards.append(ft.Container(
@@ -780,6 +957,10 @@ tr.diff td{{color:#e53e3e}}
                         ft.ElevatedButton("➕ 四麻作成", on_click=on_click_create_4ma, expand=True, bgcolor=C_SURFACE, color=C_TEXT),
                         ft.ElevatedButton("➕ 三麻作成", on_click=on_click_create_3ma, expand=True, bgcolor=C_SURFACE, color=C_TEXT),
                     ], spacing=10),
+                    ft.Container(
+                        content=ft.ElevatedButton("⚙️ 標準ルールの管理", on_click=lambda _: page.go("/custom_base_manager"), bgcolor=C_SURFACE, color=C_TEXT, expand=True),
+                        margin=ft.margin.only(top=10)
+                    ),
                     ft.Divider(height=16, color=C_BORDER),
                     ft.Text("保存済みのルール", weight=ft.FontWeight.BOLD, color=C_SUB, size=13),
                     *cards
@@ -822,7 +1003,7 @@ tr.diff td{{color:#e53e3e}}
             if mode == "四麻":
                 ec.append(ft.Container(content=ft.Row([
                     ft.Text("比較基準:", weight=ft.FontWeight.BOLD, color=C_TEXT, size=11),
-                    ft.Dropdown(value=rd.get("base_rule"), options=[ft.dropdown.Option(k) for k in bd.keys()],
+                    ft.Dropdown(value=rd.get("base_rule"), options=[ft.dropdown.Option(k, text=get_base_rule_name(k, page)) for k in bd.keys()],
                         on_change=on_change_base, border_color=C_BORDER, width=220, text_size=10, content_padding=6)
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     padding=ft.padding.symmetric(horizontal=14, vertical=3), bgcolor=C_SURFACE,

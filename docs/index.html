@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.0<br>2026-03-16 12:15</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.1<br>2026-03-16 12:20</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -29,7 +29,7 @@
       <button class="btn btn-purple" onclick="createRule('三麻')">➕ 三麻作成</button>
     </div>
     <div class="btn-row" style="margin-top:1rem; text-align:center;">
-      <button class="btn btn-ghost" style="border:1px solid var(--border);" onclick="showScreen('custom-base-manager')">⚙️ カスタム基準ルールの管理</button>
+      <button class="btn btn-ghost" style="border:1px solid var(--border);" onclick="showScreen('custom-base-manager')">⚙️ 標準ルールの管理</button>
     </div>
     <div id="install-banner" class="install-banner" onclick="installPWA()">
       <p>📱 ホーム画面に追加してアプリとして使えます</p>
@@ -59,11 +59,11 @@
     </div>
     <div class="edit-scroll" id="edit-fields"></div>
   </div>
-  <!-- カスタム基準ルールの管理画面 -->
+  <!-- 標準ルールの管理画面 -->
   <div class="screen" id="screen-custom-base-manager">
     <div class="header">
       <button class="header-back" onclick="showScreen('home')">← ホーム</button>
-      <span class="header-title">カスタム基準ルール管理</span>
+      <span class="header-title">標準ルール管理</span>
       <div style="width:50px"></div>
     </div>
     <div style="padding: 1rem;">
@@ -75,11 +75,11 @@
     </div>
   </div>
 
-  <!-- カスタム基準ルールの編集画面 -->
+  <!-- 標準ルールの編集画面 -->
   <div class="screen" id="screen-custom-base-editor">
     <div class="header">
       <button class="header-back" onclick="showScreen('custom-base-manager')">← 戻る</button>
-      <span class="header-title" id="custom-base-title">カスタム基準ルール編集</span>
+      <span class="header-title" id="custom-base-title">標準ルール編集</span>
       <button class="btn btn-green" style="padding:4px 8px;font-size:0.8rem" onclick="saveCustomBaseRule()">保存</button>
     </div>
     <div class="edit-form">
@@ -677,12 +677,8 @@ function renderEdit() {
   const bases = getBaseRules(rule.mode);
   if (rule.mode === '四麻') {
     brSection.classList.remove('hidden');
-    let presetHtml = Object.keys(BASE_RULES_4).map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(k)}</option>`).join('');
     let customHtml = Object.keys(bases).filter(k => k.startsWith('__custom__')).map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
-    
-    let selectHtml = `<optgroup label="プリセット">${presetHtml}</optgroup>`;
-    if (customHtml) selectHtml += `<optgroup label="カスタム">${customHtml}</optgroup>`;
-    brSelect.innerHTML = selectHtml;
+    brSelect.innerHTML = customHtml;
   } else {
     brSection.classList.add('hidden');
   }
@@ -1477,7 +1473,7 @@ loadData();
 renderHome();
 
 // =====================================================================
-// カスタム基準ルールの管理
+// 標準ルールの管理
 // =====================================================================
 let customBaseRules = {}; // { id: { name, mode, settings } }
 let currentCustomBaseId = null;
