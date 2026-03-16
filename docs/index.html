@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v5.0<br>2026-03-16 14:50</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v5.1<br>2026-03-16 14:42</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -681,9 +681,20 @@ function checkSharedRule() {
   const shareData = urlParams.get('share');
   if (shareData) {
     try {
-      // LZStringでデコード＆展開
-      const jsonStr = LZString.decompressFromEncodedURIComponent(shareData);
-      if (!jsonStr) throw new Error("Decompression failed");
+      // ① 最新の LZString でデコード＆展開を試行
+      let jsonStr = null;
+      try {
+        jsonStr = LZString.decompressFromEncodedURIComponent(shareData);
+      } catch (err) { /* 無視して次へ */ }
+
+      // ② レガシー仕様（v4.8以下）の Base64URL 形式だった場合のフォールバック
+      if (!jsonStr) {
+        let sanitizedBase64 = shareData.replace(/-/g, '+').replace(/_/g, '/').replace(/ /g, '+');
+        while (sanitizedBase64.length % 4) sanitizedBase64 += '=';
+        jsonStr = decodeURIComponent(atob(sanitizedBase64));
+      }
+
+      if (!jsonStr) throw new Error("Decompression produced empty string");
       const parsed = JSON.parse(jsonStr);
       
       const id = 'shared_' + Date.now();
@@ -708,7 +719,8 @@ function checkSharedRule() {
       showScreen('edit');
       return true;
     } catch (e) {
-      alert('共有ルールの読み込みに失敗しました。リンクが不正か壊れています。');
+      console.error(e);
+      alert('共有ルールの読み込みに失敗しました。\n原因: ' + (e.message || 'データ破損等'));
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
