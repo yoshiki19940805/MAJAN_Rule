@@ -28,7 +28,7 @@ OPTIONS_4 = {
     "mochi_ten_custom": [""],
     "kaeshi_ten":    ["30000点", "25000点", "カスタム"],
     "kaeshi_ten_custom": [""],
-    "uma":           ["10-20", "10-30", "カスタム"],
+    "uma":           ["10-20", "10-30", "5-15", "カスタム"],
     "uma_custom":    [""],
     "tobi":          ["あり（0点未満で終了）", "あり（0点ちょうどで終了）", "なし"],
     "nishiiri":      ["なし", "あり"],
@@ -130,25 +130,12 @@ _BASE_4_COMMON = {
     "tsumo_nashi_reach": "不可",
     "reach_1000": "なし",
     "reach_ankan_okuri": "可", "reach_ankan_machi": "不可", "reach_ankan_mentsu": "不可",
-    "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
-    "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外",
-    "shugi_memo": "",
-    "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
-    "pao_tsumo": "パオの人が全額", "pao_ron": "パオの人と振込者で折半",
-    "chombo_batsu": "満貫払い", "chombo_memo": "", "chombo_taiou": "やり直し",
-    "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ",
-    "pen_reach_bad_ankan": "チョンボ",
-    "pen_goron_no_taopai": "上がり放棄", "pen_gonaki_sarashi": "上がり放棄",
-    "pen_kuikae_ihan": "上がり放棄", "pen_tahai": "上がり放棄",
-    "pen_gonaki_hassei": "軽罰符（1000点供託）",
-    "pen_reach_torikeshi": "軽罰符（1000点供託）",
-    "pen_shouhai": "軽罰符＋山から補充",
 }
 
 BASE_RULES_4 = {
     "雀魂（四麻・段位戦）": {
         **_BASE_4_COMMON,
-        "uma": "10-20", "uma_custom": "", "nishiiri": "あり",
+        "uma": "5-15", "uma_custom": "", "nishiiri": "あり",
         "double_ron": "あり", "triple_ron": "全員アガリ",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
         "yakuman_type": "雀魂に準ずる",
@@ -182,6 +169,18 @@ DEFAULT_4 = {
     "shugi_type": "鳴き祝儀あり", "shugi_ippatsu": "あり", "shugi_ura": "あり",
     "shugi_aka": "鳴き祝儀",
     "shugi_ym_tsumo": "5枚オール", "shugi_ym_ron": "10枚",
+    "shugi_kazoe": "対象外", "shugi_memo": "",
+    # パオ
+    "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
+    "pao_tsumo": "パオの人が全額", "pao_ron": "パオの人と振込者で折半",
+    # 罰則
+    "chombo_batsu": "満貫払い", "chombo_memo": "", "chombo_taiou": "やり直し",
+    "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ",
+    "pen_reach_bad_ankan": "チョンボ",
+    "pen_goron_no_taopai": "アガリ放棄", "pen_gonaki_sarashi": "アガリ放棄",
+    "pen_kuikae_ihan": "アガリ放棄", "pen_tahai": "アガリ放棄",
+    "pen_gonaki_hassei": "軽罰符", "pen_reach_torikeshi": "軽罰符",
+    "pen_shouhai": "軽罰符",
 }
 
 # --- 三麻 選択肢 ---
