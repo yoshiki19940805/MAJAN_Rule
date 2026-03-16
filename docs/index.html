@@ -223,9 +223,9 @@ const OPTIONS_4 = {
 
 const OPTIONS_3 = {
   length:["東南戦","東風戦"],
-  mochi_ten:["30000点","50000点","カスタム"],
+  mochi_ten:["30000点","35000点","50000点","カスタム"],
   mochi_ten_custom:[""],
-  kaeshi_ten:["35000点","50000点","カスタム"],
+  kaeshi_ten:["35000点","40000点","50000点","カスタム"],
   kaeshi_ten_custom:[""],
   uma:["+20/±0/-20","+30/±0/-30","なし","カスタム"],
   uma_custom:[""],
@@ -378,8 +378,8 @@ const DEFAULT_4 = {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
 
 const BASE_RULES_3 = {
   "三人麻雀（標準）":{
-    length:"東南戦", mochi_ten:"30000点", kaeshi_ten:"35000点",
-    uma:"+20/±0/-20", tobi:"あり（0点ちょうどで終了）",
+    length:"東南戦", mochi_ten:"35000点", kaeshi_ten:"40000点",
+    uma:"なし", tobi:"あり（0点未満で終了）",
     tsumozon:"なし", fu_keisan:"なし（専用点数表）", tsumopin:"あり",
     ipponba:"1000点", ipponba_custom:"", tenpai_ryou:"場に2000点",
     renchan:"テンパイ連荘", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
@@ -391,14 +391,14 @@ const BASE_RULES_3 = {
     niji_dora:"5に各2枚",
     kita:"共通役牌（北抜きなし）",
     hanapai:"あり（空気扱い・一発消えず・嶺上開花なし）", kan_dora:"先めくり",
-    reach_1000:"あり（局終了時にトビ）", furiten_reach:"可能（見逃しツモ可）",
+    reach_1000:"あり（局終了時にトビ）", furiten_reach:"不可",
     open_reach:"あり",
     furiten_open_reach:"あり", tsumo_nashi_reach:"不可",
     reach_ankan_okuri:"可", reach_ankan_machi:"不可", reach_ankan_mentsu:"不可",
     reach_kan:"待ち不変ならOK",
     niken_reach:"2軒リーチで残り1人手牌公開", shiro_pocchi:"あり（リーチ後オールマイティ）",
     sp_manzu_honitsu:"あり", sp_daisharin:"あり（清一七対子）",
-    sp_renho:"あり", sp_nagashi_ym:"あり",
+    sp_renho:"なし", sp_nagashi_ym:"あり",
     sp_4mai_chii:"あり（2翻）", sp_shosharin:"あり（混一七対子・6翻）",
     yakuman_type:"雀魂に準ずる", yakuman_custom_memo:"",
     kazoe_yakuman:"14飜以上", w_yakuman:"なし", kokushi_ankan:"あり",
@@ -407,7 +407,7 @@ const BASE_RULES_3 = {
     shugi_ym_tsumo:"5枚", shugi_ym_ron:"10枚", shugi_kazoe:"対象外",
     tobi_shou:"場に２枚（飛ばした人が受け取る）", shugi_memo:"",
     pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
-    pao_tsumo:"パオが全額（チップ5枚）", pao_ron:"パオと振込者で折半（チップ各5枚）",
+    pao_tsumo:"放銃扱い", pao_ron:"パオと振込者で折半（チップ各5枚）",
     chombo_batsu:"倍満払い", chombo_memo:"", chombo_taiou:"やり直し",
     pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
     pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
@@ -418,29 +418,7 @@ const BASE_RULES_3 = {
   }
 };
 const DEFAULT_3 = {...BASE_RULES_3["三人麻雀（標準）"]};
-Object.assign(BASE_RULES_3, {
-  "雀魂（三麻・段位戦）": {
-    ...DEFAULT_3,
-    tsumozon: "あり", kita: "抜きドラ",
-    chombo_batsu: "なし", chombo_taiou: "なし",
-    pen_goron_taopai: "なし", pen_noten_reach: "なし", pen_reach_bad_ankan: "なし",
-    pen_goron_no_taopai: "なし", pen_gonaki_sarashi: "なし", pen_kuikae_ihan: "なし",
-    pen_tahai: "なし", pen_gonaki_hassei: "なし", pen_reach_torikeshi: "なし", pen_shouhai: "なし",
-    shugi_ippatsu: "なし", shugi_ura: "なし", shugi_niji: "なし", shugi_pocchi: "なし",
-    shugi_ym_tsumo: "なし", shugi_ym_ron: "なし", shugi_kazoe: "対象外", shugi_memo: "",
-    pao_daisangen: "あり", pao_daisushi: "あり", pao_tsumo: "パオが全額（チップ5枚）", pao_ron: "パオと振込者で折半（チップ各5枚）",
-  },
-  "天鳳（三麻）": {
-    ...DEFAULT_3,
-    tsumozon: "あり", kita: "抜きドラ",
-    chombo_batsu: "なし", chombo_taiou: "なし",
-    pen_goron_taopai: "なし", pen_noten_reach: "なし", pen_reach_bad_ankan: "なし",
-    pen_goron_no_taopai: "なし", pen_gonaki_sarashi: "なし", pen_kuikae_ihan: "なし",
-    pen_tahai: "なし", pen_gonaki_hassei: "なし", pen_reach_torikeshi: "なし", pen_shouhai: "なし",
-    shugi_ippatsu: "なし", shugi_ura: "なし", shugi_niji: "なし", shugi_pocchi: "なし",
-    shugi_ym_tsumo: "なし", shugi_ym_ron: "なし", shugi_kazoe: "対象外", shugi_memo: "",
-  },
-});
+
 
 // --- ラベル ---
 const LABELS = {
@@ -654,10 +632,12 @@ function createRule(mode) {
   _editSnapshot = JSON.stringify(appData);
   const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const def = getDefault(mode);
+  const defBaseKey = mode === '四麻' ? (localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4')
+                                     : (localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3');
   const rule = {
     id, mode,
     name: '新規ルール',
-    base_rule: mode === '四麻' ? '__custom__preset_jantama_4' : '__custom__preset_jantama_3',
+    base_rule: defBaseKey,
     settings: JSON.parse(JSON.stringify(def))
   };
   appData.rules.push(rule);
@@ -1557,15 +1537,19 @@ function loadCustomBaseRules() {
       "preset_jantama_4": { "name": "雀魂（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["雀魂（四麻・段位戦）"]} },
       "preset_tenhou_4": { "name": "天鳳（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["天鳳（四麻）"]} },
       "preset_mleague_4": { "name": "Mリーグ", "mode": "四麻", "settings": {...BASE_RULES_4["Mリーグ公式（四麻）"]} },
-      "preset_jantama_3": { "name": "雀魂（三麻・段位戦）", "mode": "三麻", "settings": {...BASE_RULES_3["雀魂（三麻・段位戦）"]} },
-      "preset_tenhou_3": { "name": "天鳳（三麻）", "mode": "三麻", "settings": {...BASE_RULES_3["天鳳（三麻）"]} },
-      "preset_tenhou": { "name": "天鳳（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["天鳳段位戦"]} },
-      "preset_mleague": { "name": "Mリーグ", "mode": "四麻", "settings": {...BASE_RULES_4["Mリーグ"]} }
+      "preset_zoo_3": { "name": "三人麻雀（標準）", "mode": "三麻", "settings": {...BASE_RULES_3["三人麻雀（標準）"]} }
     };
     saveCustomBaseRules();
   }
 }
 loadCustomBaseRules(); // 初期化時に読み込み
+
+// デフォルトベース設定関数
+function setDefaultBaseRule(mode, id) {
+  if (mode === '四麻') localStorage.setItem('mahjong_default_base_4ma', '__custom__' + id);
+  else localStorage.setItem('mahjong_default_base_3ma', '__custom__' + id);
+  renderCustomBaseManager(); // 再描画
+}
 
 function saveCustomBaseRules() {
   localStorage.setItem('mahjong_custom_base_rules', JSON.stringify(customBaseRules));

@@ -207,9 +207,9 @@ DEFAULT_4 = {
 OPTIONS_3 = {
     # 1. 基本設定
     "length":        ["東南戦", "東風戦"],
-    "mochi_ten":     ["30000点", "50000点", "カスタム"],
+    "mochi_ten":     ["30000点", "35000点", "50000点", "カスタム"],
     "mochi_ten_custom": [""],
-    "kaeshi_ten":    ["35000点", "50000点", "カスタム"],
+    "kaeshi_ten":    ["35000点", "40000点", "50000点", "カスタム"],
     "kaeshi_ten_custom": [""],
     "uma":           ["+20/±0/-20", "+30/±0/-30", "なし"],
     "tobi":          ["あり（0点ちょうどで終了）", "あり（0点未満で終了）", "なし"],
@@ -291,9 +291,9 @@ OPTIONS_3 = {
 }
 
 BASE_RULES_3 = {
-    "三人麻雀（標準）": {
-        "length": "東南戦", "mochi_ten": "30000点", "kaeshi_ten": "35000点",
-        "uma": "+20/±0/-20", "tobi": "あり（0点ちょうどで終了）",
+    "三人麻雀（標準）":{
+        "length": "東南戦", "mochi_ten": "35000点", "kaeshi_ten": "40000点",
+        "uma": "なし", "tobi": "あり（0点未満で終了）",
         "tsumozon": "なし", "fu_keisan": "なし（専用点数表）", "tsumopin": "あり",
         "ipponba": "1000点", "ipponba_custom": "", "tenpai_ryou": "場に2000点",
         "renchan": "テンパイ連荘", "oras_oya": "アガリ止め・テンパイ止めあり", "oras_oya_custom": "",
@@ -306,61 +306,32 @@ BASE_RULES_3 = {
         "aka_niji": "5索5筒 赤2虹2（計8枚・全ドラ）",
         "kita": "共通役牌（北抜きなし）",
         "hanapai": "あり（空気扱い・一発消えず・嶺上開花なし）", "kan_dora": "先めくり",
-        "reach_1000": "あり（局終了時にトビ）", "furiten_reach": "可能（見逃しツモ可）",
+        "reach_1000": "あり（局終了時にトビ）", "furiten_reach": "不可",
         "open_reach": "あり（全晒し・フリテン可・放銃時役満払い）",
         "furiten_open_reach": "あり",
         "reach_ankan_okuri": "可", "reach_ankan_machi": "不可", "reach_ankan_mentsu": "不可",
         "reach_kan": "待ち不変ならOK",
         "niken_reach": "2軒リーチで残り1人手牌公開", "shiro_pocchi": "あり（リーチ後オールマイティ）",
         "sp_manzu_honitsu": "あり", "sp_daisharin": "あり（清一七対子）",
-        "sp_renho": "あり", "sp_nagashi_ym": "あり",
+        "sp_renho": "なし", "sp_nagashi_ym": "あり",
         "sp_4mai_chii": "あり（2翻）", "sp_shosharin": "あり（混一七対子・6翻）",
         "kazoe_yakuman": "14飜以上", "w_yakuman": "なし", "kokushi_ankan": "あり",
         "shugi_ippatsu": "あり", "shugi_ura": "あり",
         "shugi_niji": "あり（鳴き祝儀あり）", "shugi_pocchi": "あり（リーチ後白ポッチツモ）",
         "shugi_ym_tsumo": "5枚", "shugi_ym_ron": "10枚", "shugi_kazoe": "対象外",
-        "tobi_shou": "あり（飛ばされた人が場にチップ2枚）",
-        "tobi_bunpai": "1人飛ばし2枚・2人飛ばし1枚ずつ等",
+        "tobi_shou": "あり（飛ばされた人が場にチップ2枚）", "tobi_bunpai": "1人飛ばし2枚・2人飛ばし1枚ずつ等",
         "shugi_memo": "",
         "pao_daisangen": "あり", "pao_daisushi": "あり",
-        "pao_tsumo": "パオが全額（チップ5枚）",
-        "pao_ron": "パオと振込者で折半（チップ各5枚）",
+        "pao_tsumo": "放銃扱い", "pao_ron": "パオと振込者で折半（チップ各5枚）",
         "chombo_batsu": "倍満払い", "chombo_taiou": "やり直し",
-        "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ",
-        "pen_reach_bad_ankan": "チョンボ",
+        "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ", "pen_reach_bad_ankan": "チョンボ",
         "pen_goron_no_taopai": "上がり放棄", "pen_gonaki_sarashi": "上がり放棄",
         "pen_kuikae_ihan": "上がり放棄", "pen_tahai": "上がり放棄",
-        "pen_gonaki_hassei": "軽罰符（1000点供託）",
-        "pen_reach_torikeshi": "軽罰符（1000点供託）",
+        "pen_gonaki_hassei": "軽罰符（1000点供託）", "pen_reach_torikeshi": "軽罰符（1000点供託）",
         "pen_shouhai": "軽罰符＋山から補充",
     }
 }
-
 DEFAULT_3 = BASE_RULES_3["三人麻雀（標準）"].copy()
-BASE_RULES_3.update({
-    "雀魂（三麻・段位戦）": {
-        **DEFAULT_3,
-        "tsumozon": "あり", "kita": "抜きドラ",
-        "chombo_batsu": "なし", "chombo_taiou": "なし",
-        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
-        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
-        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
-        "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_niji": "なし", "shugi_pocchi": "なし",
-        "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
-        "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
-        "pao_tsumo": "パオが全額（チップ5枚）", "pao_ron": "パオと振込者で折半（チップ各5枚）",
-    },
-    "天鳳（三麻）": {
-        **DEFAULT_3,
-        "tsumozon": "あり", "kita": "抜きドラ",
-        "chombo_batsu": "なし", "chombo_taiou": "なし",
-        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
-        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
-        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
-        "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_niji": "なし", "shugi_pocchi": "なし",
-        "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
-    },
-})
 
 # --- ラベル ---
 LABELS = {
@@ -499,8 +470,7 @@ def main(page: ft.Page):
                 "preset_jantama_4": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂（四麻・段位戦）"].copy()},
                 "preset_tenhou_4": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳（四麻）"].copy()},
                 "preset_mleague_4": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ公式（四麻）"].copy()},
-                "preset_jantama_3": {"name": "雀魂（三麻・段位戦）", "mode": "三麻", "settings": BASE_RULES_3["雀魂（三麻・段位戦）"].copy()},
-                "preset_tenhou_3": {"name": "天鳳（三麻）", "mode": "三麻", "settings": BASE_RULES_3["天鳳（三麻）"].copy()}
+                "preset_zoo_3": {"name": "三人麻雀（標準）", "mode": "三麻", "settings": BASE_RULES_3["三人麻雀（標準）"].copy()}
             }
             page.client_storage.set("mahjong_custom_base_rules", cr)
         
@@ -588,7 +558,18 @@ def main(page: ft.Page):
     # --- Actions ---
     def create_new_rule(mode):
         bd = get_base_dict(mode, page)
-        bn = list(bd.keys())[0] if bd else ""
+        
+        # デフォルトベースの取得
+        def_key = ""
+        if page:
+            if mode == '四麻':
+                def_key = page.client_storage.get("mahjong_default_base_4ma") or "__custom__preset_jantama_4"
+            else:
+                def_key = page.client_storage.get("mahjong_default_base_3ma") or "__custom__preset_zoo_3"
+                
+        # もし取得したキーが bd に存在しなければ最初の要素をフォールバック
+        bn = def_key if (def_key and def_key in bd) else (list(bd.keys())[0] if bd else "")
+        
         init = DEFAULT_4.copy() if mode == "四麻" else DEFAULT_3.copy()
         nr = {"id": str(uuid.uuid4()), "name": "新規ルール", "mode": mode, "base_rule": bn, "settings": init}
         saved_data["rules"].append(nr)
@@ -626,13 +607,20 @@ def main(page: ft.Page):
     def save_pdf_file(e):
         rd = current_state.get("rule_data")
         if not rd: return
-        settings = rd["settings"]
-        name = rd["name"].replace(" ", "_").replace("/", "_")
+        settings = rd.get("settings", {})
+        name = rd.get("name", "").replace(" ", "_").replace("/", "_")
         path = os.path.join(os.path.expanduser("~"), "Desktop", f"{name}.pdf")
         a4_w, a4_h = 595, 842
-        categories = get_categories(rd["mode"])
-        bd = get_base_dict(rd["mode"], page)
-        base = bd.get(rd.get("base_rule", ""), list(bd.values())[0] if bd else {})
+        mode = rd.get("mode", "四麻")
+        categories = get_categories(mode)
+        
+        bd = get_base_dict(mode, page)
+        base_rule_key = rd.get("base_rule", "")
+        if base_rule_key and base_rule_key in bd:
+            base = bd[base_rule_key].get("settings", {})
+        else:
+            first_val = list(bd.values())[0] if bd else {}
+            base = first_val.get("settings", {}) if isinstance(first_val, dict) else {}
 
         try:
             if os.path.exists(FONT_PATH):
@@ -688,8 +676,9 @@ def main(page: ft.Page):
     def save_html_file(e):
         rd = current_state.get("rule_data")
         if not rd: return
-        settings = rd["settings"]
-        is_4ma = rd["mode"] == "四麻"
+        settings = rd.get("settings", {})
+        mode = rd.get("mode", "四麻")
+        is_4ma = mode == "四麻"
         cats = get_categories(rd["mode"])
         base = None
         if is_4ma:
@@ -816,8 +805,7 @@ tr.diff td{{color:#e53e3e}}
                 "preset_jantama_4": {"name": "雀魂（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["雀魂（四麻・段位戦）"].copy()},
                 "preset_tenhou_4": {"name": "天鳳（段位戦）", "mode": "四麻", "settings": BASE_RULES_4["天鳳（四麻）"].copy()},
                 "preset_mleague_4": {"name": "Mリーグ", "mode": "四麻", "settings": BASE_RULES_4["Mリーグ公式（四麻）"].copy()},
-                "preset_jantama_3": {"name": "雀魂（三麻・段位戦）", "mode": "三麻", "settings": BASE_RULES_3["雀魂（三麻・段位戦）"].copy()},
-                "preset_tenhou_3": {"name": "天鳳（三麻）", "mode": "三麻", "settings": BASE_RULES_3["天鳳（三麻）"].copy()}
+                "preset_zoo_3": {"name": "三人麻雀（標準）", "mode": "三麻", "settings": BASE_RULES_3["三人麻雀（標準）"].copy()}
             }
             page.client_storage.set("mahjong_custom_base_rules", cr)
 
