@@ -1890,8 +1890,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "5.6(React)", // インデントと最新構造を反映
-    buildDate: "2026-03-16 17:30",
+    appVersion: "5.7", 
+    buildDate: "2026-03-16 17:35",
   };
 
   const THEME = {
@@ -2055,7 +2055,7 @@ if (!checkSharedRule()) {
                         <div className={`w-1.5 h-4 rounded-full ${activeTab === 4 ? THEME.indicator4p : THEME.indicator3p}`}></div>
                       )}
                     </div>
-                    <h3 className={`text-sm font-bold truncate leading-tight ${THEME.textMain}`}>
+                    <h3 className={`flex-1 min-w-0 text-sm font-bold truncate leading-tight ${THEME.textMain}`}>
                       {rule.name}
                     </h3>
                   </div>
