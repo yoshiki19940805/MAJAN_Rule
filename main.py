@@ -574,7 +574,7 @@ def main(page: ft.Page):
         categories = get_categories(rd["mode"])
         base = None
         if is_4ma:
-            bd = get_base_dict("四麻")
+            bd = get_base_dict("四麻", page)
             base = bd.get(rd.get("base_rule", ""), list(bd.values())[0])
 
         try:
@@ -636,7 +636,7 @@ def main(page: ft.Page):
         cats = get_categories(rd["mode"])
         base = None
         if is_4ma:
-            bd = get_base_dict("四麻")
+            bd = get_base_dict("四麻", page)
             base = bd.get(rd.get("base_rule", ""), {})
         rows = ""
         for ct, ck in cats:
@@ -725,7 +725,7 @@ tr.diff td{{color:#e53e3e}}
         is_4ma = current_state["rule_data"]["mode"] == "四麻"
         is_diff = False
         if is_4ma:
-            bd = get_base_dict("四麻")
+            bd = get_base_dict("四麻", page)
             bv = bd.get(current_state["rule_data"]["base_rule"], {}).get(dict_key)
             is_diff = (cur_val != str(bv)) if bv is not None else True
 

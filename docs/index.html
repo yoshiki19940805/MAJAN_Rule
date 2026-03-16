@@ -56,6 +56,42 @@
     </div>
     <div class="edit-scroll" id="edit-fields"></div>
   </div>
+  <!-- カスタム基準ルールの管理画面 -->
+  <div class="screen" id="screen-custom-base-manager">
+    <div class="header">
+      <button class="header-back" onclick="showScreen('home')">← ホーム</button>
+      <span class="header-title">カスタム基準ルール管理</span>
+      <div style="width:50px"></div>
+    </div>
+    <div style="padding: 1rem;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:1rem;">
+        <button class="btn btn-green" onclick="createNewCustomBase('四麻')">+ 新規作成 (四麻)</button>
+        <button class="btn btn-green" onclick="createNewCustomBase('三麻')">+ 新規作成 (三麻)</button>
+      </div>
+      <div id="custom-base-list" class="rule-list"></div>
+    </div>
+  </div>
+
+  <!-- カスタム基準ルールの編集画面 -->
+  <div class="screen" id="screen-custom-base-editor">
+    <div class="header">
+      <button class="header-back" onclick="showScreen('custom-base-manager')">← 戻る</button>
+      <span class="header-title" id="custom-base-title">カスタム基準ルール編集</span>
+      <button class="btn btn-green" style="padding:4px 8px;font-size:0.8rem" onclick="saveCustomBaseRule()">保存</button>
+    </div>
+    <div class="edit-form">
+      <div class="setting-row">
+        <label class="setting-label">ルール名</label>
+        <input type="text" id="custom-base-name" style="flex:1" placeholder="例：うちのローカルルール">
+      </div>
+      <div class="setting-row">
+        <label class="setting-label">コピー元 (未選択でデフォルト)</label>
+        <select id="custom-base-source" onchange="copyBaseToCustom()"></select>
+      </div>
+      <div id="custom-base-editor-items"></div>
+    </div>
+  </div>
+
 
   <!-- プレビュー画面 -->
   <div class="screen" id="screen-preview">
@@ -480,10 +516,19 @@ function saveData() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
 }
 
+function getBaseRuleName(k) { return k?.startsWith('__custom__') && customBaseRules[k.replace('__custom__','')] ? customBaseRules[k.replace('__custom__','')].name : (k || ''); }
 function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
-function getBaseRules(mode) { return mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3; }
+function getBaseRules(mode) {
+  const base = mode === '四麻' ? {...BASE_RULES_4} : {...BASE_RULES_3};
+  for (const [id, rule] of Object.entries(customBaseRules)) {
+    if (rule.mode === mode) {
+      base['__custom__' + id] = rule.settings;
+    }
+  }
+  return base;
+}
 function getDefault(mode) { return mode === '四麻' ? {...DEFAULT_4} : {...DEFAULT_3}; }
 
 // =====================================================================
@@ -625,6 +670,7 @@ function renderEdit() {
   // 基準ルール（四麻のみ）
   const brSection = document.getElementById('base-rule-section');
   const brSelect = document.getElementById('base-rule-select');
+  const bases = getBaseRules(rule.mode);
   if (rule.mode === '四麻') {
     brSection.classList.remove('hidden');
     brSelect.innerHTML = Object.keys(BASE_RULES_4).map(k =>
@@ -1422,6 +1468,165 @@ if ('serviceWorker' in navigator) {
 // =====================================================================
 loadData();
 renderHome();
+
+// =====================================================================
+// カスタム基準ルールの管理
+// =====================================================================
+let customBaseRules = {}; // { id: { name, mode, settings } }
+let currentCustomBaseId = null;
+
+function loadCustomBaseRules() {
+  try {
+    const data = localStorage.getItem('mahjong_custom_base_rules');
+    if (data) customBaseRules = JSON.parse(data);
+  } catch(e) { console.error(e); }
+}
+loadCustomBaseRules(); // 初期化時に読み込み
+
+function saveCustomBaseRules() {
+  localStorage.setItem('mahjong_custom_base_rules', JSON.stringify(customBaseRules));
+}
+
+function createNewCustomBase(mode) {
+  currentCustomBaseId = 'custom_' + Date.now();
+  customBaseRules[currentCustomBaseId] = {
+    name: "新規カスタムルール",
+    mode: mode,
+    settings: {...(mode === '四麻' ? DEFAULT_4 : DEFAULT_3)}
+  };
+  openCustomBaseEditor(currentCustomBaseId);
+}
+
+function openCustomBaseEditor(id) {
+  currentCustomBaseId = id;
+  const rule = customBaseRules[id];
+  document.getElementById('custom-base-title').textContent = `${rule.mode}基準ルールの編集`;
+  document.getElementById('custom-base-name').value = rule.name;
+  
+  // コピー元セレクトボックス
+  const srcSelect = document.getElementById('custom-base-source');
+  const bases = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
+  srcSelect.innerHTML = '<option value="">-- ベースにする基準ルールを選択 --</option>';
+  for (const b in bases) {
+    srcSelect.insertAdjacentHTML('beforeend', `<option value="${b}">${b}</option>`);
+  }
+  srcSelect.value = '';
+
+  renderCustomBaseEditorItems();
+  showScreen('custom-base-editor');
+}
+
+function renderCustomBaseEditorItems() {
+  const rule = customBaseRules[currentCustomBaseId];
+  const listEl = document.getElementById('custom-base-editor-items');
+  listEl.innerHTML = '';
+  const cats = getCategories(rule.mode);
+  const opts = getOptions(rule.mode);
+
+  cats.forEach(cat => {
+    let ht = `<div class="category-header" style="background:var(--surface);padding:8px;font-weight:bold;margin-top:8px">${cat.title}</div>`;
+    cat.keys.forEach(k => {
+      let val = rule.settings[k] ?? '';
+      let isText = Array.isArray(opts[k]) && opts[k][0] === "";
+      let label = LABELS[k] || k;
+      
+      if (isText) {
+        let pVal = rule.settings[k.replace('_custom', '')] ?? '';
+        let isVis = (pVal === 'カスタム');
+        ht += `<div class="setting-row" id="cbe-row-${k}" style="display:${isVis?'flex':'none'}; background:var(--surface)">
+                 <label class="setting-label">↳ ${label}</label>
+                 <input type="text" class="setting-text" value="${esc(val)}" onchange="updateCustomBaseVal('${k}', this.value)" style="flex:1">
+               </div>`;
+      } else {
+        ht += `<div class="setting-row" style="background:var(--surface)">
+                 <label class="setting-label">${label}</label>
+                 <select class="setting-select" id="cbe-sel-${k}" onchange="updateCustomBaseVal('${k}', this.value); updateCustomBaseSub('${k}')">`;
+        opts[k].forEach(o => {
+          let sel = (o === val) ? 'selected' : '';
+          ht += `<option value="${esc(o)}" ${sel}>${esc(o)}</option>`;
+        });
+        ht += `  </select></div>`;
+      }
+    });
+    listEl.insertAdjacentHTML('beforeend', ht);
+  });
+}
+
+function updateCustomBaseVal(key, val) {
+  if (currentCustomBaseId && customBaseRules[currentCustomBaseId]) {
+    customBaseRules[currentCustomBaseId].settings[key] = val;
+  }
+}
+
+function updateCustomBaseSub(key) {
+  if (!currentCustomBaseId) return;
+  const rule = customBaseRules[currentCustomBaseId];
+  const opts = getOptions(rule.mode);
+  const customKey = key + '_custom';
+  if (opts[customKey]) {
+    const row = document.getElementById(`cbe-row-${customKey}`);
+    const isCustom = (document.getElementById(`cbe-sel-${key}`).value === 'カスタム');
+    if (row) row.style.display = isCustom ? 'flex' : 'none';
+  }
+}
+
+function copyBaseToCustom() {
+  const src = document.getElementById('custom-base-source').value;
+  if (!src) return;
+  const rule = customBaseRules[currentCustomBaseId];
+  const bases = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
+  if (bases[src]) {
+    rule.settings = {...bases[src]};
+    renderCustomBaseEditorItems();
+    showToast(`「${src}」をコピーしました`);
+  }
+}
+
+function saveCustomBaseRule() {
+  const name = document.getElementById('custom-base-name').value.trim();
+  if (!name) { alert("ルール名を入力してください"); return; }
+  customBaseRules[currentCustomBaseId].name = name;
+  saveCustomBaseRules();
+  showToast("保存しました");
+  renderCustomBaseManager();
+  showScreen('custom-base-manager');
+}
+
+function renderCustomBaseManager() {
+  const listEl = document.getElementById('custom-base-list');
+  listEl.innerHTML = '';
+  
+  if (Object.keys(customBaseRules).length === 0) {
+    listEl.innerHTML = '<div class="no-history" style="text-align:center;padding:2rem;">カスタムルールはありません</div>';
+    return;
+  }
+
+  for (const [id, rule] of Object.entries(customBaseRules)) {
+    const div = document.createElement('div');
+    div.className = 'rule-item swipe-item';
+    div.innerHTML = `
+      <div class="swipe-content" style="display:flex; justify-content:space-between; align-items:center;" onclick="openCustomBaseEditor('${id}')">
+        <div>
+          <div style="font-weight:bold">${esc(rule.name)}</div>
+          <div style="font-size:0.8rem; color:var(--text-sub)">${rule.mode}</div>
+        </div>
+        <div style="color:var(--primary)">編集 ＞</div>
+      </div>
+      <div class="swipe-action swipe-delete" onclick="deleteCustomBase('${id}')">削除</div>
+    `;
+    listEl.appendChild(div);
+  }
+  initSwipeDelete(); // スワイプ削除機能の再初期化（既存のイベントを利用）
+}
+
+function deleteCustomBase(id) {
+  if (confirm("このカスタムルールを削除しますか？")) {
+    delete customBaseRules[id];
+    saveCustomBaseRules();
+    renderCustomBaseManager();
+  }
+}
 </script>
 </body>
+
 </html>
