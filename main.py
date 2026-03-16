@@ -727,7 +727,7 @@ tr.diff td{{color:#e53e3e}}
         if is_4ma:
             bd = get_base_dict("四麻")
             bv = bd.get(current_state["rule_data"]["base_rule"], {}).get(dict_key)
-            is_diff = (cur_val != str(bv)) if bv is not None else False
+            is_diff = (cur_val != str(bv)) if bv is not None else True
 
         bg = C_HIGHLIGHT_BG if is_diff else C_SURFACE
         lc = C_HIGHLIGHT if is_diff else C_TEXT
