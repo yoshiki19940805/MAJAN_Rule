@@ -575,7 +575,7 @@ def main(page: ft.Page):
                     continue
                 val = settings.get(key, "")
                 label = LABELS.get(key, key)
-                is_diff = base is not None and (val != base.get(key))
+                is_diff = base is not None and (key not in base or str(val) != str(base.get(key, "")))
 
                 if is_diff:
                     draw.rectangle([(15, y-4), (785, y+34)], fill=C_HIGHLIGHT_BG)
@@ -678,7 +678,7 @@ def main(page: ft.Page):
                 if not val or val is None:
                     continue
                 label = LABELS.get(key, key)
-                is_diff = base and val != base.get(key, "")
+                is_diff = base is not None and (key not in base or str(val) != str(base.get(key, "")))
                 color = '#E53E3E' if is_diff else '#1A202C'
                 draw.text((22, y), f"{label}:", fill='#718096', font=font)
                 draw.text((240, y), str(val)[:50], fill=color, font=font)
@@ -792,8 +792,8 @@ tr.diff td{{color:#e53e3e}}
         is_diff = False
         if is_4ma:
             bd = get_base_dict("四麻", page)
-            bv = bd.get(current_state["rule_data"]["base_rule"], {}).get(dict_key)
-            is_diff = (cur_val != str(bv)) if bv is not None else True
+            b_dict = bd.get(current_state["rule_data"]["base_rule"], {})
+            is_diff = (dict_key not in b_dict) or (cur_val != str(b_dict.get(dict_key, "")))
 
         bg = C_HIGHLIGHT_BG if is_diff else C_SURFACE
         lc = C_HIGHLIGHT if is_diff else C_TEXT

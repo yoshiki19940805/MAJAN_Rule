@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.2<br>2026-03-16 12:35</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.3<br>2026-03-16 12:45</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -811,7 +811,7 @@ function renderEdit() {
       // 削除済みキーはスキップ
       if (deletedKeys.has(k)) continue;
       const val = rule.settings[k] ?? '';
-      const isDiff = base && val !== (base[k] ?? '');
+      const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
 
       // _custom キー: 親キーが「カスタム」選択時のみ text input 表示
       if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
@@ -935,7 +935,7 @@ function onSettingChange(key, val) {
     const base = getBaseRules('四麻')[rule.base_rule] || {};
     const row = document.querySelector(`[data-key="${key}"]`)?.closest('.setting-row');
     if (row) {
-      const isDiff = val !== (base[key] ?? '');
+      const isDiff = (!(key in base) || val !== String(base[key] || ""));
       row.classList.toggle('diff', isDiff);
       const badge = row.querySelector('.diff-badge');
       if (isDiff && !badge) {
@@ -1338,7 +1338,7 @@ function renderPreview() {
       }
 
       const val = rule.settings[k] ?? '';
-      const isDiff = base && val !== (base[k] ?? '');
+      const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
       html += `<div class="pv-row ${isDiff?'diff':''}">
         <span class="pv-key">${esc(LABELS[k]||k)}</span>
         <span class="pv-val">${esc(val)}</span>
