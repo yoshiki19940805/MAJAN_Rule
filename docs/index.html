@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.0<br>2026-03-16 08:59</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.1<br>2026-03-16 09:05</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -167,16 +167,17 @@ const OPTIONS_4 = {
   chombo_batsu:["満貫払い","倍満払い","カスタム"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局"],
-  pen_goron_taopai:["チョンボ","アガリ放棄","軽罰符","カスタム"],
-  pen_noten_reach:["チョンボ","アガリ放棄","軽罰符","カスタム"],
-  pen_reach_bad_ankan:["チョンボ","アガリ放棄","軽罰符","カスタム"],
-  pen_goron_no_taopai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_gonaki_sarashi:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_kuikae_ihan:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_tahai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_gonaki_hassei:["軽罰符","アガリ放棄","チョンボ","カスタム"],
-  pen_reach_torikeshi:["軽罰符","アガリ放棄","チョンボ","カスタム"],
-  pen_shouhai:["軽罰符","アガリ放棄","チョンボ","カスタム"],
+  keibappu_type:["1000点供託","カスタム"],
+  pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム"],
+  pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム"],
+  pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム"],
+  pen_goron_no_taopai:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_sarashi:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_kuikae_ihan:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_tahai:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_hassei:["軽罰符","上がり放棄","チョンボ","カスタム"],
+  pen_reach_torikeshi:["軽罰符","上がり放棄","チョンボ","カスタム"],
+  pen_shouhai:["軽罰符","上がり放棄","チョンボ","カスタム"],
 };
 
 const OPTIONS_3 = {
@@ -246,16 +247,17 @@ const OPTIONS_3 = {
   chombo_batsu:["倍満払い","満貫払い","カスタム"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局"],
-  pen_goron_taopai:["チョンボ","アガリ放棄","軽罰符","カスタム"],
-  pen_noten_reach:["チョンボ","アガリ放棄","軽罰符","カスタム"],
-  pen_reach_bad_ankan:["チョンボ","アガリ放棄","軽罰符","カスタム"],
-  pen_goron_no_taopai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_gonaki_sarashi:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_kuikae_ihan:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_tahai:["アガリ放棄","チョンボ","軽罰符","カスタム"],
-  pen_gonaki_hassei:["軽罰符","アガリ放棄","チョンボ","カスタム"],
-  pen_reach_torikeshi:["軽罰符","アガリ放棄","チョンボ","カスタム"],
-  pen_shouhai:["軽罰符","アガリ放棄","チョンボ","カスタム"],
+  keibappu_type:["1000点供託","カスタム"],
+  pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム"],
+  pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム"],
+  pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム"],
+  pen_goron_no_taopai:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_sarashi:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_kuikae_ihan:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_tahai:["上がり放棄","チョンボ","軽罰符","カスタム"],
+  pen_gonaki_hassei:["軽罰符","上がり放棄","チョンボ","カスタム"],
+  pen_reach_torikeshi:["軽罰符","上がり放棄","チョンボ","カスタム"],
+  pen_shouhai:["軽罰符","上がり放棄","チョンボ","カスタム"],
 };
 
 // --- 基準ルール ---
@@ -284,7 +286,8 @@ const _BASE_4_COMMON = {
   pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
   pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
   pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
-  pen_gonaki_hassei:"軽罰符（1000点供託）", pen_reach_torikeshi:"軽罰符（1000点供託）",
+  keibappu_type:"1000点供託",
+  pen_gonaki_hassei:"軽罰符", pen_reach_torikeshi:"軽罰符",
   pen_shouhai:"軽罰符＋山から補充",
 };
 
@@ -343,7 +346,8 @@ const BASE_RULES_3 = {
     pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
     pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
     pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
-    pen_gonaki_hassei:"軽罰符（1000点供託）", pen_reach_torikeshi:"軽罰符（1000点供託）",
+    keibappu_type:"1000点供託",
+    pen_gonaki_hassei:"軽罰符", pen_reach_torikeshi:"軽罰符",
     pen_shouhai:"軽罰符＋山から補充",
   }
 };
@@ -393,7 +397,8 @@ const LABELS = {
   pen_reach_bad_ankan:"リーチ後不正暗槓",
   pen_goron_no_taopai:"誤ロン・誤ツモ（倒牌なし）",
   pen_gonaki_sarashi:"誤鳴き（牌晒し）", pen_kuikae_ihan:"喰い替え違反",
-  pen_tahai:"多牌", pen_gonaki_hassei:"誤鳴き（発声のみ）",
+  pen_tahai:"多牌", keibappu_type:"軽罰符の内容",
+  pen_gonaki_hassei:"誤鳴き（発声のみ）",
   pen_reach_torikeshi:"リーチ取消", pen_shouhai:"少牌",
 };
 
@@ -412,7 +417,7 @@ const CATEGORIES_4 = [
   ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
   ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
   ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["14. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
+  ["14. 軽罰符",["keibappu_type","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 const CATEGORIES_3 = [
@@ -429,7 +434,7 @@ const CATEGORIES_3 = [
   ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]],
   ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
   ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["14. 軽罰符",["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
+  ["14. 軽罰符",["keibappu_type","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 // =====================================================================
@@ -440,7 +445,7 @@ let appData = { rules: [] };
 let editingId = null;
 let deleteTargetId = null;
 let _editSnapshot = null;  // 編集前のスナップショット
-const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman','pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
+const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman','keibappu_type','pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
 
 function loadData() {
   try {
