@@ -162,8 +162,8 @@
         <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity" onclick="saveAndGoHome()" id="btn-save">
             完了
         </button>
-        <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity" onclick="copySharedRule()" id="btn-copy-shared" style="display:none;">
-            コピー
+        <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity flex items-center gap-1" onclick="copySharedRule()" id="btn-copy-shared" style="display:none;">
+            <span class="material-symbols-outlined text-[20px]">content_copy</span>コピー
         </button>
     </nav>
 
@@ -171,15 +171,13 @@
         <div class="px-4 pt-6 pb-2 w-full">
             <input type="text" id="edit-name" placeholder="ルール名を入力" class="w-full text-2xl font-bold bg-transparent border-none outline-none placeholder-theme-textMuted mb-5" oninput="onNameChange(this.value)">
             
-            <div id="base-rule-section" class="bg-theme-surface rounded-xl p-4 flex flex-col shadow-sm border border-theme-border/30 hidden">
-                <div class="flex items-center justify-between w-full">
-                  <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">標準ルール</span>
-                  
-                  <div class="relative flex-1 flex justify-end items-center min-w-0">
-                      <select id="base-rule-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onBaseRuleChange(this.value)"></select>
-                      <span id="standard-rule-display" class="text-theme-textMuted text-sm font-medium pr-6 text-right truncate w-full pointer-events-none block"></span>
-                      <span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">unfold_more</span>
-                  </div>
+            <div id="base-rule-section" class="bg-theme-surface rounded-xl p-4 flex items-center justify-between shadow-sm border border-theme-border/30 hidden">
+                <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">標準ルール</span>
+                
+                <div class="relative flex-1 flex justify-end items-center min-w-0">
+                    <span id="standard-rule-display" class="text-theme-textMuted text-sm font-medium pr-6 text-right truncate w-full pointer-events-none block"></span>
+                    <span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">unfold_more</span>
+                    <select id="base-rule-select" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onBaseRuleChange(this.value)"></select>
                 </div>
             </div>
             
@@ -193,8 +191,8 @@
     </main>
 
     <div class="fixed bottom-0 w-full max-w-[40rem] bg-theme-bg/95 backdrop-blur-md border-t border-theme-border/50 p-4 pb-8 z-40 flex gap-3">
-        <button class="flex-1 bg-theme-surface text-theme-text border border-theme-border py-3 rounded-xl font-semibold shadow-sm active:bg-gray-50 flex justify-center items-center gap-1 transition-all" onclick="goPreview()" id="btn-preview">
-            <span class="material-symbols-outlined text-[20px]">preview</span> プレビュー
+        <button class="flex-1 bg-theme-surface text-theme-text border border-theme-border py-3 rounded-xl font-semibold shadow-sm active:bg-gray-50 flex justify-center items-center gap-1 transition-all" onclick="saveAndGoHome()" id="btn-save-bottom">
+            <span class="material-symbols-outlined text-[20px]">save</span> 保存
         </button>
         <button class="flex-1 bg-theme-primary text-white py-3 rounded-xl font-semibold shadow-sm active:scale-95 flex justify-center items-center gap-1 transition-all" onclick="openActionSheet()" id="btn-share-options">
             <span class="material-symbols-outlined text-[20px]">ios_share</span> 共有・出力
@@ -976,7 +974,7 @@ function renderEdit() {
   if (!rule) return goHome();
 
   const titleEl = document.getElementById('edit-mode-label');
-  titleEl.innerHTML = `<span class="bg-white/20 px-2 py-0.5 rounded text-[12px] font-bold mr-2">${rule.mode}</span> ${isSharedMode ? '（共有ルール）' : 'ルールの編集'}`;
+  titleEl.innerHTML = `${rule.mode}ルール作成${isSharedMode ? '（共有設定）' : ''}`;
 
   const nameInput = document.getElementById('edit-name');
   nameInput.value = rule.name;
@@ -989,8 +987,8 @@ function renderEdit() {
   const bases = getBaseRules(rule.mode);
   
   document.getElementById('btn-save').style.display = isSharedMode ? 'none' : 'block';
-  document.getElementById('btn-preview').style.display = isSharedMode ? 'none' : 'block';
-  document.getElementById('btn-copy-shared').style.display = isSharedMode ? 'block' : 'none';
+  document.getElementById('btn-save-bottom').style.display = isSharedMode ? 'none' : 'flex';
+  document.getElementById('btn-copy-shared').style.display = isSharedMode ? 'flex' : 'none';
 
   if (brSection) {
     brSection.classList.remove('hidden');
@@ -1122,7 +1120,7 @@ function renderEdit() {
                 </div>
                 ` : ''}
                 
-                <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)"' : ''}>
+                <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(LABELS[k] || k)}</span>
                         
@@ -1175,7 +1173,7 @@ function renderEdit() {
                 </div>
                 ` : ''}
                 
-                <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)"' : ''}>
+                <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(itemName)}</span>
                         
@@ -1226,7 +1224,7 @@ function renderEdit() {
         </div>
     `);
 
-    html += `<div class="flex flex-col w-full mb-6">
+    html += `<div class="flex flex-col w-full">
         <h2 class="text-[13px] font-semibold text-theme-textMuted tracking-wider ml-4 mb-1.5">${esc(catNameLong)}</h2>
         ${catDivContent.join('')}
     </div>`;
@@ -1367,31 +1365,35 @@ function onCustomPenaltySelect(catKey, idx, val) {
 }
 
 // --- スワイプ削除 ---
-let _swipeStartX = 0;
-let _swipeStartOffset = 0;
-function swipeStart(e) {
-  _swipeStartX = e.touches[0].clientX;
-  const content = e.currentTarget.querySelector('.swipe-content');
-  if (content) {
-    content.style.transition = 'none';
-    _swipeStartOffset = parseFloat(content.style.transform.replace(/[^-\d.]/g,'')) || 0;
-  }
+let _swipeStartX = 0, _swipeCurrentX = 0, _activeSwipe = null;
+const SWIPE_WIDTH = -120; 
+
+function handleTouchStart(e) {
+    _swipeStartX = e.touches[0].clientX;
+    _activeSwipe = e.currentTarget;
+    document.querySelectorAll('.swipe-content').forEach(el => {
+        if (el !== _activeSwipe) el.style.transform = 'translateX(0)';
+    });
 }
-function swipeMove(e) {
-  const dx = e.touches[0].clientX - _swipeStartX;
-  const content = e.currentTarget.querySelector('.swipe-content');
-  if (!content) return;
-  const maxSlide = parseInt(e.currentTarget.dataset.actionsWidth) || 60;
-  const newX = Math.min(0, Math.max(-maxSlide, _swipeStartOffset + dx));
-  content.style.transform = 'translateX(' + newX + 'px)';
+
+function handleTouchMove(e) {
+    if (!_activeSwipe) return;
+    _swipeCurrentX = e.touches[0].clientX;
+    const diffX = _swipeCurrentX - _swipeStartX;
+    if (diffX < 0 && diffX > SWIPE_WIDTH - 20) {
+        _activeSwipe.style.transform = `translateX(${diffX}px)`;
+    }
 }
-function swipeEnd(e) {
-  const content = e.currentTarget.querySelector('.swipe-content');
-  if (!content) return;
-  content.style.transition = 'transform 0.2s ease';
-  const maxSlide = parseInt(e.currentTarget.dataset.actionsWidth) || 60;
-  const cur = parseFloat(content.style.transform.replace(/[^-\d.]/g,'')) || 0;
-  content.style.transform = cur < -(maxSlide / 2) ? 'translateX(-' + maxSlide + 'px)' : 'translateX(0)';
+
+function handleTouchEnd(e) {
+    if (!_activeSwipe) return;
+    const diffX = _swipeCurrentX - _swipeStartX;
+    if (diffX < SWIPE_WIDTH / 2) {
+        _activeSwipe.style.transform = `translateX(${SWIPE_WIDTH}px)`;
+    } else {
+        _activeSwipe.style.transform = 'translateX(0)';
+    }
+    _activeSwipe = null;
 }
 // --- 既存項目の削除 ---
 function removeSettingKey(key) {
