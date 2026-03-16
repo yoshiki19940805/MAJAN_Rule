@@ -551,7 +551,7 @@ def main(page: ft.Page):
         draw.text((25, 70), f"基準: {get_base_rule_name(rule_data['base_rule'], None)}", fill='#A0AEC0', font=font)
 
         y = 140
-        bd = get_base_dict(rule_data['mode'])
+        bd = get_base_dict(rule_data['mode'], page)
         base = bd.get(rule_data['base_rule'], list(bd.values())[0] if bd else {})
         categories = get_categories(rule_data['mode'])
 
@@ -587,8 +587,8 @@ def main(page: ft.Page):
 
     # --- Actions ---
     def create_new_rule(mode):
-        bd = get_base_dict(mode)
-        bn = list(bd.keys())[0]
+        bd = get_base_dict(mode, page)
+        bn = list(bd.keys())[0] if bd else ""
         init = DEFAULT_4.copy() if mode == "四麻" else DEFAULT_3.copy()
         nr = {"id": str(uuid.uuid4()), "name": "新規ルール", "mode": mode, "base_rule": bn, "settings": init}
         saved_data["rules"].append(nr)
@@ -1010,9 +1010,13 @@ tr.diff td{{color:#e53e3e}}
             if not rd:
                 page.go("/"); return
             mode = rd["mode"]
-            bd = get_base_dict(mode)
+            bd = get_base_dict(mode, page)
             opts = get_options_dict(mode)
             cats = get_categories(mode)
+
+            if bd and rd.get("base_rule") not in bd:
+                rd["base_rule"] = list(bd.keys())[0] if bd else ""
+                save_state()
 
             def on_change_base(e):
                 rd["base_rule"] = e.control.value

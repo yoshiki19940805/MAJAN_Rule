@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.5<br>2026-03-16 12:48</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.6<br>2026-03-16 13:00</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -657,8 +657,8 @@ function createRule(mode) {
   const rule = {
     id, mode,
     name: '新規ルール',
-    base_rule: mode === '四麻' ? '雀魂（四麻・段位戦）' : '',
-    settings: {...def}
+    base_rule: mode === '四麻' ? '__custom__preset_jantama_4' : '__custom__preset_jantama_3',
+    settings: JSON.parse(JSON.stringify(def))
   };
   appData.rules.push(rule);
   saveData();
@@ -714,13 +714,22 @@ function renderEdit() {
   document.getElementById('edit-name').value = rule.name;
   document.getElementById('edit-mode-label').textContent = rule.mode === '四麻' ? '四人麻雀' : '三人麻雀';
 
-  // 基準ルール（四麻のみ）
+  // 基準ルール
   const brSection = document.getElementById('base-rule-section');
   const brSelect = document.getElementById('base-rule-select');
   const bases = getBaseRules(rule.mode);
+  
   if (true) {
     brSection.classList.remove('hidden');
-    let customHtml = Object.keys(bases).filter(k => k.startsWith('__custom__')).map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+    let customKeys = Object.keys(bases).filter(k => k.startsWith('__custom__'));
+    
+    // 現在の base_rule が選択肢内に存在しない場合（古いデータまたは空）、最初の選択肢を自動適用
+    if (!customKeys.includes(rule.base_rule) && customKeys.length > 0) {
+      rule.base_rule = customKeys[0];
+      saveData();
+    }
+    
+    let customHtml = customKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
     brSelect.innerHTML = customHtml;
   } else {
     brSection.classList.add('hidden');
