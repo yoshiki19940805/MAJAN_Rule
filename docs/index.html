@@ -12,6 +12,16 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
 <!-- React / Tailwind -->
+<script>
+  // 強制キャッシュクリア
+  (function() {
+    const currentVersion = "v60-hotfix-1";
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('v') !== currentVersion) {
+      window.location.replace("?v=" + currentVersion);
+    }
+  })();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -2101,8 +2111,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.0", 
-    buildDate: "2026-03-16 19:10",
+    appVersion: "1.0.1", 
+    buildDate: "2026-03-16 22:05",
   };
 
   // ==========================================
