@@ -56,11 +56,30 @@
     --color-danger: #FF3B30;
     --color-segmented-bg: #E3E3E8;
     --color-readonly-bg: #F9F9FA;
+    
+    --app-max-width: 100%;
+    --app-padding: 5vw;
   }
   
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent; 
+  }
+
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
     flex-shrink: 0;
+  }
+
+  .app-container {
+    width: var(--app-max-width);
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
   /* React用のスクロールバー非表示とアニメーションはここに隔離 */
@@ -1944,18 +1963,18 @@ if (!checkSharedRule()) {
     };
 
     return (
-      <div className="w-full max-w-[600px] mx-auto min-h-[100dvh] flex flex-col font-sans" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}>
+      <div className="app-container">
         
         {/* 固定ヘッダー */}
-        <header className="pt-12 pb-4 flex justify-between items-end flex-shrink-0" style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }}>
+        <header className="pt-12 pb-4 flex justify-between items-end" style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }}>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text)]">
+            <h1 className="text-2xl font-bold tracking-tight text-theme-text">
               {CONFIG.strings.appTitle}
             </h1>
           </div>
           <button 
             onClick={() => window.showScreen('custom-base-manager')}
-            className="text-[var(--color-primary)] text-sm font-medium flex items-center gap-1 active:opacity-70 transition-opacity"
+            className="text-theme-primary text-sm font-medium flex items-center gap-1 active:opacity-70 transition-opacity"
           >
             <span className="material-symbols-outlined text-[20px]">settings</span>
             <span>{CONFIG.strings.manageStandardRules}</span>
@@ -1963,17 +1982,17 @@ if (!checkSharedRule()) {
         </header>
 
         {/* タブ切り替え */}
-        <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-5 flex-shrink-0">
-          <div className="flex bg-[var(--color-segmented-bg)] p-1 rounded-lg">
+        <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-5">
+          <div className="flex bg-theme-segmentedBg p-1 rounded-lg">
             <button 
               onClick={() => setActiveTab(4)}
-              className={`flex-1 py-1.5 text-sm transition-all rounded ${activeTab === 4 ? 'font-semibold text-center bg-[var(--color-surface)] shadow-sm text-[var(--color-text)]' : 'font-medium text-center text-[var(--color-text-muted)] active:bg-white/50'}`}
+              className={`flex-1 py-1.5 text-sm transition-all rounded ${activeTab === 4 ? 'font-semibold text-center bg-theme-surface shadow-sm text-theme-text' : 'font-medium text-center text-theme-textMuted active:bg-white/50'}`}
             >
               {CONFIG.strings.tab4p}
             </button>
             <button 
               onClick={() => setActiveTab(3)}
-              className={`flex-1 py-1.5 text-sm transition-all rounded ${activeTab === 3 ? 'font-semibold text-center bg-[var(--color-surface)] shadow-sm text-[var(--color-text)]' : 'font-medium text-center text-[var(--color-text-muted)] active:bg-white/50'}`}
+              className={`flex-1 py-1.5 text-sm transition-all rounded ${activeTab === 3 ? 'font-semibold text-center bg-theme-surface shadow-sm text-theme-text' : 'font-medium text-center text-theme-textMuted active:bg-white/50'}`}
             >
               {CONFIG.strings.tab3p}
             </button>
@@ -1982,19 +2001,19 @@ if (!checkSharedRule()) {
 
         {/* PWAインストールバナー */}
         {showPwaBanner && (
-          <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-4 flex-shrink-0">
-            <div onClick={handleInstallPWA} className="bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-bold px-4 py-3 rounded-xl border border-[var(--color-primary)]/20 flex items-center justify-between cursor-pointer active:scale-95 transition-transform">
+          <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-4">
+            <div onClick={handleInstallPWA} className="bg-theme-surface text-theme-primary text-xs font-bold px-4 py-3 rounded-xl border border-theme-border flex items-center justify-between cursor-pointer active:scale-95 transition-transform shadow-sm">
               <span>📱 ホーム画面に追加してアプリとして使う</span>
-              <button className="bg-[var(--color-primary)] text-white px-3 py-1.5 rounded-md shadow-sm">追加</button>
+              <button className="bg-theme-primary text-white px-3 py-1.5 rounded-md shadow-sm">追加</button>
             </div>
           </div>
         )}
 
         {/* 新規作成ボタン */}
-        <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-6 flex-shrink-0">
+        <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-6">
           <button 
             onClick={() => window.createRule(activeTab === 4 ? '四麻' : '三麻')}
-            className="w-full bg-[var(--color-primary)] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform"
+            className="w-full bg-theme-primary text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform"
           >
             <span className="material-symbols-outlined text-[22px]">add_circle</span>
             {activeTab === 4 ? CONFIG.strings.create4pRule : CONFIG.strings.create3pRule}
@@ -2009,36 +2028,37 @@ if (!checkSharedRule()) {
               return (
                 <div 
                   key={rule.id} 
-                  className={`${isReadOnly ? 'bg-[var(--color-readonly-bg)] opacity-90' : 'bg-[var(--color-surface)]'} p-4 rounded-2xl flex items-center justify-between shadow-sm border ${isReadOnly ? 'border-[var(--color-border)]' : 'border-[var(--color-border)]/50'}`}
+                  className={isReadOnly ? "bg-theme-readonlyBg p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border opacity-90" : "bg-theme-surface p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border/50"}
                 >
-                  {/* ルール名（タップ可能領域） */}
-                  <button 
+                  <div 
                     onClick={() => window.editRule(rule.id)}
-                    className="flex-1 min-w-0 pr-4 flex flex-col gap-1 text-left active:opacity-60 transition-opacity"
+                    className="flex-1 min-w-0 pr-4 flex flex-col cursor-pointer active:opacity-60 transition-opacity"
                   >
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-[var(--color-text)] truncate">
-                        {rule.name}
-                      </h2>
-                      {isReadOnly && (
-                        <span className="material-symbols-outlined text-[var(--color-text-muted)] text-[18px]">lock</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 text-[var(--color-text-muted)] mt-1">
-                      <span className="material-symbols-outlined text-[14px]">
-                        {isReadOnly ? 'verified' : 'calendar_today'}
-                      </span>
-                      <p className="text-xs">
-                        {isReadOnly ? '共有ルール（改変不可）' : '標準カスタマイズ互換'}
-                      </p>
-                    </div>
-                  </button>
-
-                  {/* アクションボタン */}
-                  <div className="flex items-center gap-4 text-[var(--color-text-muted)] flex-shrink-0">
+                    {!isReadOnly ? (
+                      <>
+                        <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
+                        <div className="flex items-center gap-1 mt-1 text-theme-textMuted">
+                          <span className="material-symbols-outlined text-[14px]">calendar_today</span>
+                          <p className="text-xs">標準カスタマイズ互換</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
+                          <span className="material-symbols-outlined text-theme-textMuted text-[18px]">lock</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-theme-textMuted mt-1">
+                          <span className="material-symbols-outlined text-[14px]">verified</span>
+                          <p className="text-xs">共有ルール（改変不可）</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-theme-textMuted">
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleAction('copy', rule); }}
-                      className="flex items-center justify-center hover:text-[var(--color-primary)] active:scale-90 transition-all" 
+                      className="flex items-center justify-center hover:text-theme-primary active:scale-90 transition-all font-inherit"
                       aria-label="コピー"
                     >
                       <span className="material-symbols-outlined text-[22px]">content_copy</span>
@@ -2046,7 +2066,7 @@ if (!checkSharedRule()) {
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
                       disabled={isReadOnly}
-                      className={`flex items-center justify-center hover:text-[var(--color-danger)] active:scale-90 transition-all ${isReadOnly ? 'opacity-30 cursor-not-allowed' : ''}`}
+                      className={isReadOnly ? "flex items-center justify-center opacity-30 cursor-not-allowed font-inherit" : "flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"}
                       aria-label="削除"
                     >
                       <span className="material-symbols-outlined text-[22px]">delete</span>
@@ -2057,7 +2077,7 @@ if (!checkSharedRule()) {
             })}
 
             {displayedRules.length === 0 && (
-              <div className="text-center py-10 text-[var(--color-text-muted)]">
+              <div className="text-center py-10 text-theme-textMuted">
                 <p className="text-sm font-medium">{CONFIG.strings.emptyRules}</p>
               </div>
             )}
@@ -2065,7 +2085,7 @@ if (!checkSharedRule()) {
         </main>
 
         <footer className="py-6 text-center shrink-0">
-          <p className="text-[11px] font-medium text-[var(--color-text-muted)] tracking-wider">
+          <p className="text-[11px] font-medium text-theme-textMuted tracking-wider">
             VERSION {CONFIG.appVersion}
           </p>
         </footer>
