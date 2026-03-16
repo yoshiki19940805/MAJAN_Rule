@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v4.9<br>2026-03-16 14:40</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v5.0<br>2026-03-16 14:50</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -133,6 +133,7 @@
 <!-- 外部ライブラリ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 
 <script>
 // =====================================================================
@@ -659,12 +660,11 @@ function shareRule(id) {
   
   try {
     const jsonStr = JSON.stringify(exportData);
-    let base64Str = btoa(encodeURIComponent(jsonStr));
-    // URLセーフなBase64（Base64URL）に変換（+ -> -, / -> _, = を削除）
-    base64Str = base64Str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // LZStringによって安全なURL用文字列に圧縮＆エンコード
+    const compressedStr = LZString.compressToEncodedURIComponent(jsonStr);
     
     const url = new URL(window.location.href);
-    url.searchParams.set('share', base64Str);
+    url.searchParams.set('share', compressedStr);
     
     navigator.clipboard.writeText(url.href).then(() => {
       showSnack('🔗 共有リンクをコピーしました');
@@ -681,16 +681,9 @@ function checkSharedRule() {
   const shareData = urlParams.get('share');
   if (shareData) {
     try {
-      // URLセーフなBase64（Base64URL）から通常のBase64に復元
-      let sanitizedBase64 = shareData.replace(/-/g, '+').replace(/_/g, '/');
-      // URLパラメータの都合でスペース化されたものも念の為復元
-      sanitizedBase64 = sanitizedBase64.replace(/ /g, '+');
-      // パディング（=）の復元
-      while (sanitizedBase64.length % 4) {
-        sanitizedBase64 += '=';
-      }
-      
-      const jsonStr = decodeURIComponent(atob(sanitizedBase64));
+      // LZStringでデコード＆展開
+      const jsonStr = LZString.decompressFromEncodedURIComponent(shareData);
+      if (!jsonStr) throw new Error("Decompression failed");
       const parsed = JSON.parse(jsonStr);
       
       const id = 'shared_' + Date.now();
