@@ -18,7 +18,7 @@
   <div class="screen active" id="screen-home">
     <div class="header">
       <span class="header-title">🀄 麻雀ルール共有</span>
-      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.3<br>2026-03-16 09:45</span>
+      <span style="font-size:0.65rem;color:var(--text-sub);text-align:right;line-height:1.3">v3.4<br>2026-03-16 11:06</span>
     </div>
     <div class="home-hero">
       <h1>麻雀ルールブック</h1>
@@ -105,7 +105,7 @@ const OPTIONS_4 = {
   mochi_ten_custom:[""],
   kaeshi_ten:["30000点","25000点","カスタム"],
   kaeshi_ten_custom:[""],
-  uma:["10-20","10-30","15-5","20-30","なし","カスタム"],
+  uma:["10-20","10-30","カスタム"],
   uma_custom:[""],
   tobi:["あり（0点未満で終了）","あり（0点ちょうどで終了）","なし"],
   nishiiri:["なし","あり"],
@@ -184,9 +184,9 @@ const OPTIONS_4 = {
 
 const OPTIONS_3 = {
   length:["東南戦","東風戦"],
-  mochi_ten:["35000点","30000点","40000点","カスタム"],
+  mochi_ten:["30000点","50000点","カスタム"],
   mochi_ten_custom:[""],
-  kaeshi_ten:["40000点","35000点","カスタム"],
+  kaeshi_ten:["35000点","50000点","カスタム"],
   kaeshi_ten_custom:[""],
   uma:["+20/±0/-20","+30/±0/-30","なし","カスタム"],
   uma_custom:[""],
@@ -194,7 +194,7 @@ const OPTIONS_3 = {
   tsumozon:["なし","あり"],
   fu_keisan:["なし（専用点数表）","あり"],
   tsumopin:["あり","なし"],
-  ipponba:["1000点","300点","1500点","カスタム"],
+  ipponba:["1000点","カスタム"],
   ipponba_custom:[""],
   tenpai_ryou:["場に2000点","カスタム"],
   renchan:["テンパイ連荘","テンパイ連荘（形テンNG）","アガリ連荘"],
@@ -298,7 +298,7 @@ const _BASE_4_COMMON = {
 };
 
 const BASE_RULES_4 = {
-  "雀魂（四麻・段位戦）":{..._BASE_4_COMMON, uma:"5-15", nishiiri:"あり",
+  "雀魂（四麻・段位戦）":{..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
     double_ron:"あり", triple_ron:"全員アガリ", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"雀魂に準ずる"},
   "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", uma_custom:"", nishiiri:"なし", tobi:"なし", oras_oya:"アガリ止め・テンパイ止めなし",
@@ -313,13 +313,13 @@ const BASE_RULES_4 = {
 const DEFAULT_4 = {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
   double_ron:"あり", triple_ron:"全員アガリ", kiriage:"あり", nagashi:"あり（流局時成立）",
   yakuman_type:"雀魂に準ずる",
-  shugi_ippatsu:"あり", shugi_ura:"あり", shugi_aka:"あり", shugi_pocchi:"なし",
+  shugi_ippatsu:"あり", shugi_ura:"あり", shugi_aka:"鳴き祝儀", shugi_pocchi:"なし",
   shugi_ym_tsumo:"5枚オール", shugi_ym_ron:"10枚",
 };
 
 const BASE_RULES_3 = {
   "三人麻雀（標準）":{
-    length:"東南戦", mochi_ten:"35000点", kaeshi_ten:"40000点",
+    length:"東南戦", mochi_ten:"30000点", kaeshi_ten:"35000点",
     uma:"+20/±0/-20", tobi:"あり（0点ちょうどで終了）",
     tsumozon:"なし", fu_keisan:"なし（専用点数表）", tsumopin:"あり",
     ipponba:"1000点", ipponba_custom:"", tenpai_ryou:"場に2000点",
@@ -411,10 +411,10 @@ const LABELS = {
 
 // --- カテゴリ ---
 const CATEGORIES_4 = [
-  ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","ipponba","ipponba_custom"]],
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","tsumopin","ipponba","ipponba_custom"]],
   ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","double_ron","triple_ron","naki_priority","tsumo_yama"]],
   ["3. 途中流局",["tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba"]],
-  ["4. 役・ドラ",["kuitan","atozuke","kuikae","tsumopin","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]],
+  ["4. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]],
   ["5. リーチ関連",["furiten_reach","open_reach","furiten_open_reach","tsumo_nashi_reach","reach_1000"]],
   ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
   ["7. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_aka","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou"]],

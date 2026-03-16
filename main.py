@@ -28,10 +28,11 @@ OPTIONS_4 = {
     "mochi_ten_custom": [""],
     "kaeshi_ten":    ["30000点", "25000点", "カスタム"],
     "kaeshi_ten_custom": [""],
-    "uma":           ["10-20", "10-30", "15-5", "20-30", "なし", "カスタム"],
+    "uma":           ["10-20", "10-30", "カスタム"],
     "uma_custom":    [""],
     "tobi":          ["あり（0点未満で終了）", "あり（0点ちょうどで終了）", "なし"],
     "nishiiri":      ["なし", "あり"],
+    "tsumopin":      ["あり", "なし"],
     "ipponba":       ["300点", "1500点", "カスタム"],
     "ipponba_custom": [""],
     # 2. 進行
@@ -113,7 +114,7 @@ OPTIONS_4 = {
 _BASE_4_COMMON = {
     "length": "東南戦", "mochi_ten": "25000点", "mochi_ten_custom": "",
     "kaeshi_ten": "30000点", "kaeshi_ten_custom": "",
-    "tobi": "あり（0点未満で終了）", "ipponba": "300点", "ipponba_custom": "",
+    "tobi": "あり（0点未満で終了）", "tsumopin": "あり", "ipponba": "300点", "ipponba_custom": "",
     "renchan": "テンパイ連荘", "oras_oya": "アガリ止め・テンパイ止めあり", "oras_oya_custom": "",
     "tochu_kyushu": "あり", "tochu_sufon": "あり", "tochu_sukan": "あり",
     "tochu_sucha": "あり", "tochu_sancha": "あり",
@@ -147,7 +148,7 @@ _BASE_4_COMMON = {
 BASE_RULES_4 = {
     "雀魂（四麻・段位戦）": {
         **_BASE_4_COMMON,
-        "uma": "5-15", "uma_custom": "", "nishiiri": "あり",
+        "uma": "10-20", "uma_custom": "", "nishiiri": "あり",
         "double_ron": "あり", "triple_ron": "全員アガリ",
         "kiriage": "なし", "nagashi": "あり（流局時成立）",
         "yakuman_type": "雀魂に準ずる",
@@ -179,7 +180,7 @@ DEFAULT_4 = {
     "yakuman_type": "雀魂に準ずる",
     # デフォルトは祝儀あり
     "shugi_type": "鳴き祝儀あり", "shugi_ippatsu": "あり", "shugi_ura": "あり",
-    "shugi_aka": "あり",
+    "shugi_aka": "鳴き祝儀",
     "shugi_ym_tsumo": "5枚オール", "shugi_ym_ron": "10枚",
 }
 
@@ -187,14 +188,16 @@ DEFAULT_4 = {
 OPTIONS_3 = {
     # 1. 基本設定
     "length":        ["東南戦", "東風戦"],
-    "mochi_ten":     ["35000点", "30000点", "40000点"],
-    "kaeshi_ten":    ["40000点", "35000点"],
+    "mochi_ten":     ["30000点", "50000点", "カスタム"],
+    "mochi_ten_custom": [""],
+    "kaeshi_ten":    ["35000点", "50000点", "カスタム"],
+    "kaeshi_ten_custom": [""],
     "uma":           ["+20/±0/-20", "+30/±0/-30", "なし"],
     "tobi":          ["あり（0点ちょうどで終了）", "あり（0点未満で終了）", "なし"],
     "tsumozon":      ["なし", "あり"],
     "fu_keisan":     ["なし（専用点数表）", "あり"],
     "tsumopin":      ["あり", "なし"],
-    "ipponba":       ["1000点", "300点", "1500点", "カスタム"],
+    "ipponba":       ["1000点", "カスタム"],
     "ipponba_custom": [""],
     "tenpai_ryou":   ["場に2000点", "場に3000点"],
     # 2. 進行
@@ -270,7 +273,7 @@ OPTIONS_3 = {
 
 BASE_RULES_3 = {
     "三人麻雀（標準）": {
-        "length": "東南戦", "mochi_ten": "35000点", "kaeshi_ten": "40000点",
+        "length": "東南戦", "mochi_ten": "30000点", "kaeshi_ten": "35000点",
         "uma": "+20/±0/-20", "tobi": "あり（0点ちょうどで終了）",
         "tsumozon": "なし", "fu_keisan": "なし（専用点数表）", "tsumopin": "あり",
         "ipponba": "1000点", "ipponba_custom": "", "tenpai_ryou": "場に2000点",
@@ -378,7 +381,7 @@ LABELS = {
 
 # --- カテゴリ ---
 CATEGORIES_4 = [
-    ("1. 基本設定・ポイント精算", ["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","ipponba","ipponba_custom"]),
+    ("1. 基本設定・ポイント精算", ["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","tsumopin","ipponba","ipponba_custom"]),
     ("2. 進行・連荘ルール", ["renchan","oras_oya","oras_oya_custom","double_ron","triple_ron","naki_priority","tsumo_yama"]),
     ("3. 途中流局", ["tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba"]),
     ("4. 役・ドラ", ["kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]),
