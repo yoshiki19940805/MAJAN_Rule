@@ -1274,8 +1274,8 @@ function renderEdit() {
         const customAttrValue = rule.settings[k + '_custom'] || '';
         
         let valSizeClass = "text-[15px]";
-        if (val && val.length > 13) valSizeClass = "text-[13px]";
-        if (val && val.length > 17) valSizeClass = "text-[11px] leading-tight";
+        if (val && val.length > 15) valSizeClass = "text-[13px]";
+        if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}">
@@ -1292,10 +1292,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[14.5em] max-w-[60%]">${esc(LABELS[k] || k)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="${valSizeClass} truncate text-right w-full block pointer-events-none display-value-span ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${valSizeClass} text-right w-full block pointer-events-none display-value-span whitespace-normal break-words ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(val)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1331,8 +1331,8 @@ function renderEdit() {
         const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
         
         let cValSizeClass = "text-[15px]";
-        if (cVal && cVal.length > 13) cValSizeClass = "text-[13px]";
-        if (cVal && cVal.length > 17) cValSizeClass = "text-[11px] leading-tight";
+        if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
+        if (cVal && cVal.length > 18) cValSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
@@ -1349,10 +1349,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[14.5em] max-w-[60%]">${esc(itemName)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="${cValSizeClass} truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${cValSizeClass} text-right w-full block pointer-events-none whitespace-normal break-words ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -2539,10 +2539,10 @@ if (!checkSharedRule()) {
 
         <footer className="py-6 text-center shrink-0">
           <p className="text-[11px] font-medium text-theme-textMuted tracking-wider mb-1">
-            VERSION {CONFIG.appVersion}
+            {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 16:10
+            ビルド時刻: {CONFIG.buildDate}
           </p>
         </footer>
 
