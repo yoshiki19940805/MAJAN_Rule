@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v74";
+    const currentVersion = "v75";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -149,17 +149,12 @@
   </div>
   <!-- 編集画面 -->
   <div class="screen bg-theme-bg" id="screen-edit">
-    <nav class="shrink-0 pt-12 pb-3 px-4 flex items-center justify-between bg-theme-bg/90 backdrop-blur-md sticky top-0 z-40 border-b border-theme-border/50">
-        <button class="flex items-center text-theme-primary font-medium active:opacity-50 transition-opacity" onclick="goHomeWithConfirm()">
+    <nav class="shrink-0 pt-12 pb-3 px-4 flex items-center justify-between bg-theme-bg/90 backdrop-blur-md sticky top-0 z-40 border-b border-theme-border/50 relative">
+        <button class="flex items-center text-theme-primary font-medium active:opacity-50 transition-opacity z-10 w-[70px]" onclick="goHomeWithConfirm()">
             <span class="material-symbols-outlined text-[24px] -ml-2">chevron_left</span>戻る
         </button>
-        <div class="font-bold text-[17px] text-theme-text" id="edit-mode-label"></div>
-        <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity" onclick="saveAndGoHome()" id="btn-save">
-            完了
-        </button>
-        <button class="text-theme-primary font-semibold active:opacity-50 transition-opacity flex items-center gap-1" onclick="copySharedRule()" id="btn-copy-shared" style="display:none;">
-            <span class="material-symbols-outlined text-[20px]">content_copy</span>コピー
-        </button>
+        <div class="font-bold text-[17px] text-theme-text absolute left-0 right-0 text-center pointer-events-none" id="edit-mode-label"></div>
+        <div class="z-10 w-[70px]"></div>
     </nav>
 
     <main class="flex-1 overflow-y-auto pb-32 w-full">
@@ -200,13 +195,13 @@
     <!-- Action Sheet -->
     <div id="action-sheet" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[40rem] z-[70] transition-transform duration-300 translate-y-full px-3 pb-8 pt-2">
         <div class="bg-white/95 backdrop-blur-xl rounded-2xl overflow-hidden mb-2">
-            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => shareRule(editingId), 300)">
+            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); shareRule(editingId); }, 300)">
                 <span class="material-symbols-outlined text-[20px]">link</span>共有URLを発行
             </button>
-            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => exportPDF(), 300)">
+            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); exportPDF(); }, 300)">
                 <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>PDFとして出力
             </button>
-            <button class="w-full py-4 text-theme-primary text-[17px] active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => exportImage(), 300)">
+            <button class="w-full py-4 text-theme-primary text-[17px] active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); exportImage(); }, 300)">
                 <span class="material-symbols-outlined text-[20px]">image</span>画像として保存
             </button>
         </div>
@@ -955,7 +950,7 @@ function renderEdit() {
   if (!rule) return goHome();
 
   const titleEl = document.getElementById('edit-mode-label');
-  titleEl.innerHTML = `${rule.mode}ルール作成${isSharedMode ? '（共有設定）' : ''}`;
+  titleEl.innerHTML = isSharedMode ? '共有されたルール' : `${rule.mode}ルール作成`;
 
   const nameInput = document.getElementById('edit-name');
   nameInput.value = rule.name;
@@ -964,8 +959,6 @@ function renderEdit() {
   const brSelect = document.getElementById('base-rule-select');
   const brSection = document.getElementById('base-rule-section');
   const bases = getBaseRules(rule.mode);
-  
-  document.getElementById('btn-save').style.display = isSharedMode ? 'none' : 'block';
   const btnSaveBottom = document.getElementById('btn-save-bottom');
   if (isSharedMode) {
       btnSaveBottom.className = "flex-1 bg-gray-200 text-gray-400 border border-theme-border/50 py-3 rounded-xl font-semibold shadow-sm flex justify-center items-center gap-1 cursor-not-allowed pointer-events-none transition-all";
@@ -1363,12 +1356,16 @@ function onCustomPenaltySelect(catKey, idx, val) {
 }
 
 // --- スワイプ削除 ---
-let _swipeStartX = 0, _swipeCurrentX = 0, _activeSwipe = null;
+let _swipeStartX = 0, _swipeStartY = 0, _swipeCurrentX = 0, _activeSwipe = null;
+let _swipeMoved = false;
 const SWIPE_WIDTH = -120; 
 
 function handleTouchStart(e) {
     _swipeStartX = e.touches[0].clientX;
+    _swipeStartY = e.touches[0].clientY;
+    _swipeCurrentX = _swipeStartX;
     _activeSwipe = e.currentTarget;
+    _swipeMoved = false;
     document.querySelectorAll('.swipe-content').forEach(el => {
         if (el !== _activeSwipe) el.style.transform = 'translateX(0)';
     });
@@ -1377,8 +1374,25 @@ function handleTouchStart(e) {
 function handleTouchMove(e) {
     if (!_activeSwipe) return;
     _swipeCurrentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
     const diffX = _swipeCurrentX - _swipeStartX;
-    if (diffX < 0 && diffX > SWIPE_WIDTH - 20) {
+    const diffY = currentY - _swipeStartY;
+    
+    // Y軸（縦）の動きがX軸より大きい場合はスワイプ判定をキャンセル
+    if (!_swipeMoved) {
+        if (Math.abs(diffX) > 10 && Math.abs(diffX) > Math.abs(diffY)) {
+            _swipeMoved = true;
+        } else if (Math.abs(diffY) > 10) {
+            _activeSwipe = null; 
+            return;
+        } else {
+            return; // 遊び（10px以内）のフリックは無視
+        }
+    }
+    
+    if (_swipeMoved && diffX < 0 && diffX > SWIPE_WIDTH - 20) {
+        // デフォルトのスクロール挙動を止める
+        if (e.cancelable) e.preventDefault();
         _activeSwipe.style.transform = `translateX(${diffX}px)`;
     }
 }
@@ -1386,12 +1400,13 @@ function handleTouchMove(e) {
 function handleTouchEnd(e) {
     if (!_activeSwipe) return;
     const diffX = _swipeCurrentX - _swipeStartX;
-    if (diffX < SWIPE_WIDTH / 2) {
+    if (_swipeMoved && diffX < SWIPE_WIDTH / 2) {
         _activeSwipe.style.transform = `translateX(${SWIPE_WIDTH}px)`;
     } else {
         _activeSwipe.style.transform = 'translateX(0)';
     }
     _activeSwipe = null;
+    _swipeMoved = false;
 }
 // --- 既存項目の削除 ---
 function removeSettingKey(key) {
@@ -2366,15 +2381,16 @@ if (!checkSharedRule()) {
       <div className="app-container">
         
         {/* 固定ヘッダー */}
-        <header className="pt-12 pb-4 flex justify-between items-end" style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }}>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-theme-text">
+        <header className="pt-12 pb-4 flex justify-between items-end relative" style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }}>
+          <div className="flex-1 opacity-0 pointer-events-none"> Spacer </div>
+          <div className="absolute left-0 right-0 bottom-4 text-center pointer-events-none">
+            <h1 className="text-2xl font-bold tracking-tight text-theme-text inline-block pointer-events-auto">
               {CONFIG.strings.appTitle}
             </h1>
           </div>
           <button 
             onClick={() => window.showScreen('custom-base-manager')}
-            className="text-theme-primary text-sm font-medium flex items-center gap-1 active:opacity-70 transition-opacity"
+            className="text-theme-primary text-sm font-medium flex items-center gap-1 active:opacity-70 transition-opacity z-10"
           >
             <span className="material-symbols-outlined text-[20px]">settings</span>
             <span>{CONFIG.strings.manageStandardRules}</span>
@@ -2490,7 +2506,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:15
+            ビルド時刻: 2026-03-17 11:25
           </p>
         </footer>
 
