@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.94";
+    const currentVersion = "v0.95";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -1240,6 +1240,10 @@ function renderEdit() {
         const isCustom = val === 'カスタム';
         const optionsHtml = [...options, 'カスタム'].filter((v, i, a) => a.indexOf(v) === i).map(opt => `<option value="${esc(opt)}" ${val === opt ? 'selected' : ''}>${esc(opt)}</option>`).join('');
         const customAttrValue = rule.settings[k + '_custom'] || '';
+        
+        let valSizeClass = "text-[15px]";
+        if (val && val.length > 13) valSizeClass = "text-[13px]";
+        if (val && val.length > 17) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}">
@@ -1256,10 +1260,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(LABELS[k] || k)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[13em] max-w-[55%]">${esc(LABELS[k] || k)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="text-[15px] truncate text-right w-full block pointer-events-none display-value-span ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${valSizeClass} truncate text-right w-full block pointer-events-none display-value-span ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(val)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1293,6 +1297,10 @@ function renderEdit() {
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
         const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
+        
+        let cValSizeClass = "text-[15px]";
+        if (cVal && cVal.length > 13) cValSizeClass = "text-[13px]";
+        if (cVal && cVal.length > 17) cValSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
@@ -1309,10 +1317,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(itemName)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[13em] max-w-[55%]">${esc(itemName)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="text-[15px] truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${cValSizeClass} truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -2316,8 +2324,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.94", 
-    buildDate: "2026-03-17 15:50",
+    appVersion: "v0.95", 
+    buildDate: "2026-03-17 16:00",
   };
 
   // ==========================================
@@ -2502,7 +2510,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 15:50
+            ビルド時刻: 2026-03-17 16:00
           </p>
         </footer>
 
