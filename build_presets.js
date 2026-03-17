@@ -83,15 +83,14 @@ function loadPresetData() {
 
   // ペナルティキーのカテゴリをデフォルトプリセットの値から動的に判定
   const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
-  function getPenaltyCat3(row, baseCat) {
+  function getPenaltyCat(row, baseCat, defaultPreset) {
     if (!PENALTY_CATS.some(pc => baseCat.includes(pc))) return null;
-    if (!defaultPreset3) return null;
-    const val = (row[defaultPreset3.col] || '').trim();
-    // プリセット値がペナルティカテゴリ名と一致する場合、そのカテゴリに移動
+    if (!defaultPreset) return null;
+    const val = (row[defaultPreset.col] || '').trim();
     for (const pc of PENALTY_CATS) {
       if (val === pc) return pc;
     }
-    return null; // 値がペナルティカテゴリ名でない場合、元のカテゴリのまま
+    return null;
   }
 
   const entries = dataRows.map(row => {
@@ -105,16 +104,23 @@ function loadPresetData() {
     const has4 = opts4.length > 0 || presets4.some(p => (row[p.col] || '').trim() !== '');
     const has3 = opts3.length > 0 || presets3.some(p => (row[p.col] || '').trim() !== '');
 
+    // 四麻カテゴリ: ペナルティは動的判定
+    let cat4 = '';
+    if (has4) {
+      const penaltyCat4 = getPenaltyCat(row, cat, defaultPreset4);
+      cat4 = penaltyCat4 || cat;
+    }
+
     // 三麻カテゴリ: ペナルティは動的判定、その他はCAT_RENAME_3
     let cat3 = '';
     if (has3) {
-      const penaltyCat = getPenaltyCat3(row, cat);
-      cat3 = penaltyCat || CAT_RENAME_3[cat] || cat;
+      const penaltyCat3 = getPenaltyCat(row, cat, defaultPreset3);
+      cat3 = penaltyCat3 || CAT_RENAME_3[cat] || cat;
     }
 
     return {
       cat,
-      cat4: has4 ? cat : '',
+      cat4,
       cat3,
       key,
       label: row[2] || '',

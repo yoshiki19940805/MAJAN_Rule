@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.111";
+    const currentVersion = "v0.112";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -769,8 +769,8 @@ const CATEGORIES_4 = [
   ["10. ローカルルール",["shiro_pocchi"]],
   ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
   ["12. チョンボ",["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
-  ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"], true],
-  ["14. 軽罰符",["keibappu_type","keibappu_taiou"], true],
+  ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["14. 軽罰符",["keibappu_type","keibappu_taiou","pen_gonaki_hassei","pen_shouhai"], true],
 ];
 
 const CATEGORIES_3 = [
@@ -2632,8 +2632,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.111", 
-    buildDate: "2026-03-17 22:10",
+    appVersion: "v0.112", 
+    buildDate: "2026-03-17 22:18",
   };
 
   // ==========================================
