@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.120";
+    const currentVersion = "v0.121";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -794,6 +794,7 @@ let appData = { rules: [] };
 let editingId = null;
 let deleteTargetId = null;
 let _editSnapshot = null;  // 編集前のスナップショット
+let _editDirty = false;  // ユーザーが設定を変更したか
 
 function loadData() {
   try {
@@ -1307,6 +1308,7 @@ function createRule(mode) {
   
   // 新規作成時は保存せずスナップショットだけ撮る
   _editSnapshot = JSON.stringify(rule.settings);
+  _editDirty = false;
   _isNewlyCreated = true;
   isSharedMode = false;
   editingId = id;
@@ -1316,6 +1318,7 @@ function createRule(mode) {
 function editRule(id) {
   const ruleForSnap = appData.rules.find(r => r.id === id);
   _editSnapshot = ruleForSnap ? JSON.stringify(ruleForSnap.settings) : null;
+  _editDirty = false;
   const rule = getRule(id);
   // コピー等で保存された readonly ルールの場合は isSharedMode 相当の閲覧専用として扱う
   isSharedMode = rule && rule.readonly === true;
@@ -1673,6 +1676,7 @@ function onBaseRuleChange(val) {
   }
 }
 function onSettingChange(key, val) {
+  _editDirty = true;
   const rule = getRule(editingId);
   if (rule) { rule.settings[key] = val; saveData(); }
 
@@ -2591,8 +2595,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.120", 
-    buildDate: "2026-03-17 23:24",
+    appVersion: "v0.121", 
+    buildDate: "2026-03-17 23:27",
   };
 
   // ==========================================
