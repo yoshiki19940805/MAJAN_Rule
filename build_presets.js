@@ -68,14 +68,28 @@ function loadPresetData() {
 // =====================================================================
 // JavaScript コード生成
 // =====================================================================
+
+// _memo / _custom は自動の「カスタム」追加対象外
+const SKIP_AUTO_CUSTOM = key => key.endsWith('_memo') || key.endsWith('_custom');
+
 function generateJs(entries, presetCols) {
   const lines = [];
   const js = v => JSON.stringify(v);
 
+  // 全ドロップダウンキーを収集（_memo除外）
+  const allDropdownKeys4 = [];
+  const allDropdownKeys3 = [];
+
   // --- OPTIONS_4 ---
   lines.push('const OPTIONS_4 = {');
   for (const e of entries) {
-    if (e.opts4.length > 0 && e.cat4) {
+    if (e.opts4.length > 0 && e.cat4 && !SKIP_AUTO_CUSTOM(e.key)) {
+      // 「カスタム」が無ければ末尾に自動追加
+      const opts = [...e.opts4];
+      if (!opts.includes('カスタム')) opts.push('カスタム');
+      lines.push(`  ${e.key}:[${opts.map(js).join(',')}],`);
+      allDropdownKeys4.push(e.key);
+    } else if (e.opts4.length > 0 && e.cat4) {
       lines.push(`  ${e.key}:[${e.opts4.map(js).join(',')}],`);
     }
   }
@@ -85,11 +99,21 @@ function generateJs(entries, presetCols) {
   // --- OPTIONS_3 ---
   lines.push('const OPTIONS_3 = {');
   for (const e of entries) {
-    if (e.opts3.length > 0 && e.cat3) {
+    if (e.opts3.length > 0 && e.cat3 && !SKIP_AUTO_CUSTOM(e.key)) {
+      const opts = [...e.opts3];
+      if (!opts.includes('カスタム')) opts.push('カスタム');
+      lines.push(`  ${e.key}:[${opts.map(js).join(',')}],`);
+      allDropdownKeys3.push(e.key);
+    } else if (e.opts3.length > 0 && e.cat3) {
       lines.push(`  ${e.key}:[${e.opts3.map(js).join(',')}],`);
     }
   }
   lines.push('};');
+  lines.push('');
+
+  // --- customDropdownKeys (全ドロップダウンキーの和集合) ---
+  const allCustomKeys = [...new Set([...allDropdownKeys4, ...allDropdownKeys3])];
+  lines.push(`const customDropdownKeys = new Set(${js(allCustomKeys)});`);
   lines.push('');
 
   // --- BASE_RULES_4 ---
@@ -102,7 +126,13 @@ function generateJs(entries, presetCols) {
     const ruleName = baseRuleNames4[p.name] || `${p.name}（四麻）`;
     const settings = [];
     for (const e of entries) {
-      if (e.cat4 && e.values[p.name] !== undefined) settings.push(`${e.key}:${js(e.values[p.name])}`);
+      if (e.cat4 && e.values[p.name] !== undefined) {
+        settings.push(`${e.key}:${js(e.values[p.name])}`);
+        // _custom 値を自動追加（_memo系除外）
+        if (!SKIP_AUTO_CUSTOM(e.key) && allDropdownKeys4.includes(e.key)) {
+          settings.push(`${e.key}_custom:""`);
+        }
+      }
     }
     lines.push(`  ${js(ruleName)}: {`);
     let buf = [];
@@ -130,7 +160,12 @@ function generateJs(entries, presetCols) {
     const ruleName = baseRuleNames3[p.name] || `${p.name}（三麻）`;
     const settings = [];
     for (const e of entries) {
-      if (e.cat3 && e.values[p.name] !== undefined) settings.push(`${e.key}:${js(e.values[p.name])}`);
+      if (e.cat3 && e.values[p.name] !== undefined) {
+        settings.push(`${e.key}:${js(e.values[p.name])}`);
+        if (!SKIP_AUTO_CUSTOM(e.key) && allDropdownKeys3.includes(e.key)) {
+          settings.push(`${e.key}_custom:""`);
+        }
+      }
     }
     lines.push(`  ${js(ruleName)}:{`);
     let buf = [];
@@ -152,7 +187,13 @@ function generateJs(entries, presetCols) {
   lines.push('// --- ラベル ---');
   lines.push('const LABELS = {');
   for (const e of entries) {
-    if ((e.cat4 || e.cat3) && e.label) lines.push(`  ${e.key}:${js(e.label)},`);
+    if ((e.cat4 || e.cat3) && e.label) {
+      lines.push(`  ${e.key}:${js(e.label)},`);
+      // _custom 用ラベルを自動生成（_memo除外）
+      if (!SKIP_AUTO_CUSTOM(e.key) && allCustomKeys.includes(e.key)) {
+        lines.push(`  ${e.key}_custom:${js(e.label + '（カスタム）')},`);
+      }
+    }
   }
   lines.push('};');
   lines.push('');
@@ -182,7 +223,8 @@ function generateJs(entries, presetCols) {
       const c = e[field];
       if (c) {
         if (!cats[c]) { cats[c] = { keys: [], penalty: false }; order.push(c); }
-        cats[c].keys.push(e.key);
+        // _custom キーはカテゴリに含めない（ビルド時自動処理のため）
+        if (!e.key.endsWith('_custom')) cats[c].keys.push(e.key);
         if (c.includes('チョンボ') || c.includes('上がり放棄') || c.includes('軽罰符')) cats[c].penalty = true;
       }
     }
