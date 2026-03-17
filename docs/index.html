@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.118";
+    const currentVersion = "v0.119";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -780,7 +780,7 @@ const PRESET_INJECTIONS = [
   { id: "preset_qhs2_4", mode: "四麻", name: "雀魂", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["雀魂"]} },
   { id: "preset_8ros1_4", mode: "四麻", name: "Mリーグ", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["Mリーグ"]} },
   { id: "preset_g0yy_4", mode: "四麻", name: "天鳳", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["天鳳"]} },
-  { id: "preset_jaywpt_3", mode: "三麻", name: "関東三麻", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3["関東三麻"]} },
+  { id: "preset_jaywpt_3", mode: "三麻", name: "関東三麻", readonly: false, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3["関東三麻"]} },
 ];
 const DEFAULT_PRESET_IDS_4 = ["preset_dzcc_4","preset_qhs2_4","preset_8ros1_4","preset_g0yy_4"];
 const DEFAULT_PRESET_IDS_3 = ["preset_jaywpt_3"];
@@ -971,29 +971,34 @@ function loadData() {
     saveData();
   }
 
-  // v15: PRESET_INJECTIONSから全プリセットを再構築（TSV列追加で自動反映）
+  // プリセット同期: PRESET_INJECTIONSから毎回プリセットを最新に同期
+  if (typeof PRESET_INJECTIONS !== 'undefined') {
+    let presetsChanged = false;
+    for (const pi of PRESET_INJECTIONS) {
+      const existing = appData.rules.find(r => r.id === pi.id);
+      if (existing) {
+        existing.settings = {...pi.settings};
+        existing.name = pi.name;
+        existing.readonly = pi.readonly;
+      } else {
+        appData.rules.push({...pi});
+        presetsChanged = true;
+      }
+    }
+    const validIds = new Set(PRESET_INJECTIONS.map(p => p.id));
+    const before = appData.rules.length;
+    appData.rules = appData.rules.filter(r => !r.id.startsWith('preset_') || validIds.has(r.id));
+    if (appData.rules.length !== before) presetsChanged = true;
+    if (presetsChanged) saveData();
+  }
+  // デフォルト標準ルール設定（初回のみ）
   if (!appData.presetsMigrated_v15) {
     appData.presetsMigrated_v15 = true;
-    if (typeof PRESET_INJECTIONS !== 'undefined') {
-      for (const pi of PRESET_INJECTIONS) {
-        const existing = appData.rules.find(r => r.id === pi.id);
-        if (existing) {
-          existing.settings = {...pi.settings};
-          existing.name = pi.name;
-          existing.readonly = true;
-        } else {
-          appData.rules.push({...pi});
-        }
-      }
-      const validIds = new Set(PRESET_INJECTIONS.map(p => p.id));
-      appData.rules = appData.rules.filter(r => !r.id.startsWith('preset_') || validIds.has(r.id));
-      // デフォルト標準ルールを設定
-      if (typeof DEFAULT_PRESET_IDS_4 !== 'undefined') {
-        localStorage.setItem('mahjong_default_base_4ma', JSON.stringify(DEFAULT_PRESET_IDS_4));
-      }
-      if (typeof DEFAULT_PRESET_IDS_3 !== 'undefined') {
-        localStorage.setItem('mahjong_default_base_3ma', JSON.stringify(DEFAULT_PRESET_IDS_3));
-      }
+    if (typeof DEFAULT_PRESET_IDS_4 !== 'undefined') {
+      localStorage.setItem('mahjong_default_base_4ma', JSON.stringify(DEFAULT_PRESET_IDS_4));
+    }
+    if (typeof DEFAULT_PRESET_IDS_3 !== 'undefined') {
+      localStorage.setItem('mahjong_default_base_3ma', JSON.stringify(DEFAULT_PRESET_IDS_3));
     }
     saveData();
   }
@@ -2586,8 +2591,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.118", 
-    buildDate: "2026-03-17 23:09",
+    appVersion: "v0.119", 
+    buildDate: "2026-03-17 23:12",
   };
 
   // ==========================================
