@@ -21,7 +21,19 @@ const TSV_PATH = path.join(ROOT, 'presets', 'presets_all.tsv');
 // TSV パーサー（シンプル: タブ区切り、行区切り）
 // =====================================================================
 function parseTsv(text) {
-  return text.split('\n').filter(l => l.trim()).map(l => l.split('\t'));
+  return text.split('\n').filter(l => l.trim()).map(line => {
+    // \r を除去
+    line = line.replace(/\r$/, '');
+    // タブで分割し、各セルのダブルクォートを処理
+    return line.split('\t').map(cell => {
+      cell = cell.trim();
+      // ダブルクォートで囲まれたセルの処理（Numbers等が自動付与）
+      if (cell.startsWith('"') && cell.endsWith('"')) {
+        cell = cell.slice(1, -1).replace(/""/g, '"');
+      }
+      return cell;
+    });
+  });
 }
 
 // =====================================================================
