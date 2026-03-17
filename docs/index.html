@@ -1112,9 +1112,9 @@ function goHomeWithConfirm() {
   }
   
   if (confirm('保存せずに戻りますか？\n変更内容は破棄されます。')) {
-    // スナップショットを復元
-    if (_editSnapshot) {
-      appData = JSON.parse(_editSnapshot);
+    // 編集前の設定に復元
+    if (_editSnapshot && currentRule) {
+      currentRule.settings = JSON.parse(_editSnapshot);
       saveData();
     }
     goHome();
@@ -1262,7 +1262,6 @@ function checkSharedRule() {
 // ルールCRUD
 // =====================================================================
 function createRule(mode) {
-  _editSnapshot = JSON.stringify(appData);
   const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   let activeDefaults = [];
   try {
@@ -1307,7 +1306,7 @@ function createRule(mode) {
   appData.rules.push(rule);
   
   // 新規作成時は保存せずスナップショットだけ撮る
-  _editSnapshot = JSON.stringify(appData);
+  _editSnapshot = JSON.stringify(rule.settings);
   _isNewlyCreated = true;
   isSharedMode = false;
   editingId = id;
@@ -1315,7 +1314,8 @@ function createRule(mode) {
 }
 
 function editRule(id) {
-  _editSnapshot = JSON.stringify(appData);
+  const ruleForSnap = appData.rules.find(r => r.id === id);
+  _editSnapshot = ruleForSnap ? JSON.stringify(ruleForSnap.settings) : null;
   const rule = getRule(id);
   // コピー等で保存された readonly ルールの場合は isSharedMode 相当の閲覧専用として扱う
   isSharedMode = rule && rule.readonly === true;
