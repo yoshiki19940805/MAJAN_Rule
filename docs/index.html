@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.84";
+    const currentVersion = "v0.85";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -621,6 +621,37 @@ function loadData() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) appData = JSON.parse(raw);
   } catch(e) { appData = { rules: [] }; }
+  
+  if (!appData.presetsMigrated_v5) {
+    appData.presetsMigrated_v5 = true;
+    const presetsToInject = [
+      { id: 'preset_jantama_4', mode: '四麻', name: '雀魂', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_4['雀魂（四麻・段位戦）']} },
+      { id: 'preset_tenhou_4', mode: '四麻', name: '天鳳', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_4['天鳳（四麻）']} },
+      { id: 'preset_mleague_4', mode: '四麻', name: 'Mリーグ公式', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_4['Mリーグ公式（四麻）']} },
+      { id: 'preset_zoo_3', mode: '三麻', name: '三人麻雀', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_3['三人麻雀（標準）']} }
+    ];
+    appData.rules = [...presetsToInject, ...appData.rules];
+    
+    // Convert default standard rules to array mapping
+    const migrateDef = (key, mapping, fallback) => {
+        let def = localStorage.getItem(key);
+        if (def && !def.startsWith('[')) {
+            localStorage.setItem(key, JSON.stringify([mapping[def] || def]));
+        } else if (!def) {
+            localStorage.setItem(key, JSON.stringify([fallback]));
+        }
+    };
+    migrateDef('mahjong_default_base_4ma', {
+        '雀魂（四麻・段位戦）': 'preset_jantama_4',
+        '天鳳（四麻）': 'preset_tenhou_4',
+        'Mリーグ公式（四麻）': 'preset_mleague_4'
+    }, 'preset_jantama_4');
+    migrateDef('mahjong_default_base_3ma', {
+        '三人麻雀（標準）': 'preset_zoo_3'
+    }, 'preset_zoo_3');
+    saveData();
+  }
+
   // マイグレーション: 古いデータに不足しているキーをデフォルト値で補完
   let migrated = false;
   for (const rule of appData.rules) {
@@ -880,9 +911,32 @@ function checkSharedRule() {
 function createRule(mode) {
   _editSnapshot = JSON.stringify(appData);
   const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
-  const def = getDefault(mode);
-  const defBaseKey = mode === '四麻' ? (localStorage.getItem('mahjong_default_base_4ma') || '雀魂（四麻・段位戦）')
-                                     : (localStorage.getItem('mahjong_default_base_3ma') || '三人麻雀（標準）');
+  let activeDefaults = [];
+  try {
+     const raw = localStorage.getItem(mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
+     if (raw) activeDefaults = JSON.parse(raw);
+  } catch(e) {}
+  if (!Array.isArray(activeDefaults)) activeDefaults = [];
+
+  const candidates = appData.rules.filter(r => r.mode === mode && activeDefaults.includes(r.id));
+  const parseDateStr = (str) => {
+    if (!str) return 0;
+    const t = Date.parse(str.replace(/\//g, '-'));
+    return isNaN(t) ? 0 : t;
+  };
+  candidates.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
+
+  const targetBase = candidates[0];
+  let defBaseKey = null;
+  let initSettings = getDefault(mode);
+
+  if (targetBase) {
+      defBaseKey = targetBase.id;
+      initSettings = JSON.parse(JSON.stringify(targetBase.settings));
+  } else {
+      defBaseKey = mode === '四麻' ? 'preset_jantama_4' : 'preset_zoo_3';
+  }
+
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -894,7 +948,7 @@ function createRule(mode) {
     name: '新規ルール',
     base_rule: defBaseKey,
     date: `${y}/${m}/${d} ${h}:${min}`,
-    settings: JSON.parse(JSON.stringify(def))
+    settings: initSettings
   };
   appData.rules.push(rule);
   
@@ -2123,227 +2177,24 @@ if ('serviceWorker' in navigator) {
 // アプリ起動時の処理はスクリプト最下部で実行します
 // =====================================================================
 
-// =====================================================================
-// 標準ルールの管理
-// =====================================================================
-let customBaseRules = {}; // { id: { name, mode, settings } }
-let currentCustomBaseId = null;
-
-function loadCustomBaseRules() {
-  let isNew = false;
-  try {
-    const data = localStorage.getItem('mahjong_custom_base_rules');
-    if (data) customBaseRules = JSON.parse(data);
-    else isNew = true;
-  } catch(e) { isNew = true; }
-
-  // 空もしくは初期ロード時
-  if (isNew || Object.keys(customBaseRules).length === 0) {
-    customBaseRules = {
-      "preset_jantama_4": { "name": "雀魂（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["雀魂（四麻・段位戦）"]} },
-      "preset_tenhou_4": { "name": "天鳳（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["天鳳（四麻）"]} },
-      "preset_mleague_4": { "name": "Mリーグ", "mode": "四麻", "settings": {...BASE_RULES_4["Mリーグ公式（四麻）"]} },
-      "preset_zoo_3": { "name": "三人麻雀（標準）", "mode": "三麻", "settings": {...BASE_RULES_3["三人麻雀（標準）"]} }
-    };
-    saveCustomBaseRules();
-  }
-}
-loadCustomBaseRules(); // 初期化時に読み込み
-
 // デフォルトベース設定関数
-function setDefaultBaseRule(mode, id) {
-  if (mode === '四麻') localStorage.setItem('mahjong_default_base_4ma', id);
-  else localStorage.setItem('mahjong_default_base_3ma', id);
+window.toggleDefaultBaseRule = function(mode, id) {
+  const key = mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma';
+  let arr = [];
+  try {
+     const raw = localStorage.getItem(key);
+     if (raw) arr = JSON.parse(raw);
+  } catch(e) {}
+  if (!Array.isArray(arr)) arr = [];
+  
+  if (arr.includes(id)) {
+      arr = arr.filter(x => x !== id);
+  } else {
+      arr.push(id);
+  }
+  localStorage.setItem(key, JSON.stringify(arr));
   if (typeof window.renderHome === 'function') window.renderHome();
-}
-
-function saveCustomBaseRules() {
-  localStorage.setItem('mahjong_custom_base_rules', JSON.stringify(customBaseRules));
-}
-
-function createNewCustomBase(mode) {
-  currentCustomBaseId = 'custom_' + Date.now();
-  customBaseRules[currentCustomBaseId] = {
-    name: "新規カスタムルール",
-    mode: mode,
-    settings: {...(mode === '四麻' ? DEFAULT_4 : DEFAULT_3)}
-  };
-  openCustomBaseEditor(currentCustomBaseId);
-}
-
-function openCustomBaseEditor(id) {
-  currentCustomBaseId = id;
-  const rule = customBaseRules[id];
-  document.getElementById('custom-base-title').textContent = `${rule.mode}基準ルールの編集`;
-  document.getElementById('custom-base-name').value = rule.name;
-  
-  // コピー元セレクトボックス
-  const srcSelect = document.getElementById('custom-base-source');
-  const bases = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  srcSelect.innerHTML = '<option value="">-- ベースにする基準ルールを選択 --</option>';
-  for (const b in bases) {
-    srcSelect.insertAdjacentHTML('beforeend', `<option value="${b}">${b}</option>`);
-  }
-  srcSelect.value = '';
-
-  renderCustomBaseEditorItems();
-  showScreen('custom-base-editor');
-}
-
-function renderCustomBaseEditorItems() {
-  const rule = customBaseRules[currentCustomBaseId];
-  const listEl = document.getElementById('custom-base-editor-items');
-  listEl.innerHTML = '';
-  const cats = rule.mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3;
-  const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-
-  cats.forEach(cat => {
-    let catTitle = cat[0];
-    let catKeys = cat[1];
-    let ht = `<div><h2 class="text-[14px] font-bold text-theme-textMuted mb-3 px-1">${esc(catTitle)}</h2><div class="flex flex-col gap-3">`;
-    catKeys.forEach(k => {
-      let val = rule.settings[k] ?? '';
-      let isText = Array.isArray(opts[k]) && opts[k][0] === "";
-      let label = LABELS[k] || k;
-      
-      if (isText) {
-        let pVal = rule.settings[k.replace('_custom', '')] ?? '';
-        let isVis = (pVal === 'カスタム');
-        ht += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm" id="cbe-row-${k}" style="display:${isVis?'block':'none'}">
-                 <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">draw</span>↳ ${esc(label)}</label>
-                 <input type="text" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none focus:border-theme-primary/50" value="${esc(val)}" onchange="updateCustomBaseVal('${k}', this.value)">
-               </div>`;
-      } else {
-        ht += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm">
-                 <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">settings</span>${esc(label)}</label>
-                 <div class="relative w-full">
-                   <select id="cbe-sel-${k}" onchange="updateCustomBaseVal('${k}', this.value); updateCustomBaseSub('${k}')" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2.5 text-[14px] text-theme-text outline-none appearance-none pr-8 focus:border-theme-primary/50">`;
-        opts[k].forEach(o => {
-          let sel = (o === val) ? 'selected' : '';
-          ht += `<option value="${esc(o)}" ${sel}>${esc(o)}</option>`;
-        });
-        ht += `  </select><span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-theme-textMuted pointer-events-none">expand_content</span>
-                 </div>
-               </div>`;
-      }
-    });
-    ht += `</div></div>`;
-    listEl.insertAdjacentHTML('beforeend', ht);
-  });
-}
-
-function updateCustomBaseVal(key, val) {
-  if (currentCustomBaseId && customBaseRules[currentCustomBaseId]) {
-    customBaseRules[currentCustomBaseId].settings[key] = val;
-  }
-}
-
-function updateCustomBaseSub(key) {
-  if (!currentCustomBaseId) return;
-  const rule = customBaseRules[currentCustomBaseId];
-  const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-  const customKey = key + '_custom';
-  if (opts[customKey]) {
-    const row = document.getElementById(`cbe-row-${customKey}`);
-    const isCustom = (document.getElementById(`cbe-sel-${key}`).value === 'カスタム');
-    if (row) row.style.display = isCustom ? 'flex' : 'none';
-  }
-}
-
-function copyBaseToCustom() {
-  const src = document.getElementById('custom-base-source').value;
-  if (!src) return;
-  const rule = customBaseRules[currentCustomBaseId];
-  const bases = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  if (bases[src]) {
-    rule.settings = {...bases[src]};
-    renderCustomBaseEditorItems();
-    showToast(`「${src}」をコピーしました`);
-  }
-}
-
-function saveCustomBaseRule() {
-  const name = document.getElementById('custom-base-name').value.trim();
-  if (!name) { alert("ルール名を入力してください"); return; }
-  customBaseRules[currentCustomBaseId].name = name;
-  saveCustomBaseRules();
-  showToast("保存しました");
-  renderCustomBaseManager();
-  showScreen('custom-base-manager');
-}
-
-function renderCustomBaseManager() {
-  const container = document.getElementById('custom-base-list');
-  let html = '';
-
-  const def4 = localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4';
-  const def3 = localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3';
-
-  const renderItem = (k, b, mode, isCustom) => {
-      const isDef = (mode === '四麻' && def4 === '__custom__' + k) || (mode === '三麻' && def3 === '__custom__' + k);
-      return `
-      <div class="bg-theme-surface p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border/50 cursor-pointer active:opacity-60 transition-opacity" onclick="${isCustom ? `openCustomBaseEditor('${k}')` : `setDefaultBaseRule('${mode}', '${k}')`}">
-        <div class="flex-1 min-w-0 pr-4 flex flex-col pointer-events-none">
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="bg-theme-bg px-2 py-0.5 rounded text-[11px] text-theme-textMuted border border-theme-border/50 font-normal">${mode}</span>
-            ${isDef ? `<span class="bg-theme-primary/10 text-theme-primary px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">star</span>デフォルト</span>` : ''}
-          </div>
-          <h2 class="text-base font-semibold ${isCustom ? 'text-theme-text' : 'text-theme-textMuted'} truncate">${esc(b.name)}</h2>
-          <div class="flex items-center gap-1 mt-1 text-theme-textMuted">
-            <span class="material-symbols-outlined text-[14px]">info</span>
-            <p class="text-xs">タップで${isCustom ? '編集' : '標準化'}</p>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-4 text-theme-textMuted z-10">
-          <button 
-            onclick="event.stopPropagation(); setDefaultBaseRule('${mode}', '${k}')"
-            class="flex items-center justify-center ${isDef ? 'text-theme-primary pointer-events-none' : 'hover:text-theme-primary cursor-pointer active:scale-90 transition-all font-inherit'}"
-            aria-label="デフォルトに設定"
-          >
-            <span class="material-symbols-outlined text-[24px]">${isDef ? 'star' : 'star_border'}</span>
-          </button>
-          ${isCustom ? `
-          <button 
-            onclick="event.stopPropagation(); deleteCustomBase('${k}')"
-            class="flex items-center justify-center hover:text-theme-danger cursor-pointer active:scale-90 transition-all font-inherit"
-            aria-label="削除"
-          >
-            <span class="material-symbols-outlined text-[22px]">delete</span>
-          </button>
-          ` : ''}
-        </div>
-      </div>
-      `;
-  };
-
-  const customRuleKeys = Object.keys(customBaseRules);
-  let hasCustom = false;
-  for (const k of customRuleKeys) {
-      if (!customBaseRules[k]) continue;
-      if (k.startsWith('preset_')) continue;
-      hasCustom = true;
-      html += renderItem(k, customBaseRules[k], customBaseRules[k].mode, true);
-  }
-  
-  if (hasCustom) html += '<hr class="my-3 border-theme-border/30 border-dashed">';
-
-  for (const k of customRuleKeys) {
-      if (!customBaseRules[k]) continue;
-      if (k.startsWith('preset_4')) html += renderItem(k, customBaseRules[k], '四麻', false);
-      else if (k.startsWith('preset_3') || (k.startsWith('preset_') && customBaseRules[k].mode)) html += renderItem(k, customBaseRules[k], customBaseRules[k].mode, false);
-  }
-
-  container.innerHTML = html;
-}
-
-function deleteCustomBase(id) {
-  if (confirm("このカスタムルールを削除しますか？")) {
-    delete customBaseRules[id];
-    saveCustomBaseRules();
-    renderCustomBaseManager();
-  }
-}
+};
 
 // =====================================================================
 // アプリ起動 (全ての変数・関数の定義後に実行)
@@ -2372,8 +2223,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.84", 
-    buildDate: "2026-03-17 13:00",
+    appVersion: "v0.85", 
+    buildDate: "2026-03-17 13:40",
   };
 
   // ==========================================
@@ -2383,19 +2234,8 @@ if (!checkSharedRule()) {
     const [activeTab, setActiveTab] = useState(4); // 4 = 四人麻雀, 3 = 三人麻雀
     const [showPwaBanner, setShowPwaBanner] = useState(false);
     
-    // VanillaJS側で保存されたルールとプリセットをフィルタリングしてマージ
-    const presets4 = [
-      { id: '雀魂（四麻・段位戦）', name: '雀魂（四麻・段位戦）', mode: '四麻', readonly: true, date: '1970/01/01 00:00', settings: BASE_RULES_4['雀魂（四麻・段位戦）'] },
-      { id: '天鳳（四麻）', name: '天鳳（四麻）', mode: '四麻', readonly: true, date: '1970/01/01 00:00', settings: BASE_RULES_4['天鳳（四麻）'] },
-      { id: 'Mリーグ公式（四麻）', name: 'Mリーグ公式（四麻）', mode: '四麻', readonly: true, date: '1970/01/01 00:00', settings: BASE_RULES_4['Mリーグ公式（四麻）'] }
-    ];
-    const presets3 = [
-      { id: '三人麻雀（標準）', name: '三人麻雀（標準）', mode: '三麻', readonly: true, date: '1970/01/01 00:00', settings: BASE_RULES_3['三人麻雀（標準）'] }
-    ];
-
+    // VanillaJS側で保存されたルールをフィルタリング
     let combinedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab);
-    if (activeTab === 4) combinedRules = [...combinedRules, ...presets4];
-    else combinedRules = [...combinedRules, ...presets3];
 
     const parseDateStr = (str) => {
       if (!str) return 0;
@@ -2482,9 +2322,13 @@ if (!checkSharedRule()) {
           <div className="flex flex-col gap-3">
             {displayedRules.map((rule) => {
               const isReadOnly = rule.readonly;
-              const def4 = localStorage.getItem('mahjong_default_base_4ma') || '雀魂（四麻・段位戦）';
-              const def3 = localStorage.getItem('mahjong_default_base_3ma') || '三人麻雀（標準）';
-              const isDef = (rule.mode === '四麻' && def4 === rule.id) || (rule.mode === '三麻' && def3 === rule.id);
+              let def4 = []; let def3 = [];
+              try { def4 = JSON.parse(localStorage.getItem('mahjong_default_base_4ma') || '[]'); } catch(e){}
+              try { def3 = JSON.parse(localStorage.getItem('mahjong_default_base_3ma') || '[]'); } catch(e){}
+              if (!Array.isArray(def4)) def4 = [];
+              if (!Array.isArray(def3)) def3 = [];
+              
+              const isDef = (rule.mode === '四麻' && def4.includes(rule.id)) || (rule.mode === '三麻' && def3.includes(rule.id));
 
               return (
                 <div 
@@ -2564,7 +2408,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 13:00
+            ビルド時刻: 2026-03-17 13:40
           </p>
         </footer>
 
