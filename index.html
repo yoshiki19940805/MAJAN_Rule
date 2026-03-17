@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.108";
+    const currentVersion = "v0.109";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -789,6 +789,15 @@ const CATEGORIES_3 = [
   ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
   ["14. 軽罰符",["keibappu_type","keibappu_taiou","pen_gonaki_hassei","pen_shouhai"], true],
 ];
+
+// --- 初期プリセット定義 ---
+const PRESET_INJECTIONS = [
+  { id: "preset_dzcc_4", mode: "四麻", name: "一般", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["一般"]} },
+  { id: "preset_qhs2_4", mode: "四麻", name: "雀魂", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["雀魂"]} },
+  { id: "preset_8ros1_4", mode: "四麻", name: "Mリーグ", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["Mリーグ"]} },
+  { id: "preset_g0yy_4", mode: "四麻", name: "天鳳", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["天鳳"]} },
+  { id: "preset_jaywpt_3", mode: "三麻", name: "関東三麻", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3["関東三麻"]} },
+];
 /* __END_PRESETS__ */
 
 // =====================================================================
@@ -975,6 +984,27 @@ function loadData() {
     }
     saveData();
   }
+
+  // v15: PRESET_INJECTIONSから全プリセットを再構築（TSV列追加で自動反映）
+  if (!appData.presetsMigrated_v15) {
+    appData.presetsMigrated_v15 = true;
+    if (typeof PRESET_INJECTIONS !== 'undefined') {
+      for (const pi of PRESET_INJECTIONS) {
+        const existing = appData.rules.find(r => r.id === pi.id);
+        if (existing) {
+          existing.settings = {...pi.settings};
+          existing.name = pi.name;
+          existing.readonly = true;
+        } else {
+          appData.rules.push({...pi});
+        }
+      }
+      const validIds = new Set(PRESET_INJECTIONS.map(p => p.id));
+      appData.rules = appData.rules.filter(r => !r.id.startsWith('preset_') || validIds.has(r.id));
+    }
+    saveData();
+  }
+
 
   // マイグレーション: 古いデータに不足しているキーをデフォルト値で補完
   let migrated = false;
@@ -2593,8 +2623,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.108", 
-    buildDate: "2026-03-17 21:56",
+    appVersion: "v0.109", 
+    buildDate: "2026-03-17 22:01",
   };
 
   // ==========================================

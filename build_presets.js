@@ -268,6 +268,44 @@ function generateJs(entries, presetCols) {
   lines.push('');
   genCats('CATEGORIES_3', 'cat3');
 
+  // --- PRESET_INJECTIONS (初期プリセット自動生成) ---
+  lines.push('');
+  lines.push('// --- 初期プリセット定義 ---');
+  // IDの生成: プリセット名からURLセーフなIDを作成
+  function makePresetId(mode, name) {
+    // 既知のID対応を保持（既存データとの互換性）
+    const knownIds = {
+      '四麻:雀魂（四麻・段位戦）': 'preset_jantama_4',
+      '四麻:天鳳（四麻）': 'preset_tenhou_4',
+      '四麻:Mリーグ公式（四麻）': 'preset_mleague_4',
+      '三麻:三人麻雀（標準）': 'preset_zoo_3',
+    };
+    const fullKey = `${mode}:${name}`;
+    if (knownIds[fullKey]) return knownIds[fullKey];
+    // 新規: preset_ + ハッシュ
+    const hash = name.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+    const modeKey = mode === '四麻' ? '4' : '3';
+    return `preset_${Math.abs(hash).toString(36)}_${modeKey}`;
+  }
+
+  // 短い表示名を生成（括弧内の補足を除去）
+  function shortName(name) {
+    return name.replace(/[（(].+[）)]$/, '').trim();
+  }
+
+  const allPresets = [];
+  for (const p of presetCols) {
+    const id = makePresetId(p.mode, p.name);
+    const mode = p.mode === '四麻' ? '四麻' : '三麻';
+    const baseVar = p.mode === '四麻' ? 'BASE_RULES_4' : 'BASE_RULES_3';
+    allPresets.push({ id, mode, name: shortName(p.name), fullName: p.name, baseVar });
+  }
+  lines.push(`const PRESET_INJECTIONS = [`);
+  for (const p of allPresets) {
+    lines.push(`  { id: ${js(p.id)}, mode: ${js(p.mode)}, name: ${js(p.name)}, readonly: true, date: '1970/01/01 00:00:00', settings: {...${p.baseVar}[${js(p.fullName)}]} },`);
+  }
+  lines.push('];');
+
   return lines.join('\n');
 }
 
