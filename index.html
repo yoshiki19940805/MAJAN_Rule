@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.89";
+    const currentVersion = "v0.90";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -173,7 +173,7 @@
             
             <div class="mt-3 flex items-start gap-1.5 text-[11px] text-theme-textMuted px-1">
                 <span class="material-symbols-outlined text-[14px] text-theme-primary">info</span>
-                <p>標準ルールから変更した項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
+                <p>標準ルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
             </div>
         </div>
 
@@ -627,7 +627,7 @@ function loadData() {
     const presetsToInject = [
       { id: 'preset_jantama_4', mode: '四麻', name: '雀魂', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['雀魂（四麻・段位戦）']} },
       { id: 'preset_tenhou_4', mode: '四麻', name: '天鳳', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['天鳳（四麻）']} },
-      { id: 'preset_mleague_4', mode: '四麻', name: 'Mリーグ公式', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['Mリーグ公式（四麻）']} },
+      { id: 'preset_mleague_4', mode: '四麻', name: 'Mリーグ', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['Mリーグ公式（四麻）']} },
       { id: 'preset_zoo_3', mode: '三麻', name: '関東三麻', readonly: false, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3['三人麻雀（標準）']} }
     ];
     appData.rules = [...presetsToInject, ...appData.rules];
@@ -680,6 +680,16 @@ function loadData() {
         }
         if (rule.date && rule.date.length === 16) {
             rule.date = rule.date + ':00'; // Retroactively add seconds to older strings
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v8) {
+    appData.presetsMigrated_v8 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_mleague_4') {
+            rule.name = 'Mリーグ';
         }
     }
     saveData();
@@ -2281,8 +2291,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.89", 
-    buildDate: "2026-03-17 14:40",
+    appVersion: "v0.90", 
+    buildDate: "2026-03-17 15:00",
   };
 
   // ==========================================
@@ -2421,7 +2431,7 @@ if (!checkSharedRule()) {
                           </div>
                           <div className="flex items-center gap-1 text-theme-textMuted">
                             <span className="material-symbols-outlined text-[14px]">verified</span>
-                            <p className="text-xs">共有ルール（改変不可）</p>
+                            <p className="text-xs">編集不可</p>
                           </div>
                         </div>
                       </>
@@ -2469,7 +2479,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 14:40
+            ビルド時刻: 2026-03-17 15:00
           </p>
         </footer>
 
