@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.87";
+    const currentVersion = "v0.88";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -1053,11 +1053,19 @@ function renderEdit() {
 
   if (brSection) {
     brSection.classList.remove('hidden');
-    let availableKeys = Object.keys(bases).filter(k => k !== rule.id);
+    
+    let activeDefaults = [];
+    try {
+        const raw = localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
+        if (raw) activeDefaults = JSON.parse(raw);
+    } catch(e){}
+    if (!Array.isArray(activeDefaults)) activeDefaults = [];
+    
+    let availableKeys = activeDefaults.filter(k => k !== rule.id);
+    
     if (!availableKeys.includes(rule.base_rule) && availableKeys.length > 0) {
       if (!isSharedMode) {
-        rule.base_rule = (rule.mode === '四麻' ? '雀魂（四麻・段位戦）' : '三人麻雀（標準）');
-        if (!availableKeys.includes(rule.base_rule)) rule.base_rule = availableKeys[0];
+        rule.base_rule = availableKeys[0];
         saveData();
       }
     }
@@ -1197,7 +1205,7 @@ function renderEdit() {
                         <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(LABELS[k] || k)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="text-[15px] truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="text-[15px] truncate text-right w-full block pointer-events-none display-value-span ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(val)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1350,6 +1358,18 @@ function onSettingChange(key, val) {
     if (swipeRow) {
       const isDiff = (!(key in base) || val !== String(base[key] || ""));
       swipeRow.classList.toggle('is-changed', isDiff);
+      
+      const valSpan = swipeRow.querySelector('.display-value-span');
+      if (valSpan) {
+          valSpan.textContent = val;
+          if (isDiff) {
+              valSpan.classList.add('text-theme-primary', 'font-bold');
+              valSpan.classList.remove('text-theme-textMuted');
+          } else {
+              valSpan.classList.add('text-theme-textMuted');
+              valSpan.classList.remove('text-theme-primary', 'font-bold');
+          }
+      }
     }
   }
 }
@@ -2242,8 +2262,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.87", 
-    buildDate: "2026-03-17 14:00",
+    appVersion: "v0.88", 
+    buildDate: "2026-03-17 14:10",
   };
 
   // ==========================================
@@ -2430,7 +2450,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 14:00
+            ビルド時刻: 2026-03-17 14:10
           </p>
         </footer>
 
