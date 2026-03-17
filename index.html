@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.115";
+    const currentVersion = "v0.116";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -286,7 +286,7 @@ const OPTIONS_4 = {
   reach_ankan_okuri:["可","不可","カスタム"],
   reach_ankan_machi:["可","不可","カスタム"],
   reach_ankan_mentsu:["可","不可","カスタム"],
-  shugi_value:["2000点相当","4000点相当","10000点相当","カスタム"],
+  shugi_value:["2000点相当","4000点相当","10000点相当","祝儀なし","カスタム"],
   shugi_ippatsu:["あり","なし","カスタム"],
   shugi_ura:["あり","なし","カスタム"],
   shugi_aka:["鳴き祝儀","門前祝儀","なし","カスタム"],
@@ -359,7 +359,7 @@ const OPTIONS_3 = {
   reach_ankan_okuri:["可","不可","カスタム"],
   reach_ankan_machi:["可","不可","カスタム"],
   reach_ankan_mentsu:["可","不可","カスタム"],
-  shugi_value:["2000点相当","4000点相当","10000点相当","カスタム"],
+  shugi_value:["2000点相当","4000点相当","10000点相当","なし","カスタム"],
   shugi_ippatsu:["あり","なし","カスタム"],
   shugi_ura:["あり","なし","カスタム"],
   shugi_pocchi:["あり（リーチ後白ポッチツモ）","なし","カスタム"],
@@ -456,7 +456,7 @@ const BASE_RULES_4 = {
     furiten_open_reach:"なし", furiten_open_reach_custom:"", tsumo_nashi_reach:"不可", tsumo_nashi_reach_custom:"",
     reach_1000:"なし", reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"",
     reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
-    shugi_value:"", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
+    shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
     shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"", shugi_pocchi:"なし",
     shugi_pocchi_custom:"", shugi_ym_tsumo:"なし", shugi_ym_tsumo_custom:"", shugi_ym_ron:"なし",
     shugi_ym_ron_custom:"", shugi_kazoe:"対象外", shugi_kazoe_custom:"", tobi_shou:"", tobi_shou_custom:"",
@@ -492,7 +492,7 @@ const BASE_RULES_4 = {
     furiten_open_reach_custom:"", tsumo_nashi_reach:"可", tsumo_nashi_reach_custom:"", reach_1000:"あり",
     reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可",
     reach_ankan_machi_custom:"", reach_ankan_mentsu:"不可", reach_ankan_mentsu_custom:"",
-    shugi_value:"", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
+    shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
     shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"", shugi_pocchi:"なし",
     shugi_pocchi_custom:"", shugi_ym_tsumo:"なし", shugi_ym_tsumo_custom:"", shugi_ym_ron:"なし",
     shugi_ym_ron_custom:"", shugi_kazoe:"対象外", shugi_kazoe_custom:"", tobi_shou:"", tobi_shou_custom:"",
@@ -529,7 +529,7 @@ const BASE_RULES_4 = {
     furiten_open_reach:"なし", furiten_open_reach_custom:"", tsumo_nashi_reach:"不可", tsumo_nashi_reach_custom:"",
     reach_1000:"なし", reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"",
     reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
-    shugi_value:"", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
+    shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
     shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"", shugi_pocchi:"なし",
     shugi_pocchi_custom:"", shugi_ym_tsumo:"なし", shugi_ym_tsumo_custom:"", shugi_ym_ron:"なし",
     shugi_ym_ron_custom:"", shugi_kazoe:"対象外", shugi_kazoe_custom:"", tobi_shou:"", tobi_shou_custom:"",
@@ -2609,8 +2609,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.115", 
-    buildDate: "2026-03-17 22:36",
+    appVersion: "v0.116", 
+    buildDate: "2026-03-17 22:39",
   };
 
   // ==========================================
