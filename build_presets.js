@@ -145,12 +145,11 @@ function generateJs(entries, presetCols) {
 
   // --- BASE_RULES_4 ---
   const presets4 = presetCols.filter(p => p.mode === '四麻');
-  const baseRuleNames4 = { '雀魂':'雀魂（四麻・段位戦）','Mリーグ':'Mリーグ公式（四麻）','天鳳':'天鳳（四麻）' };
 
   lines.push('// --- 基準ルール ---');
   lines.push('const BASE_RULES_4 = {');
   for (const p of presets4) {
-    const ruleName = baseRuleNames4[p.name] || `${p.name}（四麻）`;
+    const ruleName = p.name;
     const settings = [];
     for (const e of entries) {
       if (e.cat4 && e.values[p.name] !== undefined) {
@@ -173,18 +172,16 @@ function generateJs(entries, presetCols) {
   lines.push('};');
   lines.push('');
   if (presets4.length) {
-    const n = baseRuleNames4[presets4[0].name] || `${presets4[0].name}（四麻）`;
-    lines.push(`const DEFAULT_4 = {...BASE_RULES_4[${js(n)}]};`);
+    lines.push(`const DEFAULT_4 = {...BASE_RULES_4[${js(presets4[0].name)}]};`);
   }
   lines.push('');
 
   // --- BASE_RULES_3 ---
   const presets3 = presetCols.filter(p => p.mode === '三麻');
-  const baseRuleNames3 = { '関東三麻':'三人麻雀（標準）' };
 
   lines.push('const BASE_RULES_3 = {');
   for (const p of presets3) {
-    const ruleName = baseRuleNames3[p.name] || `${p.name}（三麻）`;
+    const ruleName = p.name;
     const settings = [];
     for (const e of entries) {
       if (e.cat3 && e.values[p.name] !== undefined) {
@@ -205,8 +202,7 @@ function generateJs(entries, presetCols) {
   }
   lines.push('};');
   if (presets3.length) {
-    const n = baseRuleNames3[presets3[0].name] || `${presets3[0].name}（三麻）`;
-    lines.push(`const DEFAULT_3 = {...BASE_RULES_3[${js(n)}]};`);
+    lines.push(`const DEFAULT_3 = {...BASE_RULES_3[${js(presets3[0].name)}]};`);
   }
   lines.push('');
 
