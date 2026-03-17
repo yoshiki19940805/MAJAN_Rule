@@ -160,10 +160,10 @@ BASE_RULES_4 = {
         "kan_dora": "暗槓のみ先めくり", "kokushi_ankan": "なし",
         "yakuman_type": "Mリーグに準拠",
         "tsumo_nashi_reach": "可", "reach_1000": "あり", "reach_ankan_okuri": "不可",
-        "chombo_batsu": "20000点減点", "chombo_taiou": "なし",
-        "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
-        "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
-        "pen_tahai": "なし", "pen_gonaki_hassei": "上がり放棄", "pen_reach_torikeshi": "なし", "pen_shouhai": "上がり放棄",
+        "chombo_batsu": "20000点減点", "chombo_taiou": "やり直し",
+        "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ", "pen_reach_bad_ankan": "チョンボ",
+        "pen_goron_no_taopai": "上がり放棄", "pen_gonaki_sarashi": "上がり放棄", "pen_kuikae_ihan": "上がり放棄",
+        "pen_tahai": "上がり放棄", "pen_gonaki_hassei": "上がり放棄", "pen_reach_torikeshi": "なし", "pen_shouhai": "上がり放棄",
         "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
         "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
         "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
@@ -420,8 +420,8 @@ CATEGORIES_4 = [
     ("10. ローカル役満", ["sp_daisharin","sp_renho","sp_nagashi_ym"]),
     ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]),
     ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
-    ("14. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
+    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"]),
+    ("14. 軽罰符", ["pen_reach_torikeshi"]),
 ]
 
 CATEGORIES_3 = [
@@ -437,8 +437,8 @@ CATEGORIES_3 = [
     ("10. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]),
     ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
     ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
-    ("14. 軽罰符", ["pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]),
+    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"]),
+    ("14. 軽罰符", ["pen_reach_torikeshi"]),
 ]
 
 # =====================================================================
