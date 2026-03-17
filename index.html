@@ -110,7 +110,13 @@
       z-index: 5;
   }
 
-  .is-changed .swipe-content { background-color: var(--color-highlight-bg); }
+  .is-changed .swipe-content {
+      background-color: var(--color-highlight-bg);
+      border-bottom: 0.5px solid var(--color-border);
+  }
+  .swipe-item:last-child .is-changed .swipe-content {
+      border-bottom: none;
+  }
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
 
   .material-symbols-outlined {
