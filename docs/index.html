@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.93";
+    const currentVersion = "v0.94";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -532,7 +532,7 @@ const LABELS = {
   ipponba:"一本場", ipponba_custom:"一本場（カスタム）",
   tenpai_ryou:"テンパイ料",
   tsumozon:"ツモ損", fu_keisan:"符計算", tsumopin:"ツモピンフ",
-  renchan:"連荘条件", oras_oya:"オーラスの親の終了", oras_oya_custom:"オーラスの親の終了（カスタム）",
+  renchan:"連荘条件", oras_oya:"オーラスの親", oras_oya_custom:"オーラスの親（カスタム）",
   tochu_kyushu:"九種九牌", tochu_sufon:"四風連打", tochu_sukan:"四槓散了",
   tochu_sucha:"四家立直", tochu_sancha:"三家和",
   tochu_ryukyoku:"途中流局", tochu_honba:"途中流局時の本場",
@@ -2316,8 +2316,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.93", 
-    buildDate: "2026-03-17 15:45",
+    appVersion: "v0.94", 
+    buildDate: "2026-03-17 15:50",
   };
 
   // ==========================================
@@ -2502,7 +2502,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 15:45
+            ビルド時刻: 2026-03-17 15:50
           </p>
         </footer>
 
