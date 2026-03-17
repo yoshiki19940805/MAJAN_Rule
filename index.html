@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v65";
+    const currentVersion = "v66";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -144,9 +144,7 @@
   <!-- ホーム画面 (React化) -->
   <div class="screen active" style="padding:0; background-color: var(--color-bg);" id="screen-home">
     <div id="react-home-root" style="flex:1; display:flex; flex-direction:column; height: 100%;"></div>
-    <div style="text-align:center; padding: 10px; font-size: 10px; color: #888; background: var(--surface);">
-      // 削除: React側に移譲
-
+  </div>
   <!-- 編集画面 -->
   <div class="screen bg-theme-bg" id="screen-edit">
     <nav class="shrink-0 pt-12 pb-3 px-4 flex items-center justify-between bg-theme-bg/90 backdrop-blur-md sticky top-0 z-40 border-b border-theme-border/50">
@@ -2243,8 +2241,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.7", 
-    buildDate: "2026-03-17 09:42",
+    appVersion: "1.0.8", 
+    buildDate: "2026-03-17 09:55",
   };
 
   // ==========================================
