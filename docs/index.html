@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v68";
+    const currentVersion = "v69";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -1779,7 +1779,7 @@ async function exportImage() {
           const file = new File([blob], fileName, { type: 'image/png' });
           if (navigator.canShare({ files: [file] })) {
             try {
-              await navigator.share({ files: [file], title: fileName });
+              await navigator.share({ files: [file] });
               showSnack('📷 画像を共有・保存しました');
             } catch(e) { /* ユーザーキャンセル */ }
           } else {
@@ -1984,7 +1984,7 @@ async function exportPDF() {
               const file = new File([blob], opt.filename, { type: 'application/pdf' });
               if (navigator.canShare({ files: [file] })) {
                   try {
-                      await navigator.share({ files: [file], title: opt.filename });
+                      await navigator.share({ files: [file] });
                       showSnack('📄 PDFを共有・保存しました');
                   } catch(e) { /* ユーザーキャンセル */ }
                   document.body.removeChild(hiddenWrapper);
@@ -2467,7 +2467,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: {CONFIG.buildDate}
+            ビルド時刻: 2026-03-17 10:30
           </p>
         </footer>
 
