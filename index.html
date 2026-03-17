@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="麻雀のルールを簡単に作成・共有できるWebアプリ。三人麻雀・四人麻雀対応。">
 <meta name="theme-color" content="#F0F2F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v62";
+    const currentVersion = "v63";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -2109,8 +2109,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.4", 
-    buildDate: "2026-03-17 09:12",
+    appVersion: "1.0.5", 
+    buildDate: "2026-03-17 09:17",
   };
 
   // ==========================================
