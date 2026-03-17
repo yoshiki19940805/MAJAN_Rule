@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.99";
+    const currentVersion = "v0.96";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -264,7 +264,7 @@ const OPTIONS_4 = {
   tochu_sukan:["あり","なし"],
   tochu_sucha:["あり","なし"],
   tochu_sancha:["あり","なし"],
-  tochu_honba:["積む","積まない","途中流局なし"],
+  tochu_honba:["積む","積まない"],
   double_ron:["あり","なし（頭ハネ）"],
   triple_ron:["全員アガリ","流局（三家和）","頭ハネ"],
   naki_priority:["発声優先（同時ならポン・カン優先）","ポン・カン優先"],
@@ -273,14 +273,14 @@ const OPTIONS_4 = {
   atozuke:["あり","なし"],
   kuikae:["禁止","あり"],
   aka_dora:["各1枚（計3枚）","なし","カスタム"],
-  kan_dora:["先めくり","後めくり","暗槓のみ先めくり","カスタム"],
+  kan_dora:["先めくり","暗槓のみ先めくり","カスタム"],
   tsumopin:["あり","なし"],
   kiriage:["あり","なし"],
   renpai_toitsu:["2符","4符"],
   nagashi:["あり（流局時成立）","なし"],
   kokushi_ankan:["あり","なし"],
   shiro_pocchi:["なし","あり（リーチ後オールマイティ）"],
-  yakuman_type:["雀魂に準ずる","天鳳に準ずる","Mリーグに準拠","カスタム"],
+  yakuman_type:["雀魂に準ずる","天鳳に準ずる","カスタム"],
   yakuman_custom_memo:[""],
   yakuman_fukugo:["なし","あり","カスタム"],
   kazoe_yakuman:["13飜以上","なし"],
@@ -311,11 +311,10 @@ const OPTIONS_4 = {
   pao_sukantu:["なし","あり"],
   pao_tsumo:["パオの人が全額","通常精算"],
   pao_ron:["パオの人と振込者で折半","振込者が全額"],
-  chombo_batsu:["満貫払い","倍満払い","20000点減点","カスタム","なし"],
+  chombo_batsu:["満貫払い","倍満払い","カスタム","なし"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局","なし"],
   keibappu_type:["1000点供託","なし","カスタム"],
-  keibappu_taiou:["ゲーム続行","カスタム","なし"],
   pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
@@ -324,6 +323,7 @@ const OPTIONS_4 = {
   pen_kuikae_ihan:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
   pen_tahai:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
   pen_gonaki_hassei:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
+  pen_reach_torikeshi:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
   pen_shouhai:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
 };
 
@@ -348,8 +348,8 @@ const OPTIONS_3 = {
   tochu_kyushu:["あり","なし"],
   tochu_sukan:["あり","なし"],
   tochu_sancha:["あり","なし"],
-  tochu_honba:["積む","積まない","途中流局なし"],
-  tochu_ryukyoku:["なし（4人リーチも続行）","あり"],
+  tochu_honba:["積む","積まない"],
+  tochu_ryukyoku:["なし（3人リーチも続行）","あり"],
   double_ron:["あり","なし（頭ハネ）"],
   tsumo_yama:["ドラ表示牌の隣までツモり切り","王牌14枚残し","カスタム"],
   kuitan:["あり","なし"],
@@ -399,7 +399,6 @@ const OPTIONS_3 = {
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局","なし"],
   keibappu_type:["1000点供託","なし","カスタム"],
-  keibappu_taiou:["ゲーム続行","カスタム","なし"],
   pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
@@ -438,10 +437,10 @@ const BASE_RULES_4 = {
     kan_dora:"暗槓のみ先めくり", renpai_toitsu:"4符",
     furiten_reach:"なし", reach_ankan_okuri:"不可",
     chombo_batsu:"なし", chombo_taiou:"なし",
-    keibappu_type:"なし", keibappu_taiou:"なし",
+    keibappu_type:"なし",
     pen_goron_taopai:"なし", pen_noten_reach:"なし", pen_reach_bad_ankan:"なし",
     pen_goron_no_taopai:"なし", pen_gonaki_sarashi:"なし", pen_kuikae_ihan:"なし",
-    pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_shouhai:"なし",
+    pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_reach_torikeshi:"なし", pen_shouhai:"なし",
     shugi_type:"なし", shugi_ippatsu:"なし", shugi_ura:"なし", shugi_aka:"なし", shugi_pocchi:"なし",
     shugi_ym_tsumo:"なし", shugi_ym_ron:"なし", shugi_kazoe:"対象外", shugi_memo:"",
     pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
@@ -450,24 +449,8 @@ const BASE_RULES_4 = {
   },
   "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", uma_custom:"", nishiiri:"なし", tobi:"なし", oras_oya:"アガリ止め・テンパイ止めなし",
     tochu_kyushu:"なし", tochu_sufon:"なし", tochu_sukan:"なし", tochu_sucha:"なし", tochu_sancha:"なし",
-    tochu_honba:"途中流局なし",
     double_ron:"なし（頭ハネ）", triple_ron:"頭ハネ",
-    naki_priority:"ポン・カン優先",
-    kiriage:"あり", nagashi:"なし", 
-    kan_dora:"暗槓のみ先めくり", kokushi_ankan:"なし",
-    yakuman_type:"Mリーグに準拠",
-    tsumo_nashi_reach:"可", reach_1000:"あり", reach_ankan_okuri:"不可",
-    chombo_batsu:"20000点減点", chombo_taiou:"やり直し",
-    keibappu_type:"なし", keibappu_taiou:"なし",
-    pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
-    pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄", pen_kuikae_ihan:"上がり放棄",
-    pen_tahai:"上がり放棄", pen_gonaki_hassei:"上がり放棄", pen_shouhai:"上がり放棄",
-    shugi_type:"なし", shugi_ippatsu:"なし", shugi_ura:"なし", shugi_aka:"なし", shugi_pocchi:"なし",
-    shugi_ym_tsumo:"なし", shugi_ym_ron:"なし", shugi_kazoe:"対象外", shugi_memo:"",
-    pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
-    pao_tsumo:"パオの人が全額", pao_ron:"パオの人と振込者で折半",
-    sp_daisharin:"なし", sp_renho:"なし", sp_nagashi_ym:"なし", sp_4mai_chii:"なし", sp_shosharin:"なし",
-  },
+    kiriage:"あり", nagashi:"なし", yakuman_type:"カスタム"},
   "天鳳（四麻）": {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
     double_ron:"あり", triple_ron:"流局（三家和）", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"天鳳に準ずる",
@@ -475,10 +458,10 @@ const BASE_RULES_4 = {
     kan_dora:"暗槓のみ先めくり", renpai_toitsu:"4符",
     furiten_reach:"なし", reach_ankan_okuri:"不可", 
     chombo_batsu:"なし", chombo_taiou:"なし",
-    keibappu_type:"なし", keibappu_taiou:"なし",
+    keibappu_type:"なし",
     pen_goron_taopai:"なし", pen_noten_reach:"なし", pen_reach_bad_ankan:"なし",
     pen_goron_no_taopai:"なし", pen_gonaki_sarashi:"なし", pen_kuikae_ihan:"なし",
-    pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_shouhai:"なし",
+    pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_reach_torikeshi:"なし", pen_shouhai:"なし",
     shugi_type:"なし", shugi_ippatsu:"なし", shugi_ura:"なし", shugi_aka:"なし", shugi_pocchi:"なし",
     shugi_ym_tsumo:"なし", shugi_ym_ron:"なし", shugi_kazoe:"対象外", shugi_memo:"",
     pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
@@ -496,11 +479,12 @@ const DEFAULT_4 = {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
   pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
   pao_tsumo:"パオの人が全額", pao_ron:"パオの人と振込者で折半",
   chombo_batsu:"満貫払い", chombo_memo:"", chombo_taiou:"やり直し",
-  keibappu_type:"1000点供託", keibappu_taiou:"なし",
+  keibappu_type:"1000点供託",
   pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
   pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
   pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
-  pen_gonaki_hassei:"軽罰符", pen_shouhai:"軽罰符",
+  pen_gonaki_hassei:"軽罰符", pen_reach_torikeshi:"軽罰符",
+  pen_shouhai:"軽罰符",
   shiro_pocchi:"なし",
   sp_daisharin:"なし", sp_renho:"なし", sp_nagashi_ym:"なし",
   sp_4mai_chii:"なし", sp_shosharin:"なし",
@@ -509,12 +493,12 @@ const DEFAULT_4 = {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
 const BASE_RULES_3 = {
   "三人麻雀（標準）":{
     length:"東南戦", mochi_ten:"35000点", kaeshi_ten:"40000点",
-    uma:"+20/±0/-20", tobi:"あり（0点未満で終了）",
+    uma:"なし", tobi:"あり（0点未満で終了）",
     tsumozon:"なし", fu_keisan:"なし（専用点数表）", tsumopin:"あり",
     ipponba:"1000点", ipponba_custom:"", tenpai_ryou:"場に2000点",
     renchan:"テンパイ連荘", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
-    tochu_kyushu:"なし", tochu_sukan:"なし",
-    tochu_honba:"途中流局なし", tochu_ryukyoku:"なし（3人リーチも続行）",
+    tochu_kyushu:"あり", tochu_sukan:"あり",
+    tochu_honba:"積む", tochu_ryukyoku:"なし（3人リーチも続行）",
     double_ron:"あり",
     tsumo_yama:"ドラ表示牌の隣までツモり切り",
     kuitan:"あり", atozuke:"あり", aka_dora:"5に各2枚",
@@ -523,12 +507,12 @@ const BASE_RULES_3 = {
     hanapai:"あり（空気扱い・一発消えず・嶺上開花なし）", kan_dora:"先めくり",
     reach_1000:"あり（局終了時にトビ）", furiten_reach:"不可",
     open_reach:"あり",
-    furiten_open_reach:"なし", tsumo_nashi_reach:"不可",
-    reach_ankan_okuri:"不可", reach_ankan_machi:"不可", reach_ankan_mentsu:"可",
+    furiten_open_reach:"あり", tsumo_nashi_reach:"不可",
+    reach_ankan_okuri:"可", reach_ankan_machi:"不可", reach_ankan_mentsu:"不可",
     reach_kan:"待ち不変ならOK",
     niken_reach:"2軒リーチで残り1人手牌公開", shiro_pocchi:"あり（リーチ後オールマイティ）",
     sp_manzu_honitsu:"あり", sp_daisharin:"あり（清一七対子）",
-    sp_renho:"あり", sp_nagashi_ym:"あり",
+    sp_renho:"なし", sp_nagashi_ym:"あり",
     sp_4mai_chii:"あり（2翻）", sp_shosharin:"あり（混一七対子・6翻）",
     yakuman_type:"雀魂に準ずる", yakuman_custom_memo:"",
     kazoe_yakuman:"14飜以上", w_yakuman:"なし", kokushi_ankan:"あり",
@@ -542,8 +526,8 @@ const BASE_RULES_3 = {
     pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
     pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
     pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
-    keibappu_type:"1000点供託", keibappu_taiou:"なし",
-    pen_gonaki_hassei:"軽罰符",
+    keibappu_type:"1000点供託",
+    pen_gonaki_hassei:"軽罰符", pen_reach_torikeshi:"軽罰符",
     pen_shouhai:"軽罰符＋山から補充",
   }
 };
@@ -594,9 +578,9 @@ const LABELS = {
   pen_reach_bad_ankan:"リーチ後不正暗槓",
   pen_goron_no_taopai:"誤ロン・誤ツモ（倒牌なし）",
   pen_gonaki_sarashi:"誤鳴き（牌晒し）", pen_kuikae_ihan:"喰い替え違反",
-  pen_tahai:"多牌", keibappu_type:"軽罰符の内容", keibappu_taiou:"軽罰符後の対処",
+  pen_tahai:"多牌", keibappu_type:"軽罰符の内容",
   pen_gonaki_hassei:"誤鳴き（発声のみ）",
-  pen_shouhai:"少牌",
+  pen_reach_torikeshi:"リーチ取消", pen_shouhai:"少牌",
 };
 
 // --- カテゴリ ---
@@ -614,8 +598,8 @@ const CATEGORIES_4 = [
   ["11. ローカルルール",["shiro_pocchi"]],
   ["12. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
   ["13. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
-  ["14. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"], true],
-  ["15. 軽罰符",["keibappu_type","keibappu_taiou"], true],
+  ["14. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["15. 軽罰符",["keibappu_type","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 const CATEGORIES_3 = [
@@ -632,7 +616,7 @@ const CATEGORIES_3 = [
   ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
   ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
   ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["14. 軽罰符",["pen_gonaki_hassei","pen_shouhai","keibappu_type","keibappu_taiou"], true],
+  ["14. 軽罰符",["keibappu_type","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
 ];
 
 // =====================================================================
@@ -643,7 +627,7 @@ let appData = { rules: [] };
 let editingId = null;
 let deleteTargetId = null;
 let _editSnapshot = null;  // 編集前のスナップショット
-const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','niji_dora','tenpai_ryou','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman','keibappu_type','keibappu_taiou','tobi_shou','pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai']);
+const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','niji_dora','tenpai_ryou','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman','keibappu_type','tobi_shou','pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
 
 function loadData() {
   try {
@@ -749,72 +733,6 @@ function loadData() {
                 naki_priority: "ポン・カン優先",
                 kan_dora: "暗槓のみ先めくり", renpai_toitsu: "4符",
                 furiten_reach: "なし", reach_ankan_okuri: "不可"
-            });
-        }
-    }
-    saveData();
-  }
-
-  if (!appData.presetsMigrated_v11) {
-    appData.presetsMigrated_v11 = true;
-    for (const rule of appData.rules) {
-        if (rule.id === 'preset_mleague_4') {
-            Object.assign(rule.settings, {
-                naki_priority: "ポン・カン優先", tochu_honba: "途中流局なし",
-                kan_dora: "暗槓のみ先めくり", kokushi_ankan: "なし",
-                yakuman_type: "Mリーグに準拠", tsumo_nashi_reach: "可",
-                reach_1000: "あり", reach_ankan_okuri: "不可",
-                shugi_type: "なし", shugi_ippatsu: "なし", shugi_ura: "なし", shugi_aka: "なし",
-                shugi_ym_tsumo: "なし", shugi_ym_ron: "なし",
-                pen_shouhai: "上がり放棄", pen_gonaki_hassei: "上がり放棄",
-                chombo_batsu: "20000点減点"
-            });
-        }
-    }
-    saveData();
-  }
-
-  if (!appData.presetsMigrated_v12) {
-    appData.presetsMigrated_v12 = true;
-    for (const rule of appData.rules) {
-        if (rule.id === 'preset_mleague_4') {
-            Object.assign(rule.settings, {
-                chombo_taiou: "やり直し",
-                pen_goron_taopai: "チョンボ", pen_noten_reach: "チョンボ", pen_reach_bad_ankan: "チョンボ",
-                pen_goron_no_taopai: "上がり放棄", pen_gonaki_sarashi: "上がり放棄", pen_kuikae_ihan: "上がり放棄",
-                pen_tahai: "上がり放棄"
-            });
-        }
-    }
-    saveData();
-  }
-
-  if (!appData.presetsMigrated_v13) {
-    appData.presetsMigrated_v13 = true;
-    for (const rule of appData.rules) {
-      if ('pen_reach_torikeshi' in rule.settings) {
-         delete rule.settings['pen_reach_torikeshi'];
-      }
-      if (!('keibappu_taiou' in rule.settings)) {
-         rule.settings.keibappu_taiou = "なし";
-      }
-    }
-    saveData();
-  }
-
-  if (!appData.presetsMigrated_v14) {
-    appData.presetsMigrated_v14 = true;
-    for (const rule of appData.rules) {
-        if (rule.id === 'preset_zoo_3') {
-            Object.assign(rule.settings, {
-                uma: "+20/±0/-20",
-                tochu_kyushu: "なし",
-                tochu_sukan: "なし",
-                tochu_honba: "途中流局なし",
-                furiten_open_reach: "なし",
-                reach_ankan_okuri: "不可",
-                reach_ankan_mentsu: "可",
-                sp_renho: "あり"
             });
         }
     }
@@ -1262,7 +1180,7 @@ function renderEdit() {
   
   let html = '';
 
-  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai'];
   const chomboMovedKeys = new Set();
   for (const pk of penaltyKeys) {
     if (rule.settings[pk] === 'チョンボ') chomboMovedKeys.add(pk);
@@ -1356,8 +1274,8 @@ function renderEdit() {
         const customAttrValue = rule.settings[k + '_custom'] || '';
         
         let valSizeClass = "text-[15px]";
-        if (val && val.length > 15) valSizeClass = "text-[13px]";
-        if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
+        if (val && val.length > 13) valSizeClass = "text-[13px]";
+        if (val && val.length > 17) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}">
@@ -1374,10 +1292,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[14.5em] max-w-[60%]">${esc(LABELS[k] || k)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="${valSizeClass} text-right w-full block pointer-events-none display-value-span whitespace-normal break-words ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${valSizeClass} truncate text-right w-full block pointer-events-none display-value-span ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(val)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1413,8 +1331,8 @@ function renderEdit() {
         const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
         
         let cValSizeClass = "text-[15px]";
-        if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
-        if (cVal && cVal.length > 18) cValSizeClass = "text-[11px] leading-tight";
+        if (cVal && cVal.length > 13) cValSizeClass = "text-[13px]";
+        if (cVal && cVal.length > 17) cValSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
@@ -1431,10 +1349,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[14.5em] max-w-[60%]">${esc(itemName)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="${cValSizeClass} text-right w-full block pointer-events-none whitespace-normal break-words ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${cValSizeClass} truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1520,7 +1438,7 @@ function onSettingChange(key, val) {
   // カスタム系ドロップダウンや罰則キーが変わったら再描画
   const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya',
     'pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai',
-    'pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai']);
+    'pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
   if (reRenderKeys.has(key)) {
     renderEdit();
     return;
@@ -2438,8 +2356,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.99", 
-    buildDate: "2026-03-17 19:15",
+    appVersion: "v0.96", 
+    buildDate: "2026-03-17 16:10",
   };
 
   // ==========================================
@@ -2621,10 +2539,10 @@ if (!checkSharedRule()) {
 
         <footer className="py-6 text-center shrink-0">
           <p className="text-[11px] font-medium text-theme-textMuted tracking-wider mb-1">
-            {CONFIG.appVersion}
+            VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: {CONFIG.buildDate}
+            ビルド時刻: 2026-03-17 16:10
           </p>
         </footer>
 

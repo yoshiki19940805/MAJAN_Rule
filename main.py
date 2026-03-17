@@ -309,13 +309,13 @@ OPTIONS_3 = {
 BASE_RULES_3 = {
     "三人麻雀（標準）":{
         "length": "東南戦", "mochi_ten": "35000点", "kaeshi_ten": "40000点",
-        "uma": "なし", "tobi": "あり（0点未満で終了）",
+        "uma": "+20/±0/-20", "tobi": "あり（0点未満で終了）",
         "tsumozon": "なし", "fu_keisan": "なし（専用点数表）", "tsumopin": "あり",
         "ipponba": "1000点", "ipponba_custom": "", "tenpai_ryou": "場に2000点",
         "renchan": "テンパイ連荘", "oras_oya": "アガリ止め・テンパイ止めあり", "oras_oya_custom": "",
         "agariyame": "あり（トップ時強制終了）",
-        "tochu_kyushu": "あり", "tochu_sukan": "あり", "tochu_sancha": "あり",
-        "tochu_honba": "積む", "tochu_ryukyoku": "なし（3人リーチも続行）",
+        "tochu_kyushu": "なし", "tochu_sukan": "なし", "tochu_sancha": "あり",
+        "tochu_honba": "途中流局なし", "tochu_ryukyoku": "なし（3人リーチも続行）",
         "double_ron": "あり",
         "tsumo_yama": "ドラ表示牌の隣までツモり切り",
         "kuitan": "あり", "atozuke": "あり",
@@ -324,12 +324,12 @@ BASE_RULES_3 = {
         "hanapai": "あり（空気扱い・一発消えず・嶺上開花なし）", "kan_dora": "先めくり",
         "reach_1000": "あり（局終了時にトビ）", "furiten_reach": "不可",
         "open_reach": "あり（全晒し・フリテン可・放銃時役満払い）",
-        "furiten_open_reach": "あり",
-        "reach_ankan_okuri": "可", "reach_ankan_machi": "不可", "reach_ankan_mentsu": "不可",
+        "furiten_open_reach": "なし",
+        "reach_ankan_okuri": "不可", "reach_ankan_machi": "不可", "reach_ankan_mentsu": "可",
         "reach_kan": "待ち不変ならOK",
         "niken_reach": "2軒リーチで残り1人手牌公開", "shiro_pocchi": "あり（リーチ後オールマイティ）",
         "sp_manzu_honitsu": "あり", "sp_daisharin": "あり（清一七対子）",
-        "sp_renho": "なし", "sp_nagashi_ym": "あり",
+        "sp_renho": "あり", "sp_nagashi_ym": "あり",
         "sp_4mai_chii": "あり（2翻）", "sp_shosharin": "あり（混一七対子・6翻）",
         "kazoe_yakuman": "14飜以上", "w_yakuman": "なし", "kokushi_ankan": "あり",
         "shugi_ippatsu": "あり", "shugi_ura": "あり",
@@ -440,8 +440,8 @@ CATEGORIES_3 = [
     ("10. 祝儀（チップ）", ["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","tobi_bunpai"]),
     ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
     ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
-    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"]),
-    ("14. 軽罰符", ["keibappu_taiou"]),
+    ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"]),
+    ("14. 軽罰符", ["pen_gonaki_hassei","pen_shouhai","keibappu_taiou"]),
 ]
 
 # =====================================================================
