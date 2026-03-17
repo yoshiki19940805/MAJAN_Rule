@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.79";
+    const currentVersion = "v0.80";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -221,16 +221,16 @@
       <span class="font-bold text-theme-text text-[15px]">標準ルール管理</span>
       <div style="width:70px"></div>
     </div>
-    <div class="px-4 py-4 max-w-md mx-auto">
-      <div class="flex gap-2 mb-6">
-        <button class="flex-1 bg-theme-surface border-2 border-theme-primary/10 text-theme-primary rounded-xl py-3 font-bold flex flex-col items-center justify-center gap-1 shadow-sm active:bg-theme-primary/5 transition-colors" onclick="createNewCustomBase('四麻')">
-          <span class="material-symbols-outlined text-[24px]">add_circle</span>四麻 新規作成
+    <div class="px-4 py-4 max-w-md mx-auto" style="padding-left: var(--app-padding); padding-right: var(--app-padding);">
+      <div class="flex flex-col gap-3 mb-6">
+        <button class="w-full bg-theme-primary text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform" onclick="createNewCustomBase('四麻')">
+          <span class="material-symbols-outlined text-[22px]">add_circle</span>四麻 新規作成
         </button>
-        <button class="flex-1 bg-theme-surface border-2 border-teal-500/10 text-teal-600 rounded-xl py-3 font-bold flex flex-col items-center justify-center gap-1 shadow-sm active:bg-teal-500/5 transition-colors" onclick="createNewCustomBase('三麻')">
-          <span class="material-symbols-outlined text-[24px]">add_circle</span>三麻 新規作成
+        <button class="w-full bg-teal-600 text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform" onclick="createNewCustomBase('三麻')">
+          <span class="material-symbols-outlined text-[22px]">add_circle</span>三麻 新規作成
         </button>
       </div>
-      <div id="custom-base-list" class="w-full"></div>
+      <div id="custom-base-list" class="flex flex-col gap-3 w-full"></div>
     </div>
   </div>
 
@@ -2293,26 +2293,40 @@ function renderCustomBaseManager() {
 
   const renderItem = (k, b, mode, isCustom) => {
       const isDef = (mode === '四麻' && def4 === '__custom__' + k) || (mode === '三麻' && def3 === '__custom__' + k);
-      return `<div class="relative overflow-hidden mb-3 rounded-xl bg-theme-surface border border-theme-border/30 shadow-sm" data-actions-width="180" ontouchstart="swipeStart(event)" ontouchmove="swipeMove(event)" ontouchend="swipeEnd(event)">
-        <div class="absolute inset-y-0 right-0 flex w-[180px] swipe-actions z-0">
-          ${isCustom ? `<button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="openCustomBaseEditor('${k}')"><span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集</button>` : '<div class="w-[60px]"></div>'}
-          ${isCustom ? `<button class="bg-theme-danger text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="deleteCustomBase('${k}')"><span class="material-symbols-outlined text-[20px] mb-0.5">delete</span>削除</button>` : '<div class="w-[60px]"></div>'}
-          <button class="${isDef ? 'bg-theme-primary' : 'bg-blue-400'} text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="setDefaultBaseRule('${mode}', '${k}')">
-             <span class="material-symbols-outlined text-[20px] mb-0.5">${isDef ? 'star' : 'star_border'}</span>${isDef ? 'デフォルト' : '標準に設定'}
-          </button>
-        </div>
-        <div class="relative bg-theme-surface flex items-center justify-between px-4 py-4 swipe-content z-10" ${isCustom ? `onclick="openCustomBaseEditor('${k}')"` : `onclick="setDefaultBaseRule('${mode}', '${k}')"`}>
-          <div class="flex flex-col gap-1 w-full">
-            <div class="flex items-center gap-2">
-              <span class="bg-theme-bg px-2 py-0.5 rounded text-[11px] text-theme-textMuted border border-theme-border/50 font-normal">${mode}</span>
-              ${isDef ? `<span class="bg-theme-primary/10 text-theme-primary px-1.5 py-0.5 rounded text-[10px] font-bold">★ デフォルト</span>` : ''}
-              <span class="font-bold text-[15px] ${isCustom ? 'text-theme-text' : 'text-theme-textMuted'} truncate">${esc(b.name)}</span>
-            </div>
-            <div class="text-[12px] text-theme-textMuted">左スワイプで${isCustom ? '編集/削除/標準化' : '標準化'}</div>
+      return `
+      <div class="bg-theme-surface p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border/50 cursor-pointer active:opacity-60 transition-opacity" onclick="${isCustom ? `openCustomBaseEditor('${k}')` : `setDefaultBaseRule('${mode}', '${k}')`}">
+        <div class="flex-1 min-w-0 pr-4 flex flex-col pointer-events-none">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="bg-theme-bg px-2 py-0.5 rounded text-[11px] text-theme-textMuted border border-theme-border/50 font-normal">${mode}</span>
+            ${isDef ? `<span class="bg-theme-primary/10 text-theme-primary px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">star</span>デフォルト</span>` : ''}
           </div>
-          <span class="material-symbols-outlined text-theme-textMuted text-[20px] pointer-events-none">chevron_right</span>
+          <h2 class="text-base font-semibold ${isCustom ? 'text-theme-text' : 'text-theme-textMuted'} truncate">${esc(b.name)}</h2>
+          <div class="flex items-center gap-1 mt-1 text-theme-textMuted">
+            <span class="material-symbols-outlined text-[14px]">info</span>
+            <p class="text-xs">タップで${isCustom ? '編集' : '標準化'}</p>
+          </div>
         </div>
-      </div>`;
+        
+        <div class="flex items-center gap-4 text-theme-textMuted z-10">
+          <button 
+            onclick="event.stopPropagation(); setDefaultBaseRule('${mode}', '${k}')"
+            class="flex items-center justify-center ${isDef ? 'text-theme-primary pointer-events-none' : 'hover:text-theme-primary cursor-pointer active:scale-90 transition-all font-inherit'}"
+            aria-label="デフォルトに設定"
+          >
+            <span class="material-symbols-outlined text-[24px]">${isDef ? 'star' : 'star_border'}</span>
+          </button>
+          ${isCustom ? `
+          <button 
+            onclick="event.stopPropagation(); deleteCustomBase('${k}')"
+            class="flex items-center justify-center hover:text-theme-danger cursor-pointer active:scale-90 transition-all font-inherit"
+            aria-label="削除"
+          >
+            <span class="material-symbols-outlined text-[22px]">delete</span>
+          </button>
+          ` : ''}
+        </div>
+      </div>
+      `;
   };
 
   const customRuleKeys = Object.keys(customBaseRules);
@@ -2324,7 +2338,7 @@ function renderCustomBaseManager() {
       html += renderItem(k, customBaseRules[k], customBaseRules[k].mode, true);
   }
   
-  if (hasCustom) html += '<hr class="my-6 border-theme-border/30 border-dashed">';
+  if (hasCustom) html += '<hr class="my-3 border-theme-border/30 border-dashed">';
 
   for (const k of customRuleKeys) {
       if (!customBaseRules[k]) continue;
@@ -2333,7 +2347,6 @@ function renderCustomBaseManager() {
   }
 
   container.innerHTML = html;
-  initSwipeDelete(); // スワイプ機能を初期化
 }
 
 function deleteCustomBase(id) {
@@ -2371,8 +2384,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.79", 
-    buildDate: "2026-03-17 11:35",
+    appVersion: "v0.80", 
+    buildDate: "2026-03-17 11:45",
   };
 
   // ==========================================
@@ -2533,7 +2546,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:35
+            ビルド時刻: 2026-03-17 11:45
           </p>
         </footer>
 
