@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.90";
+    const currentVersion = "v0.91";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -2291,8 +2291,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.90", 
-    buildDate: "2026-03-17 15:00",
+    appVersion: "v0.91", 
+    buildDate: "2026-03-17 15:15",
   };
 
   // ==========================================
@@ -2452,15 +2452,13 @@ if (!checkSharedRule()) {
                     >
                       <span className="material-symbols-outlined text-[20px]">content_copy</span>
                     </button>
-                    {!isReadOnly && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
-                        className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
-                        aria-label="削除"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">delete</span>
-                      </button>
-                    )}
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
+                      className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
+                      aria-label="削除"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">delete</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -2479,7 +2477,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 15:00
+            ビルド時刻: 2026-03-17 15:15
           </p>
         </footer>
 
