@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v64";
+    const currentVersion = "v65";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -26,7 +26,6 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
-    important: '#app', // アプリ全体のコンテナ内でTailwindを優先させる
     corePlugins: {
       preflight: true,
     },
@@ -146,9 +145,7 @@
   <div class="screen active" style="padding:0; background-color: var(--color-bg);" id="screen-home">
     <div id="react-home-root" style="flex:1; display:flex; flex-direction:column; height: 100%;"></div>
     <div style="text-align:center; padding: 10px; font-size: 10px; color: #888; background: var(--surface);">
-      <script>document.write("最終更新: " + new Date().toLocaleString("ja-JP", {month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"}));</script>
-    </div>
-  </div>
+      // 削除: React側に移譲
 
   <!-- 編集画面 -->
   <div class="screen bg-theme-bg" id="screen-edit">
@@ -1783,14 +1780,15 @@ async function exportPDF() {
 
   // 1. PDF用のクリーンなHTML要素を裏側（メモリ上）で生成する
   const pdfContainer = document.createElement('div');
-  pdfContainer.style.padding = '20px';
   pdfContainer.style.fontFamily = 'sans-serif';
   pdfContainer.style.color = '#333';
   pdfContainer.style.backgroundColor = '#FFFFFF';
 
   let html = `
-      <h1 style="font-size: 24px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px; text-align: center;">${esc(ruleName)}</h1>
-      <div style="font-size: 12px; color: #666; text-align: right; margin-bottom: 24px;">ベースルール: ${esc(standardRule)}</div>
+      <div style="margin-top: 30px; margin-bottom: 30px;">
+          <h1 style="font-size: 26px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin: 0; text-align: center;">${esc(ruleName)}</h1>
+          <div style="font-size: 12px; color: #666; text-align: right; margin-top: 8px;">ベースルール: ${esc(standardRule)}</div>
+      </div>
   `;
 
   // カテゴリデータの生成
@@ -1802,30 +1800,33 @@ async function exportPDF() {
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
       
-      let catHtml = '';
+      let catHtml = `<div style="page-break-inside: avoid; margin-bottom: 28px;">`;
+      let rowIndex = 0;
       
       // 特殊牌カテゴリは例外処理
       if (catName.includes('特殊牌')) {
           const tiles = rule.settings.custom_tiles || [];
           if (tiles.length > 0) {
-              catHtml += `<h2 style="font-size: 14px; font-weight: bold; margin-top: 16px; margin-bottom: 8px; background-color: #f0f0f5; padding: 6px 12px; border-radius: 4px;">${esc(catName)}</h2>`;
-              catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px;">`;
+              catHtml += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(catName)}</h2>`;
+              catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 15px;">`;
               for (const t of tiles) {
                   if (t.name || t.effect) {
-                      catHtml += `<tr>
-                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">🀄 ${esc(t.name||'(未設定)')}</td>
-                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; color: #007AFF; font-weight: bold;">${esc(t.effect||'')}</td>
-                      </tr>`;
+                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                      catHtml += `
+                          <tr style="background-color: ${bgColor};">
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">🀄 ${esc(t.name||'(未設定)')}</td>
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.4;">${esc(t.effect||'')}</td>
+                          </tr>`;
+                      rowIndex++;
                   }
               }
               catHtml += `</table>`;
           }
       } else {
-          catHtml += `<h2 style="font-size: 14px; font-weight: bold; margin-top: 16px; margin-bottom: 8px; background-color: #f0f0f5; padding: 6px 12px; border-radius: 4px;">${esc(catName)}</h2>`;
-          catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px;">`;
+          catHtml += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(catName)}</h2>`;
+          catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 15px;">`;
           
           for (const k of keys) {
-              // カスタムキーの表示はスキップ（親キーで処理済とみなす）
               if (k.endsWith('_custom')) continue;
               if (k === 'yakuman_custom_memo' || k === 'chombo_memo') continue;
 
@@ -1839,17 +1840,18 @@ async function exportPDF() {
 
               const stdVal = standardObj ? String(standardObj[k] || "") : "";
               const isChanged = standardObj && (!(k in standardObj) || String(val) !== stdVal);
-              const rowColor = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #333;';
+              const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+              const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
 
               catHtml += `
-                  <tr>
-                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">${esc(LABELS[k]||k)}</td>
-                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; ${rowColor}">${esc(displayValue)}</td>
+                  <tr style="background-color: ${bgColor};">
+                      <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(LABELS[k]||k)}</td>
+                      <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(displayValue)}</td>
                   </tr>
               `;
+              rowIndex++;
           }
           
-          // カスタム罰則項目
           if (customizable) {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
@@ -1858,16 +1860,19 @@ async function exportPDF() {
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
                       const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
-                      const rowColor = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #333;';
-                      catHtml += `<tr>
-                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">${esc(itemName)}</td>
-                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; ${rowColor}">${esc(item.value||'')}</td>
-                      </tr>`;
+                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                      
+                      catHtml += `
+                          <tr style="background-color: ${bgColor};">
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
+                          </tr>`;
+                      rowIndex++;
                   }
               }
           }
 
-          // ユーザー追加項目
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
               if (item.name || item.value) {
@@ -1875,11 +1880,15 @@ async function exportPDF() {
                   const bItems = (standardObj && standardObj['user_items_' + catKey]) || [];
                   const bItem = bItems.find(x => x.name === itemName);
                   const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
-                  const rowColor = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #333;';
-                  catHtml += `<tr>
-                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">${esc(itemName)}</td>
-                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; ${rowColor}">${esc(item.value||'')}</td>
-                  </tr>`;
+                  const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+                  const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                  
+                  catHtml += `
+                      <tr style="background-color: ${bgColor};">
+                          <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
+                          <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
+                      </tr>`;
+                  rowIndex++;
               }
           }
           catHtml += `</table>`;
@@ -1887,7 +1896,6 @@ async function exportPDF() {
       
       html += catHtml;
 
-      // 特記事項がある場合はカテゴリの最後に追加
       const catMemo = rule.settings['memo_' + catKey] || '';
       let combinedMemo = catMemo;
       
@@ -1900,30 +1908,31 @@ async function exportPDF() {
 
       if (combinedMemo && combinedMemo.trim() !== '') {
           html += `
-              <div style="background-color: #fafafa; padding: 10px; border-left: 3px solid #ccc; font-size: 11px; margin-bottom: 20px; line-height: 1.5;">
-                  <strong style="color: #666;">特記事項:</strong><br>
+              <div style="background-color: #f2f2f7; padding: 12px 14px; border-left: 4px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; line-height: 1.6; border-radius: 0 4px 4px 0;">
+                  <strong style="color: #666; font-size: 12px;">特記事項:</strong><br>
                   ${esc(combinedMemo).replace(/\n/g, '<br>')}
               </div>
           `;
       }
+      
+      html += `</div>`;
   });
 
   pdfContainer.innerHTML = html;
 
-  // html2pdfがDOMを読み込めるように、一時的に画面外へ配置
   const hiddenWrapper = document.createElement('div');
   hiddenWrapper.style.position = 'absolute';
   hiddenWrapper.style.left = '-9999px';
   hiddenWrapper.appendChild(pdfContainer);
   document.body.appendChild(hiddenWrapper);
 
-  // 2. html2pdfライブラリの設定
   const opt = {
-      margin:       10,
+      margin:       15,
       filename:     `${ruleName}_ルール表.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: ['css', 'legacy'] }
   };
 
   showSnack('PDFを生成しています...');
@@ -2234,8 +2243,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.6", 
-    buildDate: "2026-03-17 09:22",
+    appVersion: "1.0.7", 
+    buildDate: "2026-03-17 09:42",
   };
 
   // ==========================================
@@ -2344,18 +2353,20 @@ if (!checkSharedRule()) {
                         <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
                         <div className="flex items-center gap-1 mt-1 text-theme-textMuted">
                           <span className="material-symbols-outlined text-[14px]">calendar_today</span>
-                          <p className="text-xs">標準カスタマイズ互換</p>
+                          <p className="text-xs">更新: {rule.date || "2026/03/16"}</p>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
-                          <span className="material-symbols-outlined text-theme-textMuted text-[18px]">lock</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-theme-textMuted mt-1">
-                          <span className="material-symbols-outlined text-[14px]">verified</span>
-                          <p className="text-xs">共有ルール（改変不可）</p>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
+                            <span className="material-symbols-outlined text-theme-textMuted text-[18px]">lock</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-theme-textMuted">
+                            <span className="material-symbols-outlined text-[14px]">verified</span>
+                            <p className="text-xs">共有ルール（改変不可）</p>
+                          </div>
                         </div>
                       </>
                     )}
@@ -2389,8 +2400,11 @@ if (!checkSharedRule()) {
         </main>
 
         <footer className="py-6 text-center shrink-0">
-          <p className="text-[11px] font-medium text-theme-textMuted tracking-wider">
+          <p className="text-[11px] font-medium text-theme-textMuted tracking-wider mb-1">
             VERSION {CONFIG.appVersion}
+          </p>
+          <p className="text-[10px] text-theme-textMuted/70">
+            ビルド時刻: {CONFIG.buildDate}
           </p>
         </footer>
 
