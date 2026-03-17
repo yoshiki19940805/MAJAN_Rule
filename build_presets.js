@@ -59,6 +59,10 @@ function loadPresetData() {
     if ((row[0] || '').startsWith('#')) {
       metaRows[row[1]] = row;
     } else {
+      if (!(row[1] || '').trim()) {
+        console.warn(`   ⚠️  行${i+2}: キーが空です (ラベル: ${row[2] || '不明'}) → スキップ`);
+        continue;
+      }
       dataRows.push(row);
     }
   }
