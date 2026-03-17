@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v71";
+    const currentVersion = "v72";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -970,7 +970,7 @@ function renderEdit() {
       btnSaveBottom.className = "flex-1 bg-theme-surface text-theme-text border border-theme-border py-3 rounded-xl font-semibold shadow-sm active:bg-gray-50 flex justify-center items-center gap-1 transition-all";
       btnSaveBottom.disabled = false;
   }
-  document.getElementById('btn-copy-shared').style.display = isSharedMode ? 'flex' : 'none';
+  document.getElementById('btn-copy-shared').style.display = 'none';
 
   if (brSection) {
     brSection.classList.remove('hidden');
@@ -985,18 +985,12 @@ function renderEdit() {
     // Update dropdown options
     brSelect.innerHTML = customKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
     
-    // Toggle readonly visual state for base rule section
+    // Always show base rule selector, even in read-only mode, to allow diff comparison
     const brChevron = brSection.querySelector('.material-symbols-outlined');
     const displaySpan = document.getElementById('standard-rule-display');
-    if (isSharedMode) {
-        brSelect.disabled = true;
-        if (brChevron) brChevron.style.display = 'none';
-        if (displaySpan) displaySpan.classList.remove('pr-6');
-    } else {
-        brSelect.disabled = false;
-        if (brChevron) brChevron.style.display = 'block';
-        if (displaySpan) displaySpan.classList.add('pr-6');
-    }
+    brSelect.disabled = false;
+    if (brChevron) brChevron.style.display = 'block';
+    if (displaySpan) displaySpan.classList.add('pr-6');
     
     // Update standard-rule-display text
     if (displaySpan) displaySpan.innerText = getBaseRuleName(rule.base_rule) || '';
@@ -2492,7 +2486,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 10:55
+            ビルド時刻: 2026-03-17 11:00
           </p>
         </footer>
 
