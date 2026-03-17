@@ -989,7 +989,7 @@ function loadData() {
     const before = appData.rules.length;
     appData.rules = appData.rules.filter(r => !r.id.startsWith('preset_') || validIds.has(r.id));
     if (appData.rules.length !== before) presetsChanged = true;
-    if (presetsChanged) saveData();
+    saveData(); // メモリとlocalStorageの一致を保証
   }
   // デフォルト標準ルール設定（初回のみ）
   if (!appData.presetsMigrated_v15) {
