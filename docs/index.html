@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v63";
+    const currentVersion = "v64";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -53,6 +53,8 @@
     }
   }
 </script>
+<!-- html2pdf (PDF export generation) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1769,53 +1771,173 @@ async function exportImage() {
 }
 
 async function exportPDF() {
-  const el = document.getElementById('preview-area');
-  try {
-    // 各カテゴリブロックを個別にキャプチャして改ページ制御
-    const blocks = el.querySelectorAll('.pv-category, .pv-header, .pv-memo, h3');
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfW = 190;
-    const pageH = 277;
-    let curY = 10; // 上マージン
+  if (typeof closeActionSheet === 'function') closeActionSheet();
+  
+  const rule = getRule(editingId);
+  if (!rule) { showSnack('ルールが選択されていません'); return; }
 
-    // ブロックがない場合は全体を1枚でキャプチャ
-    if (blocks.length === 0) {
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-      const imgH = (canvas.height * pdfW) / canvas.width;
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, pdfW, Math.min(imgH, pageH));
-    } else {
-      for (const block of blocks) {
-        const canvas = await html2canvas(block, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-        const imgH = (canvas.height * pdfW) / canvas.width;
-        // ページに収まらない場合は改ページ
-        if (curY + imgH > pageH + 10 && curY > 10) {
-          pdf.addPage();
-          curY = 10;
-        }
-        // ブロック自体がページより大きい場合はスライス分割
-        if (imgH > pageH) {
-          let sy = 0;
-          while (sy < canvas.height) {
-            if (curY > 10) { pdf.addPage(); curY = 10; }
-            const sliceH = Math.min((pageH / pdfW) * canvas.width, canvas.height - sy);
-            const sc = document.createElement('canvas');
-            sc.width = canvas.width; sc.height = sliceH;
-            sc.getContext('2d').drawImage(canvas, 0, sy, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-            const h = (sliceH * pdfW) / canvas.width;
-            pdf.addImage(sc.toDataURL('image/png'), 'PNG', 10, curY, pdfW, h);
-            curY += h;
-            sy += sliceH;
+  const ruleName = rule.name || '麻雀ルール';
+  const baseRules = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
+  const standardObj = baseRules[rule.base_rule] || null;
+  const standardRule = standardObj ? rule.base_rule : (rule.mode === '四麻' ? '四人麻雀ルール' : '三人麻雀ルール');
+
+  // 1. PDF用のクリーンなHTML要素を裏側（メモリ上）で生成する
+  const pdfContainer = document.createElement('div');
+  pdfContainer.style.padding = '20px';
+  pdfContainer.style.fontFamily = 'sans-serif';
+  pdfContainer.style.color = '#333';
+  pdfContainer.style.backgroundColor = '#FFFFFF';
+
+  let html = `
+      <h1 style="font-size: 24px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px; text-align: center;">${esc(ruleName)}</h1>
+      <div style="font-size: 12px; color: #666; text-align: right; margin-bottom: 24px;">ベースルール: ${esc(standardRule)}</div>
+  `;
+
+  // カテゴリデータの生成
+  const appCats = getCategories(rule.mode);
+  
+  appCats.forEach(cat => {
+      const catName = cat[0];
+      const keys = cat[1];
+      const customizable = cat[2] || false;
+      const catKey = catName.replace(/^\d+\.\s*/, '');
+      
+      let catHtml = '';
+      
+      // 特殊牌カテゴリは例外処理
+      if (catName.includes('特殊牌')) {
+          const tiles = rule.settings.custom_tiles || [];
+          if (tiles.length > 0) {
+              catHtml += `<h2 style="font-size: 14px; font-weight: bold; margin-top: 16px; margin-bottom: 8px; background-color: #f0f0f5; padding: 6px 12px; border-radius: 4px;">${esc(catName)}</h2>`;
+              catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px;">`;
+              for (const t of tiles) {
+                  if (t.name || t.effect) {
+                      catHtml += `<tr>
+                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">🀄 ${esc(t.name||'(未設定)')}</td>
+                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; color: #007AFF; font-weight: bold;">${esc(t.effect||'')}</td>
+                      </tr>`;
+                  }
+              }
+              catHtml += `</table>`;
           }
-        } else {
-          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, curY, pdfW, imgH);
-          curY += imgH;
-        }
+      } else {
+          catHtml += `<h2 style="font-size: 14px; font-weight: bold; margin-top: 16px; margin-bottom: 8px; background-color: #f0f0f5; padding: 6px 12px; border-radius: 4px;">${esc(catName)}</h2>`;
+          catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px;">`;
+          
+          for (const k of keys) {
+              // カスタムキーの表示はスキップ（親キーで処理済とみなす）
+              if (k.endsWith('_custom')) continue;
+              if (k === 'yakuman_custom_memo' || k === 'chombo_memo') continue;
+
+              const val = rule.settings[k] ?? '';
+              let displayValue = val;
+              
+              if (val === 'カスタム') {
+                  const customVal = rule.settings[k + '_custom'] || '';
+                  displayValue = customVal || '未入力';
+              }
+
+              const stdVal = standardObj ? String(standardObj[k] || "") : "";
+              const isChanged = standardObj && (!(k in standardObj) || String(val) !== stdVal);
+              const rowColor = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #333;';
+
+              catHtml += `
+                  <tr>
+                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">${esc(LABELS[k]||k)}</td>
+                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; ${rowColor}">${esc(displayValue)}</td>
+                  </tr>
+              `;
+          }
+          
+          // カスタム罰則項目
+          if (customizable) {
+              const customItems = rule.settings['custom_' + catKey] || [];
+              for (const item of customItems) {
+                  if (item.name || item.value) {
+                      const itemName = item.name || '(未設定)';
+                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
+                      const bItem = bItems.find(x => x.name === itemName);
+                      const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
+                      const rowColor = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #333;';
+                      catHtml += `<tr>
+                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">${esc(itemName)}</td>
+                          <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; ${rowColor}">${esc(item.value||'')}</td>
+                      </tr>`;
+                  }
+              }
+          }
+
+          // ユーザー追加項目
+          const userItems = rule.settings['user_items_' + catKey] || [];
+          for (const item of userItems) {
+              if (item.name || item.value) {
+                  const itemName = item.name || '(未設定)';
+                  const bItems = (standardObj && standardObj['user_items_' + catKey]) || [];
+                  const bItem = bItems.find(x => x.name === itemName);
+                  const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
+                  const rowColor = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #333;';
+                  catHtml += `<tr>
+                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 45%;">${esc(itemName)}</td>
+                      <td style="padding: 6px 4px; border-bottom: 1px solid #ddd; width: 55%; text-align: right; ${rowColor}">${esc(item.value||'')}</td>
+                  </tr>`;
+              }
+          }
+          catHtml += `</table>`;
       }
-    }
-    pdf.save((getRule(editingId)?.name || 'rule') + '.pdf');
-    showSnack('📄 PDFをダウンロードしました');
-  } catch(e) { showSnack('PDFの保存に失敗しました'); }
+      
+      html += catHtml;
+
+      // 特記事項がある場合はカテゴリの最後に追加
+      const catMemo = rule.settings['memo_' + catKey] || '';
+      let combinedMemo = catMemo;
+      
+      if (catName.includes('役満') && rule.settings.yakuman_type === 'カスタム' && rule.settings.yakuman_custom_memo) {
+          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.yakuman_custom_memo;
+      }
+      if (catName.includes('チョンボ') && rule.settings.chombo_batsu === 'カスタム' && rule.settings.chombo_memo) {
+          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.chombo_memo;
+      }
+
+      if (combinedMemo && combinedMemo.trim() !== '') {
+          html += `
+              <div style="background-color: #fafafa; padding: 10px; border-left: 3px solid #ccc; font-size: 11px; margin-bottom: 20px; line-height: 1.5;">
+                  <strong style="color: #666;">特記事項:</strong><br>
+                  ${esc(combinedMemo).replace(/\n/g, '<br>')}
+              </div>
+          `;
+      }
+  });
+
+  pdfContainer.innerHTML = html;
+
+  // html2pdfがDOMを読み込めるように、一時的に画面外へ配置
+  const hiddenWrapper = document.createElement('div');
+  hiddenWrapper.style.position = 'absolute';
+  hiddenWrapper.style.left = '-9999px';
+  hiddenWrapper.appendChild(pdfContainer);
+  document.body.appendChild(hiddenWrapper);
+
+  // 2. html2pdfライブラリの設定
+  const opt = {
+      margin:       10,
+      filename:     `${ruleName}_ルール表.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  showSnack('PDFを生成しています...');
+
+  // 3. アニメーション完了とDOM反映を待つため、少し待機してPDF生成を実行
+  setTimeout(() => {
+      html2pdf().set(opt).from(pdfContainer).save().then(() => {
+          document.body.removeChild(hiddenWrapper);
+          showSnack('📄 PDFをダウンロードしました');
+      }).catch(e => {
+          document.body.removeChild(hiddenWrapper);
+          showSnack('PDFの保存に失敗しました');
+      });
+  }, 300);
 }
 
 // =====================================================================
@@ -2112,8 +2234,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.5", 
-    buildDate: "2026-03-17 09:17",
+    appVersion: "1.0.6", 
+    buildDate: "2026-03-17 09:22",
   };
 
   // ==========================================
