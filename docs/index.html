@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.78";
+    const currentVersion = "v0.79";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -726,14 +726,35 @@ function createCustomBaseRule(mode) {
   createNewCustomBase(mode);
 }
 
+let _isNewlyCreated = false;
+
 function goHome() {
   editingId = null;
   _editSnapshot = null;
+  _isNewlyCreated = false;
   renderHome();
   showScreen('home');
 }
 
 function goHomeWithConfirm() {
+  if (isSharedMode) {
+      goHome();
+      return;
+  }
+  
+  // 変更があるかチェック
+  const hasChanges = _editSnapshot && _editSnapshot !== JSON.stringify(appData);
+  
+  if (!hasChanges) {
+      // 変更がなければ確認なしで戻る。新規作成なら破棄する。
+      if (_isNewlyCreated && editingId) {
+          appData.rules = appData.rules.filter(r => r.id !== editingId);
+          saveData();
+      }
+      goHome();
+      return;
+  }
+  
   if (confirm('保存せずに戻りますか？\n変更内容は破棄されます。')) {
     // スナップショットを復元
     if (_editSnapshot) {
@@ -745,6 +766,7 @@ function goHomeWithConfirm() {
 }
 
 function saveAndGoHome() {
+  _isNewlyCreated = false; // 保存したので破棄対象から外す
   saveData();
   goHome();
 }
@@ -896,7 +918,10 @@ function createRule(mode) {
     settings: JSON.parse(JSON.stringify(def))
   };
   appData.rules.push(rule);
-  saveData();
+  
+  // 新規作成時は保存せずスナップショットだけ撮る
+  _editSnapshot = JSON.stringify(appData);
+  _isNewlyCreated = true;
   isSharedMode = false;
   editingId = id;
   goEdit();
@@ -1225,7 +1250,10 @@ function renderEdit() {
 
 function onNameChange(val) {
   const rule = getRule(editingId);
-  if (rule) { rule.name = val; saveData(); }
+  if (rule) {
+      rule.name = val;
+      // _editSnapshotの比較対象としてリアルタイム更新させる（saveDataは呼ばない）
+  }
 }
 function onBaseRuleChange(val) {
   const rule = getRule(editingId);
@@ -2343,8 +2371,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.78", 
-    buildDate: "2026-03-17 11:28",
+    appVersion: "v0.79", 
+    buildDate: "2026-03-17 11:35",
   };
 
   // ==========================================
@@ -2505,7 +2533,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:28
+            ビルド時刻: 2026-03-17 11:35
           </p>
         </footer>
 
