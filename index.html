@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.102";
+    const currentVersion = "v0.103";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -398,11 +398,10 @@ const customDropdownKeys = new Set(["length","mochi_ten","kaeshi_ten","uma","tob
 // --- 基準ルール ---
 const BASE_RULES_4 = {
   "雀魂（四麻・段位戦）": {
-    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", mochi_ten_custom:"",
-    kaeshi_ten:"30000点", kaeshi_ten_custom:"", kaeshi_ten_custom:"", uma:"5-15", uma_custom:"",
-    uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"", nishiiri:"あり", nishiiri_custom:"",
-    tsumopin:"あり", tsumopin_custom:"", ipponba:"300点", ipponba_custom:"", ipponba_custom:"",
-    renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"5-15", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    nishiiri:"あり", nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点",
+    ipponba_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
     oras_oya_custom:"", double_ron:"あり", double_ron_custom:"", triple_ron:"全員アガリ", triple_ron_custom:"",
     naki_priority:"ポン・カン優先", naki_priority_custom:"", tsumo_yama:"王牌14枚残し", tsumo_yama_custom:"",
     tochu_kyushu:"あり", tochu_kyushu_custom:"", tochu_sufon:"あり", tochu_sufon_custom:"",
@@ -435,11 +434,10 @@ const BASE_RULES_4 = {
     keibappu_type:"なし", keibappu_type_custom:"", keibappu_taiou:"なし", keibappu_taiou_custom:"",
   },
   "Mリーグ公式（四麻）": {
-    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", mochi_ten_custom:"",
-    kaeshi_ten:"30000点", kaeshi_ten_custom:"", kaeshi_ten_custom:"", uma:"10-30", uma_custom:"",
-    uma_custom:"", tobi:"なし", tobi_custom:"", nishiiri:"なし", nishiiri_custom:"", tsumopin:"あり",
-    tsumopin_custom:"", ipponba:"300点", ipponba_custom:"", ipponba_custom:"", renchan:"テンパイ連荘",
-    renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めなし", oras_oya_custom:"", oras_oya_custom:"",
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"10-30", uma_custom:"", tobi:"なし", tobi_custom:"", nishiiri:"なし",
+    nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点", ipponba_custom:"",
+    renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めなし", oras_oya_custom:"",
     double_ron:"なし（頭ハネ）", double_ron_custom:"", triple_ron:"頭ハネ", triple_ron_custom:"",
     naki_priority:"ポン・カン優先", naki_priority_custom:"", tsumo_yama:"王牌14枚残し", tsumo_yama_custom:"",
     tochu_kyushu:"なし", tochu_kyushu_custom:"", tochu_sufon:"なし", tochu_sufon_custom:"",
@@ -472,11 +470,10 @@ const BASE_RULES_4 = {
     keibappu_type:"なし", keibappu_type_custom:"", keibappu_taiou:"なし", keibappu_taiou_custom:"",
   },
   "天鳳（四麻）": {
-    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", mochi_ten_custom:"",
-    kaeshi_ten:"30000点", kaeshi_ten_custom:"", kaeshi_ten_custom:"", uma:"10-20", uma_custom:"",
-    uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"", nishiiri:"あり", nishiiri_custom:"",
-    tsumopin:"あり", tsumopin_custom:"", ipponba:"300点", ipponba_custom:"", ipponba_custom:"",
-    renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"10-20", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    nishiiri:"あり", nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点",
+    ipponba_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
     oras_oya_custom:"", double_ron:"あり", double_ron_custom:"", triple_ron:"流局（三家和）", triple_ron_custom:"",
     naki_priority:"ポン・カン優先", naki_priority_custom:"", tsumo_yama:"王牌14枚残し", tsumo_yama_custom:"",
     tochu_kyushu:"あり", tochu_kyushu_custom:"", tochu_sufon:"あり", tochu_sufon_custom:"",
@@ -514,12 +511,11 @@ const DEFAULT_4 = {...BASE_RULES_4["雀魂（四麻・段位戦）"]};
 
 const BASE_RULES_3 = {
   "三人麻雀（標準）":{
-    length:"東南戦", length_custom:"", mochi_ten:"35000点", mochi_ten_custom:"", mochi_ten_custom:"",
-    kaeshi_ten:"40000点", kaeshi_ten_custom:"", kaeshi_ten_custom:"", uma:"+20/±0/-20",
-    uma_custom:"", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"", tsumopin:"あり", tsumopin_custom:"",
-    ipponba:"1000点", ipponba_custom:"", ipponba_custom:"", tsumozon:"なし", tsumozon_custom:"",
-    fu_keisan:"なし（専用点数表）", fu_keisan_custom:"", tenpai_ryou:"場に2000点", tenpai_ryou_custom:"",
-    renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
+    length:"東南戦", length_custom:"", mochi_ten:"35000点", mochi_ten_custom:"", kaeshi_ten:"40000点",
+    kaeshi_ten_custom:"", uma:"+20/±0/-20", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    tsumopin:"あり", tsumopin_custom:"", ipponba:"1000点", ipponba_custom:"", tsumozon:"なし",
+    tsumozon_custom:"", fu_keisan:"なし（専用点数表）", fu_keisan_custom:"", tenpai_ryou:"場に2000点",
+    tenpai_ryou_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
     oras_oya_custom:"", double_ron:"あり", double_ron_custom:"", tsumo_yama:"ドラ表示牌の隣までツモり切り",
     tsumo_yama_custom:"", tochu_kyushu:"なし", tochu_kyushu_custom:"", tochu_sukan:"なし",
     tochu_sukan_custom:"", tochu_honba:"途中流局なし", tochu_honba_custom:"", kuitan:"あり", kuitan_custom:"",
@@ -559,12 +555,9 @@ const LABELS = {
   length_custom:"対局の長さ（カスタム）",
   mochi_ten:"持ち点",
   mochi_ten_custom:"持ち点（カスタム）",
-  mochi_ten_custom:"持ち点（カスタム）",
   kaeshi_ten:"返し点",
   kaeshi_ten_custom:"返し点（カスタム）",
-  kaeshi_ten_custom:"返し点（カスタム）",
   uma:"ウマ",
-  uma_custom:"ウマ（カスタム）",
   uma_custom:"ウマ（カスタム）",
   tobi:"トビ終了",
   tobi_custom:"トビ終了（カスタム）",
@@ -573,7 +566,6 @@ const LABELS = {
   tsumopin:"ツモピンフ",
   tsumopin_custom:"ツモピンフ（カスタム）",
   ipponba:"一本場",
-  ipponba_custom:"一本場（カスタム）",
   ipponba_custom:"一本場（カスタム）",
   tsumozon:"ツモ損",
   tsumozon_custom:"ツモ損（カスタム）",
@@ -584,7 +576,6 @@ const LABELS = {
   renchan:"連荘条件",
   renchan_custom:"連荘条件（カスタム）",
   oras_oya:"オーラスの親",
-  oras_oya_custom:"オーラスの親（カスタム）",
   oras_oya_custom:"オーラスの親（カスタム）",
   double_ron:"ダブロン",
   double_ron_custom:"ダブロン（カスタム）",
@@ -2566,8 +2557,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.102", 
-    buildDate: "2026-03-17 21:30",
+    appVersion: "v0.103", 
+    buildDate: "2026-03-17 21:37",
   };
 
   // ==========================================
