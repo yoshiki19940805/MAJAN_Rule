@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v77";
+    const currentVersion = "v0.78";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -2343,8 +2343,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.8", 
-    buildDate: "2026-03-17 09:55",
+    appVersion: "v0.78", 
+    buildDate: "2026-03-17 11:28",
   };
 
   // ==========================================
@@ -2505,7 +2505,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:35
+            ビルド時刻: 2026-03-17 11:28
           </p>
         </footer>
 
