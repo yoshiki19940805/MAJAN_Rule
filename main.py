@@ -106,7 +106,7 @@ OPTIONS_4 = {
     "pen_kuikae_ihan": ["上がり放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
     "pen_tahai": ["上がり放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
     "pen_gonaki_hassei": ["軽罰符", "上がり放棄", "チョンボ", "カスタム", "なし"],
-    "pen_reach_torikeshi": ["軽罰符", "上がり放棄", "チョンボ", "カスタム", "なし"],
+    "keibappu_taiou": ["ゲーム続行", "カスタム", "なし"],
     "pen_shouhai": ["軽罰符", "上がり放棄", "チョンボ", "カスタム", "なし"],
 }
 
@@ -140,7 +140,8 @@ BASE_RULES_4 = {
         "chombo_batsu": "なし", "chombo_taiou": "なし",
         "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
         "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
-        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
+        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_shouhai": "なし",
+        "keibappu_taiou": "なし",
         "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
         "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
         "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
@@ -163,7 +164,8 @@ BASE_RULES_4 = {
         "chombo_batsu": "20000点減点", "chombo_taiou": "やり直し",
         "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ", "pen_reach_bad_ankan": "チョンボ",
         "pen_goron_no_taopai": "上がり放棄", "pen_gonaki_sarashi": "上がり放棄", "pen_kuikae_ihan": "上がり放棄",
-        "pen_tahai": "上がり放棄", "pen_gonaki_hassei": "上がり放棄", "pen_reach_torikeshi": "なし", "pen_shouhai": "上がり放棄",
+        "pen_tahai": "上がり放棄", "pen_gonaki_hassei": "上がり放棄", "pen_shouhai": "上がり放棄",
+        "keibappu_taiou": "なし",
         "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
         "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
         "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
@@ -179,7 +181,8 @@ BASE_RULES_4 = {
         "chombo_batsu": "なし", "chombo_taiou": "なし",
         "pen_goron_taopai": "なし", "pen_noten_reach": "なし", "pen_reach_bad_ankan": "なし",
         "pen_goron_no_taopai": "なし", "pen_gonaki_sarashi": "なし", "pen_kuikae_ihan": "なし",
-        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_reach_torikeshi": "なし", "pen_shouhai": "なし",
+        "pen_tahai": "なし", "pen_gonaki_hassei": "なし", "pen_shouhai": "なし",
+        "keibappu_taiou": "なし",
         "shugi_type": "なし", "shugi_ippatsu": "なし", "shugi_ura": "なし", "shugi_aka": "なし",
         "shugi_ym_tsumo": "なし", "shugi_ym_ron": "なし", "shugi_kazoe": "対象外", "shugi_memo": "",
         "pao_daisangen": "あり", "pao_daisushi": "あり", "pao_sukantu": "なし",
@@ -208,7 +211,7 @@ DEFAULT_4 = {
     "pen_reach_bad_ankan": "チョンボ",
     "pen_goron_no_taopai": "上がり放棄", "pen_gonaki_sarashi": "上がり放棄",
     "pen_kuikae_ihan": "上がり放棄", "pen_tahai": "上がり放棄",
-    "pen_gonaki_hassei": "軽罰符", "pen_reach_torikeshi": "軽罰符",
+    "pen_gonaki_hassei": "軽罰符", "keibappu_taiou": "ゲーム続行",
     "pen_shouhai": "軽罰符",
     # ローカル役（雀魂・天酹にはない）
     "shiro_pocchi": "なし",
@@ -299,7 +302,7 @@ OPTIONS_3 = {
     "pen_kuikae_ihan": ["上がり放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
     "pen_tahai": ["上がり放棄", "チョンボ", "軽罰符", "カスタム", "なし"],
     "pen_gonaki_hassei": ["軽罰符", "上がり放棄", "チョンボ", "軽罰符（1000点供託）", "カスタム", "なし"],
-    "pen_reach_torikeshi": ["軽罰符", "上がり放棄", "チョンボ", "軽罰符（1000点供託）", "カスタム", "なし"],
+    "keibappu_taiou": ["ゲーム続行", "カスタム", "なし"],
     "pen_shouhai": ["軽罰符", "上がり放棄", "チョンボ", "軽罰符＋山から補充", "カスタム", "なし"],
 }
 
@@ -340,7 +343,7 @@ BASE_RULES_3 = {
         "pen_goron_taopai": "チョンボ", "pen_noten_reach": "チョンボ", "pen_reach_bad_ankan": "チョンボ",
         "pen_goron_no_taopai": "上がり放棄", "pen_gonaki_sarashi": "上がり放棄",
         "pen_kuikae_ihan": "上がり放棄", "pen_tahai": "上がり放棄",
-        "pen_gonaki_hassei": "軽罰符（1000点供託）", "pen_reach_torikeshi": "軽罰符（1000点供託）",
+        "pen_gonaki_hassei": "軽罰符", "keibappu_taiou": "なし",
         "pen_shouhai": "軽罰符＋山から補充",
     }
 }
@@ -402,7 +405,7 @@ LABELS = {
     "pen_kuikae_ihan": "喰い替え違反",
     "pen_tahai": "多牌",
     "pen_gonaki_hassei": "誤鳴き（発声のみ）",
-    "pen_reach_torikeshi": "リーチ取消",
+    "keibappu_taiou": "軽罰符後の対処",
     "pen_shouhai": "少牌",
 }
 
@@ -421,7 +424,7 @@ CATEGORIES_4 = [
     ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]),
     ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
     ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"]),
-    ("14. 軽罰符", ["pen_reach_torikeshi"]),
+    ("14. 軽罰符", ["keibappu_taiou"]),
 ]
 
 CATEGORIES_3 = [
@@ -438,7 +441,7 @@ CATEGORIES_3 = [
     ("11. パオ（責任払い）", ["pao_daisangen","pao_daisushi","pao_tsumo","pao_ron"]),
     ("12. チョンボ", ["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"]),
     ("13. 上がり放棄", ["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"]),
-    ("14. 軽罰符", ["pen_reach_torikeshi"]),
+    ("14. 軽罰符", ["keibappu_taiou"]),
 ]
 
 # =====================================================================

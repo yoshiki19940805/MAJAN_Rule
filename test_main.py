@@ -114,7 +114,7 @@ print("=" * 50)
 
 pen_keys_4 = ["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach",
               "pen_reach_bad_ankan","pen_goron_no_taopai","pen_gonaki_sarashi",
-              "pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"]
+              "pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","keibappu_taiou","pen_shouhai"]
 
 for k in pen_keys_4:
     check(k in OPTIONS_4, f"4麻罰則 '{k}' in OPTIONS")
