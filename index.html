@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.117";
+    const currentVersion = "v0.118";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -281,7 +281,7 @@ const OPTIONS_4 = {
   furiten_reach:["あり","なし","カスタム"],
   open_reach:["なし","あり","フリテンOK","カスタム"],
   tsumo_nashi_reach:["あり、なし","カスタム"],
-  reach_1000:["あり","なし","あり（局終了時にトビ）","あり（局終了時に0点でトビ）","カスタム"],
+  reach_1000miman:["あり","なし","カスタム"],
   reach_ankan_okuri:["可","不可","カスタム"],
   reach_ankan_machi:["可","不可","カスタム"],
   reach_ankan_mentsu:["可","不可","カスタム"],
@@ -349,7 +349,7 @@ const OPTIONS_3 = {
   furiten_reach:["あり","チョンボ","カスタム"],
   open_reach:["なし","あり","フリテンOK","カスタム"],
   tsumo_nashi_reach:["あり、なし","カスタム"],
-  reach_1000:["あり","なし","あり（局終了時にトビ）","あり（局終了時に0点でトビ）","カスタム"],
+  reach_1000:["あり(局終了時にトビ)","あり(局終了時に0点でトビ)","なし","カスタム"],
   reach_ankan_okuri:["可","不可","カスタム"],
   reach_ankan_machi:["可","不可","カスタム"],
   reach_ankan_mentsu:["可","不可","カスタム"],
@@ -389,7 +389,7 @@ const OPTIONS_3 = {
   keibappu_taiou:["ゲーム続行","なし","カスタム"],
 };
 
-const customDropdownKeys = new Set(["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","tsumopin","ipponba","renchan","oras_oya","double_ron","triple_ron","naki_priority","tsumo_yama","tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba","kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","yakuman_type","yakuman_fukugo","kazoe_yakuman","kokushi_ankan","furiten_reach","open_reach","tsumo_nashi_reach","reach_1000","reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu","shugi_value","shugi_ippatsu","shugi_ura","shugi_aka","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","sp_4mai_chii","sp_shosharin","shiro_pocchi","pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron","chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan","pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai","keibappu_type","keibappu_taiou","tsumozon","fu_keisan","tenpai_ryou","kita","hanapai","niji_dora","shugi_niji","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]);
+const customDropdownKeys = new Set(["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","tsumopin","ipponba","renchan","oras_oya","double_ron","triple_ron","naki_priority","tsumo_yama","tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba","kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","yakuman_type","yakuman_fukugo","kazoe_yakuman","kokushi_ankan","furiten_reach","open_reach","tsumo_nashi_reach","reach_1000miman","reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu","shugi_value","shugi_ippatsu","shugi_ura","shugi_aka","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","sp_4mai_chii","sp_shosharin","shiro_pocchi","pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron","chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan","pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai","keibappu_type","keibappu_taiou","tsumozon","fu_keisan","tenpai_ryou","kita","hanapai","niji_dora","reach_1000","shugi_niji","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]);
 
 // --- 基準ルール ---
 const BASE_RULES_4 = {
@@ -409,7 +409,7 @@ const BASE_RULES_4 = {
     yakuman_type:"雀魂に準ずる", yakuman_type_custom:"", yakuman_fukugo:"なし", yakuman_fukugo_custom:"",
     kazoe_yakuman:"13飜以上", kazoe_yakuman_custom:"", kokushi_ankan:"あり", kokushi_ankan_custom:"",
     furiten_reach:"あり", furiten_reach_custom:"", open_reach:"なし", open_reach_custom:"",
-    tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000:"なし", reach_1000_custom:"",
+    tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000miman:"なし", reach_1000miman_custom:"",
     reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可", reach_ankan_machi_custom:"",
     reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"", shugi_value:"2000点相当", shugi_value_custom:"",
     shugi_ippatsu:"あり", shugi_ippatsu_custom:"", shugi_ura:"あり", shugi_ura_custom:"", shugi_aka:"あり",
@@ -444,7 +444,7 @@ const BASE_RULES_4 = {
     yakuman_type:"雀魂に準ずる", yakuman_type_custom:"", yakuman_fukugo:"あり", yakuman_fukugo_custom:"",
     kazoe_yakuman:"13飜以上", kazoe_yakuman_custom:"", kokushi_ankan:"あり", kokushi_ankan_custom:"",
     furiten_reach:"あり", furiten_reach_custom:"", open_reach:"なし", open_reach_custom:"",
-    tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000:"なし", reach_1000_custom:"",
+    tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000miman:"なし", reach_1000miman_custom:"",
     reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可", reach_ankan_machi_custom:"",
     reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"", shugi_value:"なし", shugi_value_custom:"",
     shugi_ippatsu:"なし", shugi_ippatsu_custom:"", shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし",
@@ -478,7 +478,7 @@ const BASE_RULES_4 = {
     yakuman_type_custom:"", yakuman_fukugo:"複合のみあり", yakuman_fukugo_custom:"", kazoe_yakuman:"13飜以上",
     kazoe_yakuman_custom:"", kokushi_ankan:"なし", kokushi_ankan_custom:"", furiten_reach:"あり",
     furiten_reach_custom:"", open_reach:"なし", open_reach_custom:"", tsumo_nashi_reach:"あり",
-    tsumo_nashi_reach_custom:"", reach_1000:"あり", reach_1000_custom:"", reach_ankan_okuri:"不可",
+    tsumo_nashi_reach_custom:"", reach_1000miman:"あり", reach_1000miman_custom:"", reach_ankan_okuri:"不可",
     reach_ankan_okuri_custom:"", reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"不可",
     reach_ankan_mentsu_custom:"", shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし",
     shugi_ippatsu_custom:"", shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"",
@@ -513,7 +513,7 @@ const BASE_RULES_4 = {
     yakuman_type:"天鳳に準ずる", yakuman_type_custom:"", yakuman_fukugo:"あり", yakuman_fukugo_custom:"",
     kazoe_yakuman:"13飜以上", kazoe_yakuman_custom:"", kokushi_ankan:"あり", kokushi_ankan_custom:"",
     furiten_reach:"あり", furiten_reach_custom:"", open_reach:"なし", open_reach_custom:"",
-    tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000:"なし", reach_1000_custom:"",
+    tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000miman:"なし", reach_1000miman_custom:"",
     reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可", reach_ankan_machi_custom:"",
     reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"", shugi_value:"なし", shugi_value_custom:"",
     shugi_ippatsu:"なし", shugi_ippatsu_custom:"", shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし",
@@ -551,7 +551,7 @@ const BASE_RULES_3 = {
     yakuman_fukugo:"なし", yakuman_fukugo_custom:"", kazoe_yakuman:"14飜以上", kazoe_yakuman_custom:"",
     kokushi_ankan:"あり", kokushi_ankan_custom:"", furiten_reach:"あり", furiten_reach_custom:"",
     open_reach:"フリテンOK", open_reach_custom:"", tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"",
-    reach_1000:"あり（局終了時にトビ）", reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"",
+    reach_1000:"あり(局終了時に0点でトビ)", reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"",
     reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
     shugi_value:"2000点相当", shugi_value_custom:"", shugi_ippatsu:"あり", shugi_ippatsu_custom:"",
     shugi_ura:"あり", shugi_ura_custom:"", shugi_niji:"鳴き祝儀", shugi_niji_custom:"", shugi_pocchi:"あり（リーチ後白ポッチツモ）",
@@ -658,8 +658,10 @@ const LABELS = {
   open_reach_custom:"オープンリーチ（カスタム）",
   tsumo_nashi_reach:"ツモ番なしリーチ",
   tsumo_nashi_reach_custom:"ツモ番なしリーチ（カスタム）",
-  reach_1000:"1000点未満のリーチ",
-  reach_1000_custom:"1000点未満のリーチ（カスタム）",
+  reach_1000miman:"1000点未満のリーチ",
+  reach_1000miman_custom:"1000点未満のリーチ（カスタム）",
+  reach_1000:"1000点でのリーチ",
+  reach_1000_custom:"1000点でのリーチ（カスタム）",
   reach_ankan_okuri:"送り槓",
   reach_ankan_okuri_custom:"送り槓（カスタム）",
   reach_ankan_machi:"待ちの変わる槓",
@@ -744,7 +746,7 @@ const CATEGORIES_4 = [
   ["2. 進行・連荘ルール",["renchan","oras_oya","double_ron","triple_ron","naki_priority","tsumo_yama"]],
   ["3. 途中流局",["tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba"]],
   ["4. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","yakuman_type","yakuman_fukugo","kazoe_yakuman","kokushi_ankan"]],
-  ["5. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000"]],
+  ["5. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000miman"]],
   ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
   ["7. 祝儀（チップ）",["shugi_value","shugi_ippatsu","shugi_ura","shugi_aka","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou"]],
   ["8. ローカル役",["sp_4mai_chii","sp_shosharin"]],
@@ -2584,8 +2586,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.117", 
-    buildDate: "2026-03-17 23:01",
+    appVersion: "v0.118", 
+    buildDate: "2026-03-17 23:09",
   };
 
   // ==========================================
