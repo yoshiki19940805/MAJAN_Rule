@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.100";
+    const currentVersion = "v0.101";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -587,7 +587,7 @@ const CATEGORIES_4 = [
   ["10. ローカル役満",["sp_daisharin","sp_renho","sp_nagashi_ym"]],
   ["11. ローカルルール",["shiro_pocchi"]],
   ["12. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
-  ["13. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["13. チョンボ",["chombo_batsu","chombo_taiou","chombo_memo","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
   ["14. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai"], true],
   ["15. 軽罰符",["keibappu_type","keibappu_taiou"], true],
 ];
@@ -604,9 +604,9 @@ const CATEGORIES_3 = [
   ["8. ローカル役満",["sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]],
   ["9. ローカルルール",["niken_reach","shiro_pocchi"]],
   ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
-  ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["12. チョンボ",["chombo_batsu","chombo_taiou","chombo_memo","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
   ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["14. 軽罰符",["pen_gonaki_hassei","pen_shouhai","keibappu_type","keibappu_taiou"], true],
+  ["14. 軽罰符",["keibappu_type","keibappu_taiou","pen_gonaki_hassei","pen_shouhai"], true],
 ];
 /* __END_PRESETS__ */
 
@@ -2413,8 +2413,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.100", 
-    buildDate: "2026-03-17 21:16",
+    appVersion: "v0.101", 
+    buildDate: "2026-03-17 21:20",
   };
 
   // ==========================================

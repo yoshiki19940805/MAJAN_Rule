@@ -158,6 +158,23 @@ function generateJs(entries, presetCols) {
   lines.push('');
 
   // --- CATEGORIES ---
+  // カテゴリ内で特定キーを先頭に固定する定義
+  const CATEGORY_KEY_ORDER = {
+    'チョンボ': ['chombo_batsu', 'chombo_taiou'],
+    '軽罰符':  ['keibappu_type', 'keibappu_taiou'],
+  };
+
+  function enforceKeyOrder(catName, keys) {
+    for (const [pattern, orderedKeys] of Object.entries(CATEGORY_KEY_ORDER)) {
+      if (!catName.includes(pattern)) continue;
+      // orderedKeys を先頭に持ってきて、残りはそのまま
+      const head = orderedKeys.filter(k => keys.includes(k));
+      const rest = keys.filter(k => !orderedKeys.includes(k));
+      return [...head, ...rest];
+    }
+    return keys;
+  }
+
   function genCats(varName, field) {
     lines.push(`const ${varName} = [`);
     const cats = {}; const order = [];
@@ -171,7 +188,8 @@ function generateJs(entries, presetCols) {
     }
     for (const c of order) {
       const d = cats[c];
-      const ks = d.keys.map(js).join(',');
+      const orderedKeys = enforceKeyOrder(c, d.keys);
+      const ks = orderedKeys.map(js).join(',');
       lines.push(d.penalty ? `  [${js(c)},[${ks}], true],` : `  [${js(c)},[${ks}]],`);
     }
     lines.push('];');
