@@ -369,7 +369,6 @@ select:disabled, input:disabled, textarea:disabled {
   width: 100%; min-width: 100%;
   background: #fff;
   transition: transform 0.2s ease;
-  border-bottom: none !important;
 }
 .swipe-content.diff {
   background: #FFF5F5;
