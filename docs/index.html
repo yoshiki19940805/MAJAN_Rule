@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.88";
+    const currentVersion = "v0.89";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -625,10 +625,10 @@ function loadData() {
   if (!appData.presetsMigrated_v5) {
     appData.presetsMigrated_v5 = true;
     const presetsToInject = [
-      { id: 'preset_jantama_4', mode: '四麻', name: '雀魂', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_4['雀魂（四麻・段位戦）']} },
-      { id: 'preset_tenhou_4', mode: '四麻', name: '天鳳', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_4['天鳳（四麻）']} },
-      { id: 'preset_mleague_4', mode: '四麻', name: 'Mリーグ公式', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_4['Mリーグ公式（四麻）']} },
-      { id: 'preset_zoo_3', mode: '三麻', name: '三人麻雀', readonly: false, date: '1970/01/01 00:00', settings: {...BASE_RULES_3['三人麻雀（標準）']} }
+      { id: 'preset_jantama_4', mode: '四麻', name: '雀魂', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['雀魂（四麻・段位戦）']} },
+      { id: 'preset_tenhou_4', mode: '四麻', name: '天鳳', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['天鳳（四麻）']} },
+      { id: 'preset_mleague_4', mode: '四麻', name: 'Mリーグ公式', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['Mリーグ公式（四麻）']} },
+      { id: 'preset_zoo_3', mode: '三麻', name: '関東三麻', readonly: false, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3['三人麻雀（標準）']} }
     ];
     appData.rules = [...presetsToInject, ...appData.rules];
     
@@ -669,6 +669,22 @@ function loadData() {
     saveData();
   }
 
+  if (!appData.presetsMigrated_v7) {
+    appData.presetsMigrated_v7 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_jantama_4' || rule.id === 'preset_tenhou_4' || rule.id === 'preset_mleague_4') {
+            rule.readonly = true;
+        }
+        if (rule.id === 'preset_zoo_3') {
+            rule.name = '関東三麻';
+        }
+        if (rule.date && rule.date.length === 16) {
+            rule.date = rule.date + ':00'; // Retroactively add seconds to older strings
+        }
+    }
+    saveData();
+  }
+
   // マイグレーション: 古いデータに不足しているキーをデフォルト値で補完
   let migrated = false;
   for (const rule of appData.rules) {
@@ -695,7 +711,8 @@ function saveData() {
       const d = String(now.getDate()).padStart(2, '0');
       const h = String(now.getHours()).padStart(2, '0');
       const min = String(now.getMinutes()).padStart(2, '0');
-      editingRule.date = `${y}/${m}/${d} ${h}:${min}`;
+      const s = String(now.getSeconds()).padStart(2, '0');
+      editingRule.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
     }
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
@@ -960,11 +977,12 @@ function createRule(mode) {
   const d = String(now.getDate()).padStart(2, '0');
   const h = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
   const rule = {
     id, mode,
     name: '新規ルール',
     base_rule: defBaseKey,
-    date: `${y}/${m}/${d} ${h}:${min}`,
+    date: `${y}/${m}/${d} ${h}:${min}:${s}`,
     settings: initSettings
   };
   appData.rules.push(rule);
@@ -1018,7 +1036,8 @@ function duplicateRule(id) {
   const d = String(now.getDate()).padStart(2, '0');
   const h = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
-  copy.date = `${y}/${m}/${d} ${h}:${min}`;
+  const s = String(now.getSeconds()).padStart(2, '0');
+  copy.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
   appData.rules.push(copy);
   saveData();
   renderHome();
@@ -2262,8 +2281,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.88", 
-    buildDate: "2026-03-17 14:10",
+    appVersion: "v0.89", 
+    buildDate: "2026-03-17 14:40",
   };
 
   // ==========================================
@@ -2450,7 +2469,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 14:10
+            ビルド時刻: 2026-03-17 14:40
           </p>
         </footer>
 
