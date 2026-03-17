@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.112";
+    const currentVersion = "v0.113";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -1507,7 +1507,7 @@ function renderEdit() {
         const val = rule.settings[k] ?? '';
         const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
 
-        if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
+        if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
           if (rule.settings[parentKey] === 'カスタム') {
             itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
@@ -1518,25 +1518,7 @@ function renderEdit() {
           continue;
         }
 
-        if (k === 'yakuman_custom_memo') {
-          if (rule.settings.yakuman_type === 'カスタム') {
-            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 mx-4">
-              <label class="text-[11px] font-bold text-theme-primary mb-1 block">📝 ${esc(LABELS[k] || k)}</label>
-              <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム役満の詳細を入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" rows="2" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
-            </div>`);
-          }
-          continue;
-        }
 
-        if (k === 'chombo_memo') {
-          if (rule.settings.chombo_batsu === 'カスタム') {
-            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 mx-4">
-              <label class="text-[11px] font-bold text-theme-primary mb-1 block">📝 ${esc(LABELS[k] || k)}</label>
-              <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム罰符の詳細を入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" rows="2" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
-            </div>`);
-          }
-          continue;
-        }
 
         let options = opts[k] || [val];
         const userOptions = rule.settings['user_options_' + k] || [];
@@ -2184,7 +2166,7 @@ async function exportImage() {
           
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
-              if (k === 'yakuman_custom_memo' || k === 'chombo_memo') continue;
+              
 
               const val = rule.settings[k] ?? '';
               let displayValue = val;
@@ -2255,12 +2237,6 @@ async function exportImage() {
       const catMemo = rule.settings['memo_' + catKey] || '';
       let combinedMemo = catMemo;
       
-      if (catName.includes('役満') && rule.settings.yakuman_type === 'カスタム' && rule.settings.yakuman_custom_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.yakuman_custom_memo;
-      }
-      if (catName.includes('チョンボ') && rule.settings.chombo_batsu === 'カスタム' && rule.settings.chombo_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.chombo_memo;
-      }
 
       if (combinedMemo && combinedMemo.trim() !== '') {
           html += `
@@ -2380,7 +2356,7 @@ async function exportPDF() {
           
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
-              if (k === 'yakuman_custom_memo' || k === 'chombo_memo') continue;
+              
 
               const val = rule.settings[k] ?? '';
               let displayValue = val;
@@ -2451,12 +2427,6 @@ async function exportPDF() {
       const catMemo = rule.settings['memo_' + catKey] || '';
       let combinedMemo = catMemo;
       
-      if (catName.includes('役満') && rule.settings.yakuman_type === 'カスタム' && rule.settings.yakuman_custom_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.yakuman_custom_memo;
-      }
-      if (catName.includes('チョンボ') && rule.settings.chombo_batsu === 'カスタム' && rule.settings.chombo_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.chombo_memo;
-      }
 
       if (combinedMemo && combinedMemo.trim() !== '') {
           html += `
@@ -2632,8 +2602,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.112", 
-    buildDate: "2026-03-17 22:18",
+    appVersion: "v0.113", 
+    buildDate: "2026-03-17 22:26",
   };
 
   // ==========================================
