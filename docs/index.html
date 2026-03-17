@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v61";
+    const currentVersion = "v62";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -58,19 +58,19 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
   :root {
-    --color-bg: #F2F2F7;
+    --color-bg: #F5F5F7;
     --color-surface: #FFFFFF;
     --color-primary: #007AFF;
-    --color-text: #000000;
-    --color-text-muted: #8A8A8E;
-    --color-border: #C6C6C8;
+    --color-text: #1C1C1E;
+    --color-text-muted: #8E8E93;
+    --color-border: #E5E5EA;
     --color-danger: #FF3B30;
     --color-highlight-bg: #EAF4FF;
     --color-segmented-bg: #E3E3E8;
     --color-readonly-bg: #F9F9FA;
     
-    --app-max-width: 40rem;
-    --app-padding: 0;
+    --app-max-width: 100%;
+    --app-padding: 5vw;
   }
   
   body {
@@ -116,7 +116,7 @@
   }
 
   .app-container {
-    width: 100%;
+    width: var(--app-max-width);
     max-width: 600px;
     margin: 0 auto;
     min-height: 100vh;
@@ -2112,8 +2112,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.3", 
-    buildDate: "2026-03-17 09:05",
+    appVersion: "1.0.4", 
+    buildDate: "2026-03-17 09:12",
   };
 
   // ==========================================
