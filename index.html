@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.91";
+    const currentVersion = "v0.93";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -309,7 +309,7 @@ const OPTIONS_4 = {
   chombo_batsu:["満貫払い","倍満払い","カスタム","なし"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局","なし"],
-  keibappu_type:["1000点供託","カスタム"],
+  keibappu_type:["1000点供託","なし","カスタム"],
   pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
@@ -393,7 +393,7 @@ const OPTIONS_3 = {
   chombo_batsu:["倍満払い","満貫払い","カスタム","なし"],
   chombo_memo:[""],
   chombo_taiou:["やり直し","流局扱い","親なら流局","なし"],
-  keibappu_type:["1000点供託","カスタム"],
+  keibappu_type:["1000点供託","なし","カスタム"],
   pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
   pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
@@ -429,6 +429,7 @@ const BASE_RULES_4 = {
     double_ron:"あり", triple_ron:"全員アガリ", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"雀魂に準ずる", 
     chombo_batsu:"なし", chombo_taiou:"なし",
+    keibappu_type:"なし",
     pen_goron_taopai:"なし", pen_noten_reach:"なし", pen_reach_bad_ankan:"なし",
     pen_goron_no_taopai:"なし", pen_gonaki_sarashi:"なし", pen_kuikae_ihan:"なし",
     pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_reach_torikeshi:"なし", pen_shouhai:"なし",
@@ -446,6 +447,7 @@ const BASE_RULES_4 = {
     double_ron:"あり", triple_ron:"流局（三家和）", kiriage:"なし", nagashi:"あり（流局時成立）",
     yakuman_type:"天鳳に準ずる", 
     chombo_batsu:"なし", chombo_taiou:"なし",
+    keibappu_type:"なし",
     pen_goron_taopai:"なし", pen_noten_reach:"なし", pen_reach_bad_ankan:"なし",
     pen_goron_no_taopai:"なし", pen_gonaki_sarashi:"なし", pen_kuikae_ihan:"なし",
     pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_reach_torikeshi:"なし", pen_shouhai:"なし",
@@ -690,6 +692,16 @@ function loadData() {
     for (const rule of appData.rules) {
         if (rule.id === 'preset_mleague_4') {
             rule.name = 'Mリーグ';
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v9) {
+    appData.presetsMigrated_v9 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_jantama_4' || rule.id === 'preset_tenhou_4') {
+            rule.settings.keibappu_type = 'なし';
         }
     }
     saveData();
@@ -1010,6 +1022,19 @@ function editRule(id) {
   const rule = getRule(id);
   // コピー等で保存された readonly ルールの場合は isSharedMode 相当の閲覧専用として扱う
   isSharedMode = rule && rule.readonly === true;
+  
+  let activeDefaults = [];
+  try {
+     const raw = localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
+     if (raw) activeDefaults = JSON.parse(raw);
+  } catch(e) {}
+  if (!Array.isArray(activeDefaults)) activeDefaults = [];
+  
+  // 標準ルールの場合は、開いた時に自身を比較対象の初期値にする
+  if (activeDefaults.includes(id)) {
+      rule.base_rule = id;
+  }
+  
   editingId = id;
   goEdit();
 }
@@ -1090,7 +1115,7 @@ function renderEdit() {
     } catch(e){}
     if (!Array.isArray(activeDefaults)) activeDefaults = [];
     
-    let availableKeys = activeDefaults.filter(k => k !== rule.id);
+    let availableKeys = [...activeDefaults];
     
     if (!availableKeys.includes(rule.base_rule) && availableKeys.length > 0) {
       if (!isSharedMode) {
@@ -2291,8 +2316,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.91", 
-    buildDate: "2026-03-17 15:15",
+    appVersion: "v0.93", 
+    buildDate: "2026-03-17 15:45",
   };
 
   // ==========================================
@@ -2477,7 +2502,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 15:15
+            ビルド時刻: 2026-03-17 15:45
           </p>
         </footer>
 
