@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v67";
+    const currentVersion = "v68";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -1977,13 +1977,38 @@ async function exportPDF() {
 
   // 3. アニメーション完了とDOM反映を待つため、少し待機してPDF生成を実行
   setTimeout(() => {
-      html2pdf().set(opt).from(pdfContainer).save().then(() => {
-          document.body.removeChild(hiddenWrapper);
-          showSnack('📄 PDFをダウンロードしました');
-      }).catch(e => {
-          document.body.removeChild(hiddenWrapper);
-          showSnack('PDFの保存に失敗しました');
-      });
+      const pdfObj = html2pdf().set(opt).from(pdfContainer);
+      
+      if (navigator.share && navigator.canShare) {
+          pdfObj.output('blob').then(async (blob) => {
+              const file = new File([blob], opt.filename, { type: 'application/pdf' });
+              if (navigator.canShare({ files: [file] })) {
+                  try {
+                      await navigator.share({ files: [file], title: opt.filename });
+                      showSnack('📄 PDFを共有・保存しました');
+                  } catch(e) { /* ユーザーキャンセル */ }
+                  document.body.removeChild(hiddenWrapper);
+              } else {
+                  // Fallback to auto-download if share is not perfectly supported for PDF files
+                  pdfObj.save().then(() => {
+                      document.body.removeChild(hiddenWrapper);
+                      showSnack('📄 PDFを保存しました');
+                  });
+              }
+          }).catch(e => {
+              document.body.removeChild(hiddenWrapper);
+              showSnack('PDFの生成に失敗しました');
+          });
+      } else {
+          // Fallback to auto-download for devices without Web Share API
+          pdfObj.save().then(() => {
+              document.body.removeChild(hiddenWrapper);
+              showSnack('📄 PDFを保存しました');
+          }).catch(e => {
+              document.body.removeChild(hiddenWrapper);
+              showSnack('PDFの保存に失敗しました');
+          });
+      }
   }, 300);
 }
 
