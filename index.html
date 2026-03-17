@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.81";
+    const currentVersion = "v0.82";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -212,53 +212,7 @@
         </div>
     </div>
   </div>
-  <!-- 標準ルールの管理画面 -->
-  <div class="screen bg-theme-bg" id="screen-custom-base-manager" style="padding-bottom: 5rem;">
-    <div class="sticky top-0 z-50 bg-theme-surface border-b border-theme-border flex items-center justify-between px-4 py-3 shadow-sm">
-      <button class="text-theme-primary flex items-center gap-1 font-bold text-[15px] active:opacity-70 transition-opacity" onclick="showScreen('home')">
-        <span class="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>ホーム
-      </button>
-      <span class="font-bold text-theme-text text-[15px]">標準ルール管理</span>
-      <div style="width:70px"></div>
-    </div>
-    <div class="px-4 py-4 max-w-md mx-auto" style="padding-left: var(--app-padding); padding-right: var(--app-padding);">
-      <div class="flex flex-col gap-3 mb-6">
-        <button class="w-full bg-theme-primary text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform" onclick="createNewCustomBase('四麻')">
-          <span class="material-symbols-outlined text-[22px]">add_circle</span>四麻 新規作成
-        </button>
-        <button class="w-full bg-teal-600 text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform" onclick="createNewCustomBase('三麻')">
-          <span class="material-symbols-outlined text-[22px]">add_circle</span>三麻 新規作成
-        </button>
-      </div>
-      <div id="custom-base-list" class="flex flex-col gap-3 w-full"></div>
-    </div>
-  </div>
 
-  <!-- 標準ルールの編集画面 -->
-  <div class="screen bg-theme-bg" id="screen-custom-base-editor" style="padding-bottom: 5rem;">
-    <div class="sticky top-0 z-50 bg-theme-surface border-b border-theme-border flex items-center justify-between px-4 py-3 shadow-sm">
-      <button class="text-theme-primary flex items-center gap-1 font-bold text-[15px] active:opacity-70 transition-opacity" onclick="showScreen('custom-base-manager')">
-        <span class="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>戻る
-      </button>
-      <span class="font-bold text-theme-text text-[15px]" id="custom-base-title">標準ルール編集</span>
-      <button class="bg-theme-primary text-white px-4 py-1.5 rounded-full font-bold text-[13px] active:bg-blue-600 shadow-sm" onclick="saveCustomBaseRule()">保存</button>
-    </div>
-    <div class="px-4 py-4 max-w-md mx-auto">
-      <div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm mb-6">
-        <label class="block text-[11px] font-bold text-theme-textMuted mb-2">ルール名</label>
-        <input type="text" id="custom-base-name" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[15px] font-bold text-theme-text outline-none focus:border-theme-primary/50 transition-colors" placeholder="例：うちのローカルルール">
-      </div>
-      <div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm mb-6">
-        <label class="block text-[11px] font-bold text-theme-textMuted mb-2">コピー元 (未選択でデフォルト)</label>
-        <div class="relative w-full">
-          <select id="custom-base-source" onchange="copyBaseToCustom()" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2.5 text-[14px] text-theme-text outline-none appearance-none pr-8 truncate focus:border-theme-primary/50">
-          </select>
-          <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-theme-textMuted pointer-events-none">expand_content</span>
-        </div>
-      </div>
-      <div id="custom-base-editor-items" class="flex flex-col gap-6"></div>
-    </div>
-  </div>
 
 
 <!-- 削除確認 -->
@@ -687,17 +641,23 @@ function saveData() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
 }
 
-function getBaseRuleName(k) { return k?.startsWith('__custom__') && customBaseRules[k.replace('__custom__','')] ? customBaseRules[k.replace('__custom__','')].name : (k || ''); }
+function getBaseRuleName(k) {
+  if (BASE_RULES_4[k]) return k;
+  if (BASE_RULES_3[k]) return k;
+  const r = appData.rules.find(rule => rule.id === k);
+  if (r) return r.name;
+  return k || ''; 
+}
 function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
 function getBaseRules(mode) {
   const base = mode === '四麻' ? {...BASE_RULES_4} : {...BASE_RULES_3};
-  for (const [id, rule] of Object.entries(customBaseRules)) {
-    if (rule.mode === mode) {
-      base['__custom__' + id] = rule.settings;
+  appData.rules.forEach(r => {
+    if (r.mode === mode) {
+      base[r.id] = r.settings;
     }
-  }
+  });
   return base;
 }
 function getDefault(mode) { return mode === '四麻' ? {...DEFAULT_4} : {...DEFAULT_3}; }
@@ -909,8 +869,8 @@ function createRule(mode) {
   _editSnapshot = JSON.stringify(appData);
   const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const def = getDefault(mode);
-  const defBaseKey = mode === '四麻' ? (localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4')
-                                     : (localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3');
+  const defBaseKey = mode === '四麻' ? (localStorage.getItem('mahjong_default_base_4ma') || '雀魂（四麻・段位戦）')
+                                     : (localStorage.getItem('mahjong_default_base_3ma') || '三人麻雀（標準）');
   const rule = {
     id, mode,
     name: '新規ルール',
@@ -995,16 +955,17 @@ function renderEdit() {
 
   if (brSection) {
     brSection.classList.remove('hidden');
-    let customKeys = Object.keys(bases).filter(k => k.startsWith('__custom__'));
-    if (!customKeys.includes(rule.base_rule) && customKeys.length > 0) {
+    let availableKeys = Object.keys(bases).filter(k => k !== rule.id);
+    if (!availableKeys.includes(rule.base_rule) && availableKeys.length > 0) {
       if (!isSharedMode) {
-        rule.base_rule = customKeys[0];
+        rule.base_rule = (rule.mode === '四麻' ? '雀魂（四麻・段位戦）' : '三人麻雀（標準）');
+        if (!availableKeys.includes(rule.base_rule)) rule.base_rule = availableKeys[0];
         saveData();
       }
     }
     
     // Update dropdown options
-    brSelect.innerHTML = customKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+    brSelect.innerHTML = availableKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
     
     // Always show base rule selector, even in read-only mode, to allow diff comparison
     const brChevron = brSection.querySelector('.material-symbols-outlined');
@@ -2164,9 +2125,8 @@ loadCustomBaseRules(); // 初期化時に読み込み
 
 // デフォルトベース設定関数
 function setDefaultBaseRule(mode, id) {
-  if (mode === '四麻') localStorage.setItem('mahjong_default_base_4ma', '__custom__' + id);
-  else localStorage.setItem('mahjong_default_base_3ma', '__custom__' + id);
-  renderCustomBaseManager(); // 再描画
+  if (mode === '四麻') localStorage.setItem('mahjong_default_base_4ma', id);
+  else localStorage.setItem('mahjong_default_base_3ma', id);
   if (typeof window.renderHome === 'function') window.renderHome();
 }
 
@@ -2385,8 +2345,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.81", 
-    buildDate: "2026-03-17 12:35",
+    appVersion: "v0.82", 
+    buildDate: "2026-03-17 12:45",
   };
 
   // ==========================================
@@ -2429,13 +2389,7 @@ if (!checkSharedRule()) {
               {CONFIG.strings.appTitle}
             </h1>
           </div>
-          <button 
-            onClick={() => window.showScreen('custom-base-manager')}
-            className="text-theme-primary text-sm font-medium flex items-center gap-1 active:opacity-70 transition-opacity z-10"
-          >
-            <span className="material-symbols-outlined text-[20px]">settings</span>
-            <span>{CONFIG.strings.manageStandardRules}</span>
-          </button>
+          <div className="flex-1"></div>
         </header>
 
         {/* タブ切り替え */}
@@ -2482,8 +2436,8 @@ if (!checkSharedRule()) {
           <div className="flex flex-col gap-3">
             {displayedRules.map((rule) => {
               const isReadOnly = rule.readonly;
-              const def4 = localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4';
-              const def3 = localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3';
+              const def4 = localStorage.getItem('mahjong_default_base_4ma') || '雀魂（四麻・段位戦）';
+              const def3 = localStorage.getItem('mahjong_default_base_3ma') || '三人麻雀（標準）';
               const isDef = (rule.mode === '四麻' && def4 === rule.id) || (rule.mode === '三麻' && def3 === rule.id);
 
               return (
@@ -2524,7 +2478,7 @@ if (!checkSharedRule()) {
                   </div>
                   <div className="flex items-center gap-4 text-theme-textMuted z-10">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); window.setDefaultBaseRule(rule.mode, rule.id.replace('__custom__', '')); }}
+                      onClick={(e) => { e.stopPropagation(); window.setDefaultBaseRule(rule.mode, rule.id); }}
                       className={`flex items-center justify-center ${isDef ? 'text-theme-primary pointer-events-none' : 'hover:text-theme-primary active:scale-90 transition-all font-inherit'}`}
                       aria-label="標準設定"
                     >
@@ -2564,7 +2518,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 12:35
+            ビルド時刻: 2026-03-17 12:45
           </p>
         </footer>
 
