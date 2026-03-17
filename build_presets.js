@@ -39,28 +39,55 @@ function parseTsv(text) {
 // =====================================================================
 // TSV 読み込み
 // =====================================================================
+
+// 三麻で異なるカテゴリ名が必要な場合のマッピング
+const CAT_RENAME_3 = {
+  '役・ドラ': '役・ドラ・牌の扱い',
+};
+// 三麻で特定キーを別カテゴリに移動するマッピング
+const KEY_REMAP_3 = {
+  'pen_gonaki_hassei': '軽罰符',
+  'pen_shouhai': '軽罰符',
+};
+
 function loadPresetData() {
   const tsvText = fs.readFileSync(TSV_PATH, 'utf-8');
   const rows = parseTsv(tsvText);
   const header = rows[0];
-  const data = rows.slice(1).filter(r => r.length >= 4);
+  const data = rows.slice(1).filter(r => r.length >= 3);
 
-  // ヘッダー: 0=四麻カテゴリ, 1=三麻カテゴリ, 2=キー, 3=ラベル, 4=四麻選択肢, 5=三麻選択肢, 6~=プリセット値
+  // 新ヘッダー: 0=カテゴリ, 1=キー, 2=ラベル, 3=四麻選択肢, 4=三麻選択肢, 5~=プリセット値
   const presetCols = [];
-  for (let c = 6; c < header.length; c++) {
+  for (let c = 5; c < header.length; c++) {
     const m = header[c].match(/^(四麻|三麻):(.+)$/);
     if (m) presetCols.push({ col: c, mode: m[1], name: m[2] });
   }
 
-  const entries = data.map(row => ({
-    cat4: row[0] || '',
-    cat3: row[1] || '',
-    key: row[2] || '',
-    label: row[3] || '',
-    opts4: (row[4] || '').split(',').map(s => s.trim()).filter(Boolean),
-    opts3: (row[5] || '').split(',').map(s => s.trim()).filter(Boolean),
-    values: Object.fromEntries(presetCols.map(p => [p.name, row[p.col] || ''])),
-  }));
+  const presets4 = presetCols.filter(p => p.mode === '四麻');
+  const presets3 = presetCols.filter(p => p.mode === '三麻');
+
+  const entries = data.map(row => {
+    const cat = row[0] || '';
+    const key = row[1] || '';
+    const opts4 = (row[3] || '').split(',').map(s => s.trim()).filter(Boolean);
+    const opts3 = (row[4] || '').split(',').map(s => s.trim()).filter(Boolean);
+    const values = Object.fromEntries(presetCols.map(p => [p.name, row[p.col] || '']));
+
+    // 四麻/三麻の所属判定: 選択肢があるか、プリセット値があるか
+    const has4 = opts4.length > 0 || presets4.some(p => (row[p.col] || '').trim() !== '');
+    const has3 = opts3.length > 0 || presets3.some(p => (row[p.col] || '').trim() !== '');
+
+    return {
+      cat,
+      cat4: has4 ? cat : '',
+      cat3: has3 ? (KEY_REMAP_3[key] || CAT_RENAME_3[cat] || cat) : '',
+      key,
+      label: row[2] || '',
+      opts4,
+      opts3,
+      values,
+    };
+  });
 
   return { entries, presetCols };
 }
@@ -228,11 +255,15 @@ function generateJs(entries, presetCols) {
         if (c.includes('チョンボ') || c.includes('上がり放棄') || c.includes('軽罰符')) cats[c].penalty = true;
       }
     }
+    let num = 1;
     for (const c of order) {
       const d = cats[c];
+      if (d.keys.length === 0) continue; // 空カテゴリはスキップ
       const orderedKeys = enforceKeyOrder(c, d.keys);
       const ks = orderedKeys.map(js).join(',');
-      lines.push(d.penalty ? `  [${js(c)},[${ks}], true],` : `  [${js(c)},[${ks}]],`);
+      const numbered = `${num}. ${c}`;
+      lines.push(d.penalty ? `  [${js(numbered)},[${ks}], true],` : `  [${js(numbered)},[${ks}]],`);
+      num++;
     }
     lines.push('];');
   }
