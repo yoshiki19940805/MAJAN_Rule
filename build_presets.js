@@ -44,43 +44,78 @@ function parseTsv(text) {
 const CAT_RENAME_3 = {
   '役・ドラ': '役・ドラ・牌の扱い',
 };
-// 三麻で特定キーを別カテゴリに移動するマッピング
-const KEY_REMAP_3 = {
-  'pen_gonaki_hassei': '軽罰符',
-  'pen_shouhai': '軽罰符',
-};
+
 
 function loadPresetData() {
   const tsvText = fs.readFileSync(TSV_PATH, 'utf-8');
   const rows = parseTsv(tsvText);
   const header = rows[0];
-  const data = rows.slice(1).filter(r => r.length >= 3);
+
+  // メタデータ行（#設定）とデータ行を分離
+  const metaRows = {};
+  const dataRows = [];
+  for (const row of rows.slice(1)) {
+    if (row.length < 3) continue;
+    if ((row[0] || '').startsWith('#')) {
+      metaRows[row[1]] = row;
+    } else {
+      dataRows.push(row);
+    }
+  }
 
   // 新ヘッダー: 0=カテゴリ, 1=キー, 2=ラベル, 3=四麻選択肢, 4=三麻選択肢, 5~=プリセット値
   const presetCols = [];
   for (let c = 5; c < header.length; c++) {
     const m = header[c].match(/^(四麻|三麻):(.+)$/);
-    if (m) presetCols.push({ col: c, mode: m[1], name: m[2] });
+    if (m) {
+      const readonly = metaRows['_readonly'] ? (metaRows['_readonly'][c] || '').trim() === '○' : true;
+      const isDefault = metaRows['_default'] ? (metaRows['_default'][c] || '').trim() === '○' : true;
+      presetCols.push({ col: c, mode: m[1], name: m[2], readonly, isDefault });
+    }
   }
 
   const presets4 = presetCols.filter(p => p.mode === '四麻');
   const presets3 = presetCols.filter(p => p.mode === '三麻');
 
-  const entries = data.map(row => {
+  // デフォルトプリセットを特定（ペナルティカテゴリ動的判定用）
+  const defaultPreset4 = presets4.find(p => p.isDefault) || presets4[0];
+  const defaultPreset3 = presets3.find(p => p.isDefault) || presets3[0];
+
+  // ペナルティキーのカテゴリをデフォルトプリセットの値から動的に判定
+  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  function getPenaltyCat3(row, baseCat) {
+    if (!PENALTY_CATS.some(pc => baseCat.includes(pc))) return null;
+    if (!defaultPreset3) return null;
+    const val = (row[defaultPreset3.col] || '').trim();
+    // プリセット値がペナルティカテゴリ名と一致する場合、そのカテゴリに移動
+    for (const pc of PENALTY_CATS) {
+      if (val === pc) return pc;
+    }
+    return null; // 値がペナルティカテゴリ名でない場合、元のカテゴリのまま
+  }
+
+  const entries = dataRows.map(row => {
     const cat = row[0] || '';
     const key = row[1] || '';
     const opts4 = (row[3] || '').split(',').map(s => s.trim()).filter(Boolean);
     const opts3 = (row[4] || '').split(',').map(s => s.trim()).filter(Boolean);
     const values = Object.fromEntries(presetCols.map(p => [p.name, row[p.col] || '']));
 
-    // 四麻/三麻の所属判定: 選択肢があるか、プリセット値があるか
+    // 四麻/三麻の所属判定
     const has4 = opts4.length > 0 || presets4.some(p => (row[p.col] || '').trim() !== '');
     const has3 = opts3.length > 0 || presets3.some(p => (row[p.col] || '').trim() !== '');
+
+    // 三麻カテゴリ: ペナルティは動的判定、その他はCAT_RENAME_3
+    let cat3 = '';
+    if (has3) {
+      const penaltyCat = getPenaltyCat3(row, cat);
+      cat3 = penaltyCat || CAT_RENAME_3[cat] || cat;
+    }
 
     return {
       cat,
       cat4: has4 ? cat : '',
-      cat3: has3 ? (KEY_REMAP_3[key] || CAT_RENAME_3[cat] || cat) : '',
+      cat3,
       key,
       label: row[2] || '',
       opts4,
@@ -298,13 +333,19 @@ function generateJs(entries, presetCols) {
     const id = makePresetId(p.mode, p.name);
     const mode = p.mode === '四麻' ? '四麻' : '三麻';
     const baseVar = p.mode === '四麻' ? 'BASE_RULES_4' : 'BASE_RULES_3';
-    allPresets.push({ id, mode, name: shortName(p.name), fullName: p.name, baseVar });
+    allPresets.push({ id, mode, name: shortName(p.name), fullName: p.name, baseVar, readonly: p.readonly, isDefault: p.isDefault });
   }
   lines.push(`const PRESET_INJECTIONS = [`);
   for (const p of allPresets) {
-    lines.push(`  { id: ${js(p.id)}, mode: ${js(p.mode)}, name: ${js(p.name)}, readonly: true, date: '1970/01/01 00:00:00', settings: {...${p.baseVar}[${js(p.fullName)}]} },`);
+    lines.push(`  { id: ${js(p.id)}, mode: ${js(p.mode)}, name: ${js(p.name)}, readonly: ${p.readonly}, date: '1970/01/01 00:00:00', settings: {...${p.baseVar}[${js(p.fullName)}]} },`);
   }
   lines.push('];');
+
+  // デフォルト標準ルールのID
+  const default4Ids = allPresets.filter(p => p.mode === '四麻' && p.isDefault).map(p => p.id);
+  const default3Ids = allPresets.filter(p => p.mode === '三麻' && p.isDefault).map(p => p.id);
+  lines.push(`const DEFAULT_PRESET_IDS_4 = ${js(default4Ids)};`);
+  lines.push(`const DEFAULT_PRESET_IDS_3 = ${js(default3Ids)};`);
 
   return lines.join('\n');
 }
