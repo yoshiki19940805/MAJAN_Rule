@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v75";
+    const currentVersion = "v76";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -2444,11 +2444,11 @@ if (!checkSharedRule()) {
               return (
                 <div 
                   key={rule.id} 
-                  className={isReadOnly ? "bg-theme-readonlyBg p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border opacity-90" : "bg-theme-surface p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border/50"}
+                  className={isReadOnly ? "bg-theme-readonlyBg p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border opacity-90 cursor-pointer active:opacity-60 transition-opacity" : "bg-theme-surface p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border/50 cursor-pointer active:opacity-60 transition-opacity"}
+                  onClick={() => window.editRule(rule.id)}
                 >
                   <div 
-                    onClick={() => window.editRule(rule.id)}
-                    className="flex-1 min-w-0 pr-4 flex flex-col cursor-pointer active:opacity-60 transition-opacity"
+                    className="flex-1 min-w-0 pr-4 flex flex-col pointer-events-none"
                   >
                     {!isReadOnly ? (
                       <>
@@ -2506,7 +2506,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:25
+            ビルド時刻: 2026-03-17 11:30
           </p>
         </footer>
 
