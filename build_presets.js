@@ -207,14 +207,52 @@ function main() {
 
   const jsCode = generateJs(entries, presetCols);
 
+  // ビルド日時（JST）
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const buildDate = jst.toISOString().replace('T', ' ').slice(0, 16);
+
   for (const f of [path.join(ROOT,'index.html'), path.join(ROOT,'docs','index.html')]) {
     if (!fs.existsSync(f)) { console.log(`⏭️ ${f} not found`); continue; }
-    const result = replaceBlock(fs.readFileSync(f,'utf-8'), BEGIN_JS, END_JS, jsCode);
+    let content = fs.readFileSync(f, 'utf-8');
+
+    // 1) プリセット置換
+    const result = replaceBlock(content, BEGIN_JS, END_JS, jsCode);
     if (!result) { console.error(`❌ Markers not found in ${f}`); process.exit(1); }
-    fs.writeFileSync(f, result, 'utf-8');
+    content = result;
+
+    // 2) バージョンをインクリメント
+    const versionMatch = content.match(/const currentVersion = "v([\d.]+)"/);
+    if (versionMatch) {
+      const oldVer = versionMatch[1];
+      const parts = oldVer.split('.');
+      const minor = parseInt(parts[parts.length - 1]) + 1;
+      parts[parts.length - 1] = String(minor).padStart(2, '0');
+      const newVer = parts.join('.');
+      // キャッシュクリア用バージョン
+      content = content.replace(
+        /const currentVersion = "v[\d.]+"/,
+        `const currentVersion = "v${newVer}"`
+      );
+      // CONFIG内のバージョン
+      content = content.replace(
+        /appVersion: "v[\d.]+"/,
+        `appVersion: "v${newVer}"`
+      );
+      console.log(`   Version: v${oldVer} → v${newVer}`);
+    }
+
+    // 3) ビルド日時を更新
+    content = content.replace(
+      /buildDate: "[^"]*"/,
+      `buildDate: "${buildDate}"`
+    );
+
+    fs.writeFileSync(f, content, 'utf-8');
     console.log(`✅ ${path.relative(ROOT, f)}`);
   }
 
+  console.log(`   Build date: ${buildDate}`);
   console.log('\n🎉 Build complete!');
 }
 
