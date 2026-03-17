@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v73";
+    const currentVersion = "v74";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -868,6 +868,9 @@ function checkSharedRule() {
       // URLからパラメータを消去
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
+      
+      isSharedMode = true;
+      editingId = id;
       
       renderEdit();
       showScreen('edit');
@@ -2487,7 +2490,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:05
+            ビルド時刻: 2026-03-17 11:15
           </p>
         </footer>
 
