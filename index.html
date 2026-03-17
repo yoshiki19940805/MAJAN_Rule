@@ -26,7 +26,6 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
-    important: '#app', // アプリ全体のコンテナ内でTailwindを優先させる
     corePlugins: {
       preflight: true,
     },
@@ -143,9 +142,7 @@
   <div class="screen active" style="padding:0; background-color: var(--color-bg);" id="screen-home">
     <div id="react-home-root" style="flex:1; display:flex; flex-direction:column; height: 100%;"></div>
     <div style="text-align:center; padding: 10px; font-size: 10px; color: #888; background: var(--surface);">
-      <script>document.write("最終更新: " + new Date().toLocaleString("ja-JP", {month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"}));</script>
-    </div>
-  </div>
+      // 削除: React側に移譲
 
   <!-- 編集画面 -->
   <div class="screen bg-theme-bg" id="screen-edit">
@@ -2111,8 +2108,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "1.0.1", 
-    buildDate: "2026-03-16 22:05",
+    appVersion: "1.0.2", 
+    buildDate: "2026-03-17 09:00",
   };
 
   // ==========================================
@@ -2266,8 +2263,11 @@ if (!checkSharedRule()) {
         </main>
 
         <footer className="py-6 text-center shrink-0">
-          <p className="text-[11px] font-medium text-theme-textMuted tracking-wider">
+          <p className="text-[11px] font-medium text-theme-textMuted tracking-wider mb-1">
             VERSION {CONFIG.appVersion}
+          </p>
+          <p className="text-[10px] text-theme-textMuted/70">
+            ビルド時刻: {CONFIG.buildDate}
           </p>
         </footer>
 
