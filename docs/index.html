@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.95";
+    const currentVersion = "v0.96";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -1260,7 +1260,7 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[13em] max-w-[55%]">${esc(LABELS[k] || k)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[14.5em] max-w-[60%]">${esc(LABELS[k] || k)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
                             <span class="${valSizeClass} truncate text-right w-full block pointer-events-none display-value-span ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
@@ -1317,7 +1317,7 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[13em] max-w-[55%]">${esc(itemName)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 truncate w-[14.5em] max-w-[60%]">${esc(itemName)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
                             <span class="${cValSizeClass} truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
@@ -2324,8 +2324,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.95", 
-    buildDate: "2026-03-17 16:00",
+    appVersion: "v0.96", 
+    buildDate: "2026-03-17 16:10",
   };
 
   // ==========================================
@@ -2510,7 +2510,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 16:00
+            ビルド時刻: 2026-03-17 16:10
           </p>
         </footer>
 
