@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.85";
+    const currentVersion = "v0.86";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -649,6 +649,23 @@ function loadData() {
     migrateDef('mahjong_default_base_3ma', {
         '三人麻雀（標準）': 'preset_zoo_3'
     }, 'preset_zoo_3');
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v6) {
+    appData.presetsMigrated_v6 = true;
+    try {
+        const raw4 = localStorage.getItem('mahjong_default_base_4ma');
+        let arr4 = raw4 ? JSON.parse(raw4) : [];
+        if (!Array.isArray(arr4)) arr4 = [];
+        
+        // Ensure the 3 core presets are starred by default on migration
+        if (!arr4.includes('preset_jantama_4')) arr4.push('preset_jantama_4');
+        if (!arr4.includes('preset_tenhou_4')) arr4.push('preset_tenhou_4');
+        if (!arr4.includes('preset_mleague_4')) arr4.push('preset_mleague_4');
+        
+        localStorage.setItem('mahjong_default_base_4ma', JSON.stringify(arr4));
+    } catch(e) {}
     saveData();
   }
 
@@ -2223,8 +2240,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.85", 
-    buildDate: "2026-03-17 13:40",
+    appVersion: "v0.86", 
+    buildDate: "2026-03-17 13:45",
   };
 
   // ==========================================
@@ -2368,8 +2385,8 @@ if (!checkSharedRule()) {
                   </div>
                   <div className="flex items-center gap-4 text-theme-textMuted z-10">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); window.setDefaultBaseRule(rule.mode, rule.id); }}
-                      className={`flex items-center justify-center ${isDef ? 'text-theme-primary pointer-events-none' : 'hover:text-theme-primary active:scale-90 transition-all font-inherit'}`}
+                      onClick={(e) => { e.stopPropagation(); window.toggleDefaultBaseRule(rule.mode, rule.id); }}
+                      className={`flex items-center justify-center ${isDef ? 'text-theme-primary' : 'hover:text-theme-primary active:scale-90 transition-all font-inherit'}`}
                       aria-label="標準設定"
                     >
                       <span className="material-symbols-outlined text-[24px]">{isDef ? 'star' : 'star_border'}</span>
@@ -2408,7 +2425,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 13:40
+            ビルド時刻: 2026-03-17 13:45
           </p>
         </footer>
 
