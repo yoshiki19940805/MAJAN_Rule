@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v0.86";
+    const currentVersion = "v0.87";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -2210,7 +2210,9 @@ window.toggleDefaultBaseRule = function(mode, id) {
       arr.push(id);
   }
   localStorage.setItem(key, JSON.stringify(arr));
-  if (typeof window.renderHome === 'function') window.renderHome();
+  
+  if (window.triggerReactRefresh) window.triggerReactRefresh();
+  else if (typeof window.renderHome === 'function') window.renderHome();
 };
 
 // =====================================================================
@@ -2240,8 +2242,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.86", 
-    buildDate: "2026-03-17 13:45",
+    appVersion: "v0.87", 
+    buildDate: "2026-03-17 14:00",
   };
 
   // ==========================================
@@ -2250,6 +2252,9 @@ if (!checkSharedRule()) {
   function App({ rulesFromVanilla }) {
     const [activeTab, setActiveTab] = useState(4); // 4 = 四人麻雀, 3 = 三人麻雀
     const [showPwaBanner, setShowPwaBanner] = useState(false);
+    const [refreshTrick, setRefreshTrick] = useState(0);
+
+    window.triggerReactRefresh = () => setRefreshTrick(prev => prev + 1);
     
     // VanillaJS側で保存されたルールをフィルタリング
     let combinedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab);
@@ -2386,7 +2391,7 @@ if (!checkSharedRule()) {
                   <div className="flex items-center gap-4 text-theme-textMuted z-10">
                     <button 
                       onClick={(e) => { e.stopPropagation(); window.toggleDefaultBaseRule(rule.mode, rule.id); }}
-                      className={`flex items-center justify-center ${isDef ? 'text-theme-primary' : 'hover:text-theme-primary active:scale-90 transition-all font-inherit'}`}
+                      className={`flex items-center justify-center ${isDef ? 'text-theme-primary' : 'text-theme-textMuted active:scale-90 transition-all font-inherit'}`}
                       aria-label="標準設定"
                     >
                       <span className="material-symbols-outlined text-[24px]">{isDef ? 'star' : 'star_border'}</span>
@@ -2425,7 +2430,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 13:45
+            ビルド時刻: 2026-03-17 14:00
           </p>
         </footer>
 
