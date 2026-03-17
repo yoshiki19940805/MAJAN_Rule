@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v72";
+    const currentVersion = "v73";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -824,7 +824,8 @@ function shareRule(id) {
       alert('リンクのコピーに失敗しました。以下のURLをコピーしてください：\n\n' + url.href);
     });
   } catch (e) {
-    showSnack('共有リンクの生成に失敗しました');
+    console.error("shareRule Error:", e);
+    alert('共有リンクの生成に失敗しました: ' + e.message);
   }
 }
 
@@ -846,7 +847,10 @@ function checkSharedRule() {
         jsonStr = decodeURIComponent(atob(sanitizedBase64));
       }
 
-      if (!jsonStr) throw new Error("Decompression produced empty string");
+      if (!jsonStr) {
+        alert("エラー: 共有データの展開に失敗しました（空のデータ）");
+        throw new Error("Decompression produced empty string");
+      }
       const parsed = JSON.parse(jsonStr);
       
       const id = 'shared_' + Date.now();
@@ -861,9 +865,6 @@ function checkSharedRule() {
       
       // 既存のリストには入れず一時データとして扱う
       appData.rules.push(sharedRule); 
-      isSharedMode = true;
-      editingId = id;
-      
       // URLからパラメータを消去
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
@@ -872,10 +873,10 @@ function checkSharedRule() {
       showScreen('edit');
       return true;
     } catch (e) {
-      console.error(e);
-      alert('共有ルールの読み込みに失敗しました。\n原因: ' + (e.message || 'データ破損等'));
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      console.error("checkSharedRule Error:", e);
+      alert('共有ルールの読み込みに失敗しました。\n詳細な原因: ' + e.message + '\n\n共有データ:\n' + shareData.substring(0, 50) + '...');
+      const fallbackUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, fallbackUrl);
     }
   }
   return false;
@@ -2486,7 +2487,7 @@ if (!checkSharedRule()) {
             VERSION {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:00
+            ビルド時刻: 2026-03-17 11:05
           </p>
         </footer>
 

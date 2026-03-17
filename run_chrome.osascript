@@ -1,0 +1,11 @@
+tell application "Google Chrome"
+	activate
+	open location "file:///Users/hoshinoyoshiki/Documents/MAJAN_Rule/index.html?v=" & (random number from 1000 to 9999)
+	delay 1
+
+	-- Wait for page load
+	execute front window's active tab javascript "
+		window.getRule = () => ({ id: '1', mode: '四麻', name: 'Test', base_rule: 'standard', settings: { foo: 'bar' } });
+		window.shareRule('1');
+	"
+end tell
