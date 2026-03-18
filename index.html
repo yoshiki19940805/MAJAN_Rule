@@ -15,10 +15,14 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.4";
+    const currentVersion = "v2.5";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
-      window.location.replace("?v=" + currentVersion);
+      // 共有URLの?shareパラメータを保持する
+      const shareParam = urlParams.get('share');
+      let newUrl = "?v=" + currentVersion;
+      if (shareParam) newUrl += "&share=" + encodeURIComponent(shareParam);
+      window.location.replace(newUrl);
     }
   })();
 </script>
@@ -1218,7 +1222,8 @@ function shareRule(id) {
     // LZStringによって安全なURL用文字列に圧縮＆エンコード
     const compressedStr = LZString.compressToEncodedURIComponent(jsonStr);
     
-    const url = new URL(window.location.href);
+    // クリーンなベースURL（?v= 等の不要パラメータを含まない）
+    const url = new URL(window.location.origin + window.location.pathname);
     url.searchParams.set('share', compressedStr);
     
     navigator.clipboard.writeText(url.href).then(() => {
@@ -2661,8 +2666,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.4", 
-    buildDate: "2026-03-18 10:30",
+    appVersion: "v2.5", 
+    buildDate: "2026-03-18 11:36",
   };
 
   // ==========================================
