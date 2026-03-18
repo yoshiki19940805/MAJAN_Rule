@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.5";
+    const currentVersion = "v2.6";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -52,6 +52,183 @@
         fontFamily: {
           sans: ['-apple-system', 'BlinkMacSystemFont', '"Helvetica Neue"', '"Segoe UI"', 'Hiragino Kaku Gothic ProN', 'Meiryo', 'sans-serif'],
         }
+      }
+    }
+  }
+</script>
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  // Firebase初期化
+  const firebaseConfig = {
+    apiKey: "AIzaSyBcyqhr9RAJZgr7djOiABCgZBgPvKK7-3Y",
+    authDomain: "majan-rule.firebaseapp.com",
+    projectId: "majan-rule",
+    storageBucket: "majan-rule.firebasestorage.app",
+    messagingSenderId: "576775573389",
+    appId: "1:576775573389:web:40c9a29a62372625ca37c4"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const fbAuth = firebase.auth();
+  const fbDb = firebase.firestore();
+
+  // =====================================================================
+  // Firebase 同期ヘルパー
+  // =====================================================================
+  let _fbUid = null;
+  let _fbSyncing = false;
+
+  // プリセットIDを判定（プリセットはクラウド保存しない）
+  function isPresetRule(rule) {
+    return rule && (rule.readonly === true || (rule.id && rule.id.startsWith('preset_')));
+  }
+
+  // Firestoreにユーザールールを保存
+  async function syncRulesToCloud() {
+    if (!_fbUid || _fbSyncing) return;
+    try {
+      const userRules = (appData.rules || []).filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
+      const batch = fbDb.batch();
+      const colRef = fbDb.collection('users').doc(_fbUid).collection('rules');
+      
+      // 現在のルールを書き込み
+      for (const rule of userRules) {
+        batch.set(colRef.doc(rule.id), {
+          mode: rule.mode,
+          name: rule.name,
+          base_rule: rule.base_rule || '',
+          date: rule.date || '',
+          settings: JSON.stringify(rule.settings || {}),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      console.warn('Cloud sync failed:', e);
+    }
+  }
+
+  // Firestoreからユーザールールを読み込み
+  async function loadRulesFromCloud() {
+    if (!_fbUid) return [];
+    try {
+      const snap = await fbDb.collection('users').doc(_fbUid).collection('rules').get();
+      const cloudRules = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        cloudRules.push({
+          id: doc.id,
+          mode: d.mode || '四麻',
+          name: d.name || '',
+          base_rule: d.base_rule || '',
+          date: d.date || '',
+          settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
+        });
+      });
+      return cloudRules;
+    } catch (e) {
+      console.warn('Cloud load failed:', e);
+      return [];
+    }
+  }
+
+  // ローカルとクラウドのルールをマージ
+  async function mergeCloudRules() {
+    const cloudRules = await loadRulesFromCloud();
+    if (cloudRules.length === 0) return;
+
+    const localUserRules = appData.rules.filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
+    const localIds = new Set(localUserRules.map(r => r.id));
+
+    // クラウドにあってローカルにないルールを追加
+    for (const cr of cloudRules) {
+      if (!localIds.has(cr.id)) {
+        appData.rules.push(cr);
+      }
+    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+    if (typeof renderHome === 'function') renderHome();
+  }
+
+  // Firestoreから特定ルールを削除
+  async function deleteRuleFromCloud(ruleId) {
+    if (!_fbUid) return;
+    try {
+      await fbDb.collection('users').doc(_fbUid).collection('rules').doc(ruleId).delete();
+    } catch (e) {
+      console.warn('Cloud delete failed:', e);
+    }
+  }
+
+  // Googleログイン
+  function signInWithGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    fbAuth.signInWithPopup(provider).catch(e => {
+      console.error('Google sign-in failed:', e);
+      if (typeof showSnack === 'function') showSnack('ログインに失敗しました');
+    });
+  }
+
+  // ログアウト
+  function signOutFirebase() {
+    fbAuth.signOut().then(() => {
+      if (typeof showSnack === 'function') showSnack('ログアウトしました');
+      if (typeof renderHome === 'function') renderHome();
+    });
+  }
+
+  // 認証状態の監視
+  fbAuth.onAuthStateChanged(async (user) => {
+    if (user) {
+      _fbUid = user.uid;
+      window._fbUser = user;
+      // ログイン後にクラウドからルールをマージ
+      if (typeof STORAGE_KEY !== 'undefined') {
+        await mergeCloudRules();
+      }
+      if (typeof renderHome === 'function') renderHome();
+    } else {
+      // 匿名認証でサインイン
+      try {
+        await fbAuth.signInAnonymously();
+      } catch (e) {
+        console.warn('Anonymous auth failed:', e);
+      }
+    }
+  });
+
+  // Googleアカウントにリンク（匿名→Google）
+  async function linkToGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+      const currentUser = fbAuth.currentUser;
+      if (currentUser && currentUser.isAnonymous) {
+        await currentUser.linkWithPopup(provider);
+        if (typeof showSnack === 'function') showSnack('Googleアカウントに連携しました');
+        // リンク後にローカルルールをクラウドに同期
+        await syncRulesToCloud();
+        if (typeof renderHome === 'function') renderHome();
+      } else if (currentUser) {
+        if (typeof showSnack === 'function') showSnack('すでにログイン済みです');
+      } else {
+        signInWithGoogle();
+      }
+    } catch (e) {
+      if (e.code === 'auth/credential-already-in-use') {
+        // 既存のGoogleアカウントでサインインし直す
+        const cred = e.credential;
+        await fbAuth.signInWithCredential(cred);
+        // クラウドのルールをマージ
+        await mergeCloudRules();
+        // ローカルのルールもクラウドに同期
+        await syncRulesToCloud();
+        if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
+        if (typeof renderHome === 'function') renderHome();
+      } else {
+        console.error('Link to Google failed:', e);
+        if (typeof showSnack === 'function') showSnack('連携に失敗しました');
       }
     }
   }
@@ -1069,6 +1246,8 @@ function saveData() {
     }
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+  // クラウドにも同期（バックグラウンド）
+  if (typeof syncRulesToCloud === 'function') syncRulesToCloud();
 }
 
 function getBaseRuleName(k) {
@@ -1383,6 +1562,8 @@ function closeModal() {
 }
 function confirmDelete() {
   if (deleteTargetId) {
+    // クラウドからも削除
+    if (typeof deleteRuleFromCloud === 'function') deleteRuleFromCloud(deleteTargetId);
     appData.rules = appData.rules.filter(r => r.id !== deleteTargetId);
     saveData();
   }
@@ -2666,8 +2847,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.5", 
-    buildDate: "2026-03-18 11:36",
+    appVersion: "v2.6", 
+    buildDate: "2026-03-18 19:18",
   };
 
   // ==========================================
@@ -2910,7 +3091,49 @@ if (!checkSharedRule()) {
           </div>
         </main>
 
-        <footer className="py-6 text-center shrink-0">
+        <footer className="py-6 text-center shrink-0" style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }}>
+          {/* Firebase認証UI */}
+          {(() => {
+            const user = window._fbUser;
+            if (user && !user.isAnonymous) {
+              return (
+                <div style={{
+                  background: 'var(--color-surface, #fff)',
+                  border: '1px solid var(--color-border, #e5e5ea)',
+                  borderRadius: '12px', padding: '12px 16px', marginBottom: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '16px' }}>☁️</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text, #1c1c1e)' }}>クラウド同期ON</div>
+                      <div style={{ fontSize: '10px', color: 'var(--color-textMuted, #8e8e93)' }}>{user.email}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => window.signOutFirebase && window.signOutFirebase()} style={{
+                    fontSize: '11px', color: 'var(--color-textMuted, #8e8e93)',
+                    background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline',
+                  }}>ログアウト</button>
+                </div>
+              );
+            } else {
+              return (
+                <button onClick={() => window.linkToGoogle && window.linkToGoogle()} style={{
+                  width: '100%', padding: '12px', marginBottom: '12px',
+                  background: '#fff', border: '1px solid #dadce0', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#3c4043',
+                  transition: 'box-shadow 0.2s',
+                }}
+                onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
+                >
+                  <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                  Googleでログイン（データをバックアップ）
+                </button>
+              );
+            }
+          })()}
           <p className="text-[11px] font-medium text-theme-textMuted tracking-wider mb-1">
             {CONFIG.appVersion}
           </p>
