@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.7";
+    const currentVersion = "v2.8";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -239,8 +239,7 @@
           } catch (err) { console.warn('Failed to read anon data:', err); }
         }
         
-        // ② Googleアカウントでサインイン
-        const cred = firebase.auth.GoogleAuthProvider.credential(e.customData._tokenResponse.oauthIdToken);
+        // ② Googleアカウントでサインイン（ポップアップを再表示）
         await fbAuth.signInWithPopup(provider);
         
         // ③ ローカルのルール（匿名時に作ったもの含む）をクラウドにマージ
@@ -2893,8 +2892,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.7", 
-    buildDate: "2026-03-18 19:39",
+    appVersion: "v2.8", 
+    buildDate: "2026-03-18 19:44",
   };
 
   // ==========================================
