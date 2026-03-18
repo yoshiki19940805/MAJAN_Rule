@@ -403,7 +403,7 @@ function main() {
       const oldVer = versionMatch[1];
       const parts = oldVer.split('.');
       const minor = parseInt(parts[parts.length - 1]) + 1;
-      parts[parts.length - 1] = String(minor).padStart(2, '0');
+      parts[parts.length - 1] = String(minor);
       const newVer = parts.join('.');
       // キャッシュクリア用バージョン
       content = content.replace(
