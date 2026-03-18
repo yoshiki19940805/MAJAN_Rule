@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.8";
+    const currentVersion = "v2.9";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -199,81 +199,70 @@
     }
   });
 
-  // Googleアカウントにリンク（匿名→Google）
+  // Googleアカウントでログイン（匿名データは自動移行）
   async function linkToGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
+    const oldUid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+    const wasAnonymous = fbAuth.currentUser ? fbAuth.currentUser.isAnonymous : false;
+    
+    // 匿名ユーザーのFirestoreデータを事前に読み取り
+    let anonCloudRules = [];
+    if (wasAnonymous && oldUid) {
+      try {
+        const snap = await fbDb.collection('users').doc(oldUid).collection('rules').get();
+        snap.forEach(doc => {
+          const d = doc.data();
+          anonCloudRules.push({
+            id: doc.id,
+            mode: d.mode || '四麻',
+            name: d.name || '',
+            base_rule: d.base_rule || '',
+            date: d.date || '',
+            settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
+          });
+        });
+      } catch (err) { console.warn('Failed to read anon data:', err); }
+    }
+    
     try {
-      const currentUser = fbAuth.currentUser;
-      if (currentUser && currentUser.isAnonymous) {
-        await currentUser.linkWithPopup(provider);
-        if (typeof showSnack === 'function') showSnack('Googleアカウントに連携しました');
-        // リンク後にローカルルールをクラウドに同期
-        await syncRulesToCloud();
-        if (typeof renderHome === 'function') renderHome();
-      } else if (currentUser) {
-        if (typeof showSnack === 'function') showSnack('すでにログイン済みです');
-      } else {
-        signInWithGoogle();
-      }
-    } catch (e) {
-      if (e.code === 'auth/credential-already-in-use') {
-        // 匿名ユーザーのデータを移行する
-        const oldAnonUid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
-        
-        // ① 匿名UIDのFirestoreデータを一時保存
-        let anonCloudRules = [];
-        if (oldAnonUid) {
-          try {
-            const snap = await fbDb.collection('users').doc(oldAnonUid).collection('rules').get();
-            snap.forEach(doc => {
-              const d = doc.data();
-              anonCloudRules.push({
-                id: doc.id,
-                mode: d.mode || '四麻',
-                name: d.name || '',
-                base_rule: d.base_rule || '',
-                date: d.date || '',
-                settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
-              });
-            });
-          } catch (err) { console.warn('Failed to read anon data:', err); }
-        }
-        
-        // ② Googleアカウントでサインイン（ポップアップを再表示）
-        await fbAuth.signInWithPopup(provider);
-        
-        // ③ ローカルのルール（匿名時に作ったもの含む）をクラウドにマージ
-        await mergeCloudRules();
-        
-        // ④ 匿名UIDのFirestoreデータも新UIDにマージ
-        if (anonCloudRules.length > 0) {
-          const existingIds = new Set(appData.rules.map(r => r.id));
-          for (const r of anonCloudRules) {
-            if (!existingIds.has(r.id)) {
-              appData.rules.push(r);
-            }
+      // Googleポップアップを開く（1回だけ）
+      await fbAuth.signInWithPopup(provider);
+      // onAuthStateChanged が発火し、_fbUid が更新される
+      
+      // ローカル + クラウドのデータをマージ
+      await mergeCloudRules();
+      
+      // 匿名時のクラウドデータも移行
+      if (anonCloudRules.length > 0) {
+        const existingIds = new Set(appData.rules.map(r => r.id));
+        for (const r of anonCloudRules) {
+          if (!existingIds.has(r.id)) {
+            appData.rules.push(r);
           }
         }
-        await syncRulesToCloud();
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(err) {}
-        
-        // ⑤ 古い匿名UIDのFirestoreデータを削除（孤児にしない）
-        if (oldAnonUid && oldAnonUid !== _fbUid) {
-          try {
-            const oldSnap = await fbDb.collection('users').doc(oldAnonUid).collection('rules').get();
-            const batch = fbDb.batch();
-            oldSnap.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
-            // ユーザードキュメント自体も削除
-            await fbDb.collection('users').doc(oldAnonUid).delete();
-          } catch (err) { console.warn('Failed to cleanup anon data:', err); }
-        }
-        
-        if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
-        if (typeof renderHome === 'function') renderHome();
+      }
+      await syncRulesToCloud();
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(err) {}
+      
+      // 古い匿名UIDのFirestoreデータを削除
+      if (wasAnonymous && oldUid && oldUid !== _fbUid) {
+        try {
+          const oldSnap = await fbDb.collection('users').doc(oldUid).collection('rules').get();
+          const batch = fbDb.batch();
+          oldSnap.forEach(doc => batch.delete(doc.ref));
+          if (oldSnap.size > 0) await batch.commit();
+          await fbDb.collection('users').doc(oldUid).delete();
+        } catch (err) { console.warn('Failed to cleanup anon data:', err); }
+      }
+      
+      if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
+      if (typeof renderHome === 'function') renderHome();
+    } catch (e) {
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        // ユーザーがポップアップを閉じた場合は何もしない
       } else {
-        console.error('Link to Google failed:', e);
-        if (typeof showSnack === 'function') showSnack('連携に失敗しました');
+        console.error('Google sign-in failed:', e);
+        if (typeof showSnack === 'function') showSnack('ログインに失敗しました');
       }
     }
   }
@@ -2892,8 +2881,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.8", 
-    buildDate: "2026-03-18 19:44",
+    appVersion: "v2.9", 
+    buildDate: "2026-03-18 19:46",
   };
 
   // ==========================================
