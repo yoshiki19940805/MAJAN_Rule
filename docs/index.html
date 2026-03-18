@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.19";
+    const currentVersion = "v2.20";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -1847,6 +1847,7 @@ function renderEdit() {
     }
 
     const catMemo = rule.settings['memo_' + catKey] || '';
+    const memoRows = Math.max(2, (catMemo.match(/\n/g) || []).length + 2);
     if (!isSharedMode || catMemo.trim() !== '') {
         catDivContent.push(`
             <div class="mt-3 w-full">
@@ -1857,7 +1858,7 @@ function renderEdit() {
                     </div>
                     <textarea placeholder="自由にメモや追加ルールを記載できます..." 
                         class="w-full bg-transparent border-none text-[14px] text-theme-text outline-none resize-none placeholder-gray-400 leading-relaxed" 
-                        rows="2" 
+                        rows="${memoRows}" 
                         oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; onSettingChange('memo_${catKey}',this.value)"
                         ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
                 </div>
@@ -2792,8 +2793,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.19", 
-    buildDate: "2026-03-18 20:21",
+    appVersion: "v2.20", 
+    buildDate: "2026-03-18 20:43",
   };
 
   // ==========================================
