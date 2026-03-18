@@ -74,7 +74,7 @@ function loadPresetData() {
     if (m) {
       const readonly = metaRows['_readonly'] ? (metaRows['_readonly'][c] || '').trim() === '○' : true;
       const isDefault = metaRows['_default'] ? (metaRows['_default'][c] || '').trim() === '○' : true;
-      presetCols.push({ col: c, mode: m[1], name: m[2], readonly, isDefault });
+      presetCols.push({ col: c, mode: m[1], name: m[2], fullKey: header[c], readonly, isDefault });
     }
   }
 
@@ -102,7 +102,7 @@ function loadPresetData() {
     const key = row[1] || '';
     const opts4 = (row[3] || '').split(',').map(s => s.trim()).filter(Boolean);
     const opts3 = (row[4] || '').split(',').map(s => s.trim()).filter(Boolean);
-    const values = Object.fromEntries(presetCols.map(p => [p.name, row[p.col] || '']));
+    const values = Object.fromEntries(presetCols.map(p => [p.fullKey, row[p.col] || '']));
 
     // 四麻/三麻の所属判定
     const has4 = opts4.length > 0 || presets4.some(p => (row[p.col] || '').trim() !== '');
@@ -197,8 +197,8 @@ function generateJs(entries, presetCols) {
     const ruleName = p.name;
     const settings = [];
     for (const e of entries) {
-      if (e.cat4 && e.values[p.name] !== undefined) {
-        settings.push(`${e.key}:${js(e.values[p.name])}`);
+      if (e.cat4 && e.values[p.fullKey] !== undefined) {
+        settings.push(`${e.key}:${js(e.values[p.fullKey])}`);
         // _custom 値を自動追加（_memo系除外）
         if (!SKIP_AUTO_CUSTOM(e.key) && allDropdownKeys4.includes(e.key)) {
           settings.push(`${e.key}_custom:""`);
@@ -229,8 +229,8 @@ function generateJs(entries, presetCols) {
     const ruleName = p.name;
     const settings = [];
     for (const e of entries) {
-      if (e.cat3 && e.values[p.name] !== undefined) {
-        settings.push(`${e.key}:${js(e.values[p.name])}`);
+      if (e.cat3 && e.values[p.fullKey] !== undefined) {
+        settings.push(`${e.key}:${js(e.values[p.fullKey])}`);
         if (!SKIP_AUTO_CUSTOM(e.key) && allDropdownKeys3.includes(e.key)) {
           settings.push(`${e.key}_custom:""`);
         }
