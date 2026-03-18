@@ -1,11 +1,11 @@
-const { chromium } = require('playwright');
+const puppeteer = require('puppeteer');
 
 (async () => {
-  const browser = await chromium.launch({headless: true});
+  const browser = await puppeteer.launch({headless: true});
   const page = await browser.newPage();
   
   // Go to local server
-  await page.goto('http://localhost:8080/index.html?v=v72', {waitUntil: 'networkidle'});
+  await page.goto('http://localhost:8080/index.html?v=v72', {waitUntil: 'networkidle0'});
 
   // Wait for React to mount
   await page.waitForSelector('.screen.active');
@@ -30,7 +30,6 @@ const { chromium } = require('playwright');
     navigator.clipboard = {
       writeText: async (text) => {
         caughtUrl = text;
-        return Promise.resolve();
       }
     };
     
@@ -57,11 +56,11 @@ const { chromium } = require('playwright');
   });
   
   // Try to override alert
-  await newPage.evaluateInit(() => {
+  await newPage.evaluateOnNewDocument(() => {
     window.alert = (msg) => console.log('ALERT:', msg);
   });
 
-  await newPage.goto(shareUrl, {waitUntil: 'networkidle'});
+  await newPage.goto(shareUrl, {waitUntil: 'networkidle0'});
   
   const h1 = await newPage.evaluate(() => {
     return document.querySelector('#edit-name') ? document.querySelector('#edit-name').value : 'Not found';

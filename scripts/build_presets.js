@@ -14,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = __dirname;
+const ROOT = path.resolve(__dirname, '..');
 const TSV_PATH = path.join(ROOT, 'presets', 'presets_all.tsv');
 
 // =====================================================================
@@ -388,7 +388,17 @@ function main() {
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const buildDate = jst.toISOString().replace('T', ' ').slice(0, 16);
 
-  for (const f of [path.join(ROOT,'index.html'), path.join(ROOT,'docs','index.html')]) {
+  // src/ → docs/ へ自動コピー
+  const copyFiles = ['index.html', 'style.css', 'sw.js'];
+  for (const file of copyFiles) {
+    const srcFile = path.join(ROOT, 'src', file);
+    const dstFile = path.join(ROOT, 'docs', file);
+    if (fs.existsSync(srcFile)) {
+      fs.copyFileSync(srcFile, dstFile);
+    }
+  }
+
+  for (const f of [path.join(ROOT,'src','index.html'), path.join(ROOT,'docs','index.html')]) {
     if (!fs.existsSync(f)) { console.log(`⏭️ ${f} not found`); continue; }
     let content = fs.readFileSync(f, 'utf-8');
 

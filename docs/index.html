@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.24";
+    const currentVersion = "v2.27";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -764,7 +764,7 @@ const BASE_RULES_3 = {
     reach_1000:"あり(局終了時に0点でトビ)", reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"",
     reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
     shugi_value:"2000点相当", shugi_value_custom:"", shugi_ippatsu:"あり", shugi_ippatsu_custom:"",
-    shugi_ura:"あり", shugi_ura_custom:"", shugi_niji:"鳴き祝儀", shugi_niji_custom:"", shugi_all_star:"6枚",
+    shugi_ura:"あり", shugi_ura_custom:"", shugi_niji:"鳴き祝儀", shugi_niji_custom:"", shugi_all_star:"なし",
     shugi_all_star_custom:"", shugi_pocchi:"あり（リーチ後白ポッチツモ）", shugi_pocchi_custom:"", shugi_ym_tsumo:"5枚",
     shugi_ym_tsumo_custom:"", shugi_ym_ron:"10枚", shugi_ym_ron_custom:"", shugi_kazoe:"対象外",
     shugi_kazoe_custom:"", tobi_shou:"場に２枚（飛ばした人が受け取る）", tobi_shou_custom:"", sp_4mai_chii:"あり（2翻）",
@@ -2825,8 +2825,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.24", 
-    buildDate: "2026-03-18 21:16",
+    appVersion: "v2.27", 
+    buildDate: "2026-03-18 21:51",
   };
 
   // ==========================================

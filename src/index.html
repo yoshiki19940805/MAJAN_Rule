@@ -13,12 +13,28 @@
 <link rel="stylesheet" href="style.css">
 <!-- React / Tailwind -->
 <script>
-  // 強制キャッシュクリア
+  // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v0.80";
+    const currentVersion = "v2.27";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
-      window.location.replace("?v=" + currentVersion);
+      // リダイレクト回数をチェック（ループ防止）
+      const redirectKey = '_v_redirect_count';
+      const count = parseInt(sessionStorage.getItem(redirectKey) || '0');
+      if (count >= 3) {
+        // 3回以上リダイレクトしたらループとみなして停止
+        sessionStorage.removeItem(redirectKey);
+        return;
+      }
+      sessionStorage.setItem(redirectKey, String(count + 1));
+      
+      const shareParam = urlParams.get('share');
+      let newUrl = "?v=" + currentVersion;
+      if (shareParam) newUrl += "&share=" + encodeURIComponent(shareParam);
+      window.location.replace(newUrl);
+    } else {
+      // バージョンが一致したらカウンタをリセット
+      sessionStorage.removeItem('_v_redirect_count');
     }
   })();
 </script>
@@ -50,6 +66,182 @@
         }
       }
     }
+  }
+</script>
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  // Firebase初期化
+  const firebaseConfig = {
+    apiKey: "AIzaSyBcyqhr9RAJZgr7djOiABCgZBgPvKK7-3Y",
+    authDomain: "majan-rule.firebaseapp.com",
+    projectId: "majan-rule",
+    storageBucket: "majan-rule.firebasestorage.app",
+    messagingSenderId: "576775573389",
+    appId: "1:576775573389:web:40c9a29a62372625ca37c4"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const fbAuth = firebase.auth();
+  const fbDb = firebase.firestore();
+
+  // =====================================================================
+  // Firebase 同期ヘルパー
+  // =====================================================================
+  let _fbUid = null;
+  let _fbSyncing = false;
+
+  // プリセットIDを判定（プリセットはクラウド保存しない）
+  function isPresetRule(rule) {
+    return rule && (rule.readonly === true || (rule.id && rule.id.startsWith('preset_')));
+  }
+
+  // Firestoreにユーザールールを保存（ログイン済みユーザーのみ）
+  async function syncRulesToCloud() {
+    if (!_fbUid || _fbSyncing) return;
+    // 未ログイン（匿名 or null）の場合はスキップ
+    if (!fbAuth.currentUser || fbAuth.currentUser.isAnonymous) return;
+    try {
+      const userRules = (appData.rules || []).filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
+      const batch = fbDb.batch();
+      const colRef = fbDb.collection('users').doc(_fbUid).collection('rules');
+      
+      // 現在のルールを書き込み
+      for (const rule of userRules) {
+        batch.set(colRef.doc(rule.id), {
+          mode: rule.mode,
+          name: rule.name,
+          base_rule: rule.base_rule || '',
+          date: rule.date || '',
+          settings: JSON.stringify(rule.settings || {}),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      console.warn('Cloud sync failed:', e);
+    }
+  }
+
+  // Firestoreからユーザールールを読み込み
+  async function loadRulesFromCloud() {
+    if (!_fbUid) return [];
+    try {
+      const snap = await fbDb.collection('users').doc(_fbUid).collection('rules').get();
+      const cloudRules = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        cloudRules.push({
+          id: doc.id,
+          mode: d.mode || '四麻',
+          name: d.name || '',
+          base_rule: d.base_rule || '',
+          date: d.date || '',
+          settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
+        });
+      });
+      return cloudRules;
+    } catch (e) {
+      console.warn('Cloud load failed:', e);
+      return [];
+    }
+  }
+
+  // ローカルとクラウドのルールをマージ
+  async function mergeCloudRules() {
+    const cloudRules = await loadRulesFromCloud();
+    if (cloudRules.length === 0) return;
+
+    const localUserRules = appData.rules.filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
+    const localIds = new Set(localUserRules.map(r => r.id));
+
+    // クラウドにあってローカルにないルールを追加
+    for (const cr of cloudRules) {
+      if (!localIds.has(cr.id)) {
+        appData.rules.push(cr);
+      }
+    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+    if (typeof renderHome === 'function') renderHome();
+  }
+
+  // Firestoreから特定ルールを削除（ログイン済みユーザーのみ）
+  async function deleteRuleFromCloud(ruleId) {
+    if (!_fbUid) return;
+    if (!fbAuth.currentUser || fbAuth.currentUser.isAnonymous) return;
+    try {
+      await fbDb.collection('users').doc(_fbUid).collection('rules').doc(ruleId).delete();
+    } catch (e) {
+      console.warn('Cloud delete failed:', e);
+    }
+  }
+
+  // Googleログイン
+  function signInWithGoogle() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    fbAuth.signInWithPopup(provider).catch(e => {
+      console.error('Google sign-in failed:', e);
+      if (typeof showSnack === 'function') showSnack('ログインに失敗しました');
+    });
+  }
+
+  // ログアウト
+  function signOutFirebase() {
+    fbAuth.signOut().then(() => {
+      if (typeof showSnack === 'function') showSnack('ログアウトしました');
+      if (typeof renderHome === 'function') renderHome();
+    });
+  }
+
+  // 認証状態の監視
+  fbAuth.onAuthStateChanged(async (user) => {
+    if (user && !user.isAnonymous) {
+      // Googleログイン済みユーザー
+      _fbUid = user.uid;
+      window._fbUser = user;
+      // クラウドからルールをマージ
+      if (typeof STORAGE_KEY !== 'undefined') {
+        await mergeCloudRules();
+      }
+      if (typeof renderHome === 'function') renderHome();
+    } else {
+      // 未ログイン（匿名含む）→ ローカルのみ
+      _fbUid = null;
+      window._fbUser = null;
+      if (typeof renderHome === 'function') renderHome();
+    }
+  });
+
+  // Googleログイン（ボタンクリック直後に即ポップアップ）
+  let _fbSigningIn = false;
+  window._fbSigningIn = false;
+  function linkToGoogle() {
+    if (_fbSigningIn) return; // 二重タップ防止
+    _fbSigningIn = true;
+    window._fbSigningIn = true;
+    if (typeof renderHome === 'function') renderHome(); // ローディング表示に即座更新
+    const provider = new firebase.auth.GoogleAuthProvider();
+    
+    // ★ async処理なしで即座にポップアップを開く（iOS Safari対策）
+    fbAuth.signInWithPopup(provider).then(async (result) => {
+      _fbSigningIn = false;
+      window._fbSigningIn = false;
+      // ログイン成功 → ローカルのルールをクラウドにアップロード
+      await mergeCloudRules();
+      await syncRulesToCloud();
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(err) {}
+      if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
+      if (typeof renderHome === 'function') renderHome();
+    }).catch((e) => {
+      _fbSigningIn = false;
+      window._fbSigningIn = false;
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        return; // ユーザーが閉じた
+      }
+      console.error('Google sign-in error:', e.code, e.message);
+      if (typeof showSnack === 'function') showSnack('ログインに失敗しました: ' + (e.code || e.message));
+    });
   }
 </script>
 <!-- lz-string (URL sharing compression) -->
@@ -87,18 +279,21 @@
   .swipe-item {
       position: relative;
       overflow: hidden;
-      border-bottom: 0.5px solid var(--color-border);
   }
-  .swipe-item:last-child { border-bottom: none; }
   
   .swipe-content {
       position: relative;
       z-index: 10;
       background-color: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
       transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
       display: flex;
       flex-direction: column;
       padding: 12px 16px;
+  }
+  
+  .swipe-item:last-child .swipe-content { 
+      border-bottom: none; 
   }
   
   .swipe-actions {
@@ -110,7 +305,9 @@
       z-index: 5;
   }
 
-  .is-changed .swipe-content { background-color: var(--color-highlight-bg); }
+  .is-changed .swipe-content {
+      background-color: var(--color-highlight-bg);
+  }
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
 
   .material-symbols-outlined {
@@ -130,6 +327,7 @@
   /* React用のスクロールバー非表示とアニメーションはここに隔離 */
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes slideUp {
     from { transform: translate(-50%, 100%); opacity: 0; }
     to { transform: translate(-50%, 0); opacity: 1; }
@@ -173,7 +371,7 @@
             
             <div class="mt-3 flex items-start gap-1.5 text-[11px] text-theme-textMuted px-1">
                 <span class="material-symbols-outlined text-[14px] text-theme-primary">info</span>
-                <p>標準ルールから変更した項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
+                <p>標準ルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
             </div>
         </div>
 
@@ -212,53 +410,7 @@
         </div>
     </div>
   </div>
-  <!-- 標準ルールの管理画面 -->
-  <div class="screen bg-theme-bg" id="screen-custom-base-manager" style="padding-bottom: 5rem;">
-    <div class="sticky top-0 z-50 bg-theme-surface border-b border-theme-border flex items-center justify-between px-4 py-3 shadow-sm">
-      <button class="text-theme-primary flex items-center gap-1 font-bold text-[15px] active:opacity-70 transition-opacity" onclick="showScreen('home')">
-        <span class="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>ホーム
-      </button>
-      <span class="font-bold text-theme-text text-[15px]">標準ルール管理</span>
-      <div style="width:70px"></div>
-    </div>
-    <div class="px-4 py-4 max-w-md mx-auto" style="padding-left: var(--app-padding); padding-right: var(--app-padding);">
-      <div class="flex flex-col gap-3 mb-6">
-        <button class="w-full bg-theme-primary text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform" onclick="createNewCustomBase('四麻')">
-          <span class="material-symbols-outlined text-[22px]">add_circle</span>四麻 新規作成
-        </button>
-        <button class="w-full bg-teal-600 text-white rounded-xl py-3.5 flex items-center justify-center gap-2 font-semibold shadow-sm active:scale-95 transition-transform" onclick="createNewCustomBase('三麻')">
-          <span class="material-symbols-outlined text-[22px]">add_circle</span>三麻 新規作成
-        </button>
-      </div>
-      <div id="custom-base-list" class="flex flex-col gap-3 w-full"></div>
-    </div>
-  </div>
 
-  <!-- 標準ルールの編集画面 -->
-  <div class="screen bg-theme-bg" id="screen-custom-base-editor" style="padding-bottom: 5rem;">
-    <div class="sticky top-0 z-50 bg-theme-surface border-b border-theme-border flex items-center justify-between px-4 py-3 shadow-sm">
-      <button class="text-theme-primary flex items-center gap-1 font-bold text-[15px] active:opacity-70 transition-opacity" onclick="showScreen('custom-base-manager')">
-        <span class="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>戻る
-      </button>
-      <span class="font-bold text-theme-text text-[15px]" id="custom-base-title">標準ルール編集</span>
-      <button class="bg-theme-primary text-white px-4 py-1.5 rounded-full font-bold text-[13px] active:bg-blue-600 shadow-sm" onclick="saveCustomBaseRule()">保存</button>
-    </div>
-    <div class="px-4 py-4 max-w-md mx-auto">
-      <div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm mb-6">
-        <label class="block text-[11px] font-bold text-theme-textMuted mb-2">ルール名</label>
-        <input type="text" id="custom-base-name" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[15px] font-bold text-theme-text outline-none focus:border-theme-primary/50 transition-colors" placeholder="例：うちのローカルルール">
-      </div>
-      <div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm mb-6">
-        <label class="block text-[11px] font-bold text-theme-textMuted mb-2">コピー元 (未選択でデフォルト)</label>
-        <div class="relative w-full">
-          <select id="custom-base-source" onchange="copyBaseToCustom()" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2.5 text-[14px] text-theme-text outline-none appearance-none pr-8 truncate focus:border-theme-primary/50">
-          </select>
-          <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-theme-textMuted pointer-events-none">expand_content</span>
-        </div>
-      </div>
-      <div id="custom-base-editor-items" class="flex flex-col gap-6"></div>
-    </div>
-  </div>
 
 
 <!-- 削除確認 -->
@@ -285,372 +437,576 @@
 // マスターデータ定義
 // =====================================================================
 
+/* __BEGIN_PRESETS__ */
 const OPTIONS_4 = {
-  length:["東南戦","東風戦"],
+  length:["東南戦","東風戦","カスタム"],
   mochi_ten:["25000点","30000点","カスタム"],
-  mochi_ten_custom:[""],
   kaeshi_ten:["30000点","25000点","カスタム"],
-  kaeshi_ten_custom:[""],
-  uma:["10-20","10-30","5-15","カスタム"],
-  uma_custom:[""],
-  tobi:["あり（0点未満で終了）","あり（0点ちょうどで終了）","なし"],
-  nishiiri:["なし","あり"],
+  uma:["5-15","10-20","10-30","カスタム"],
+  tobi:["あり（0点未満で終了）","あり（0点ちょうどで終了）","なし","カスタム"],
+  nishiiri:["なし","あり","カスタム"],
+  tsumopin:["あり","なし","カスタム"],
   ipponba:["300点","1500点","カスタム"],
-  ipponba_custom:[""],
-  renchan:["テンパイ連荘","テンパイ連荘（形テンNG）","アガリ連荘"],
+  renchan:["テンパイ連荘","テンパイ連荘（形テンNG）","アガリ連荘","カスタム"],
   oras_oya:["アガリ止め・テンパイ止めあり","アガリ止め・テンパイ止めなし","カスタム"],
-  oras_oya_custom:[""],
-  tochu_kyushu:["あり","なし"],
-  tochu_sufon:["あり","なし"],
-  tochu_sukan:["あり","なし"],
-  tochu_sucha:["あり","なし"],
-  tochu_sancha:["あり","なし"],
-  tochu_honba:["積む","積まない"],
-  double_ron:["あり","なし（頭ハネ）"],
-  triple_ron:["全員アガリ","流局（三家和）","頭ハネ"],
-  naki_priority:["発声優先（同時ならポン・カン優先）","ポン・カン優先"],
+  double_ron:["あり(本場・積み棒は頭ハネ)","頭ハネ","カスタム"],
+  triple_ron:["あり(本場・積み棒は頭ハネ)","頭ハネ","流局(三家和)","カスタム"],
+  naki_priority:["発声優先(同時ならポン・カン優先)","ポン・カン優先","カスタム"],
   tsumo_yama:["王牌14枚残し","ドラ表示牌の隣までツモり切り","カスタム"],
-  kuitan:["あり","なし"],
-  atozuke:["あり","なし"],
-  kuikae:["禁止","あり"],
+  tochu_kyushu:["あり","なし","カスタム"],
+  tochu_sufon:["あり","なし","カスタム"],
+  tochu_sukan:["あり","なし","カスタム"],
+  tochu_sucha:["あり","なし","カスタム"],
+  tochu_sancha:["あり","なし","カスタム"],
+  tochu_honba:["積む","積まない","途中流局なし","カスタム"],
+  kuitan:["あり","なし","カスタム"],
+  atozuke:["あり","なし","カスタム"],
+  kuikae:["禁止","あり","カスタム"],
   aka_dora:["各1枚（計3枚）","なし","カスタム"],
-  kan_dora:["先めくり","暗槓のみ先めくり","カスタム"],
-  tsumopin:["あり","なし"],
-  kiriage:["あり","なし"],
-  renpai_toitsu:["2符","4符"],
-  nagashi:["あり（流局時成立）","なし"],
-  kokushi_ankan:["あり","なし"],
-  shiro_pocchi:["なし","あり（リーチ後オールマイティ）"],
-  yakuman_type:["雀魂に準ずる","天鳳に準ずる","カスタム"],
-  yakuman_custom_memo:[""],
-  yakuman_fukugo:["なし","あり","カスタム"],
-  kazoe_yakuman:["13飜以上","なし"],
-  sp_daisharin:["なし","あり（清一七対子）"],
-  sp_renho:["なし","あり"],
-  sp_nagashi_ym:["なし","あり"],
-  sp_4mai_chii:["なし","あり（2翻）"],
-  sp_shosharin:["なし","あり（混一七対子・6翻）"],
+  kan_dora:["先めくり","後めくり","暗槓のみ先めくり","カスタム"],
+  kiriage:["あり","なし","カスタム"],
+  renpai_toitsu:["2符","4符","カスタム"],
+  nagashi:["あり（流局時成立）","なし","カスタム"],
+  yakuman_type:["雀魂に準ずる","天鳳に準ずる","Mリーグに準拠","カスタム"],
+  yakuman_fukugo:["なし","あり","複合のみあり","カスタム"],
+  kazoe_yakuman:["13飜以上","なし","カスタム"],
+  kokushi_ankan:["あり","なし","カスタム"],
   furiten_reach:["あり","なし","カスタム"],
-  open_reach:["なし","あり","カスタム"],
-  furiten_open_reach:["あり","なし","カスタム"],
-  tsumo_nashi_reach:["不可","可"],
-  reach_1000:["あり","なし","あり（局終了時にトビ）","あり（局終了時に0点でトビ）"],
-  reach_ankan_okuri:["可","不可"],
-  reach_ankan_machi:["可","不可"],
-  reach_ankan_mentsu:["可","不可"],
-  shugi_pocchi:["あり（リーチ後白ポッチツモ）","なし"],
-  shugi_ippatsu:["あり","なし"],
-  shugi_ura:["あり","なし"],
-  shugi_aka:["鳴き祝儀","門前祝儀","なし"],
-  shugi_ym_tsumo:["5枚オール","3枚オール","なし"],
-  shugi_ym_ron:["10枚","5枚","なし"],
-  shugi_kazoe:["対象外","対象"],
-  tobi_shou:["あり（飛ばされた人が場にチップ2枚）","なし","カスタム"],
-  shugi_memo:[""],
-  pao_daisangen:["あり","なし"],
-  pao_daisushi:["あり","なし"],
-  pao_sukantu:["なし","あり"],
-  pao_tsumo:["パオの人が全額","通常精算"],
-  pao_ron:["パオの人と振込者で折半","振込者が全額"],
-  chombo_batsu:["満貫払い","倍満払い","カスタム","なし"],
-  chombo_memo:[""],
-  chombo_taiou:["やり直し","流局扱い","親なら流局","なし"],
-  keibappu_type:["1000点供託","カスタム"],
-  pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
-  pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
-  pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
-  pen_goron_no_taopai:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_gonaki_sarashi:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_kuikae_ihan:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_tahai:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_gonaki_hassei:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
-  pen_reach_torikeshi:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
-  pen_shouhai:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
+  open_reach:["なし","あり","フリテンOK","カスタム"],
+  tsumo_nashi_reach:["あり、なし","カスタム"],
+  reach_1000miman:["あり","なし","カスタム"],
+  reach_ankan_okuri:["可","不可","カスタム"],
+  reach_ankan_machi:["可","不可","カスタム"],
+  reach_ankan_mentsu:["可","不可","カスタム"],
+  shugi_value:["2000点相当","4000点相当","10000点相当","祝儀なし","カスタム"],
+  shugi_ippatsu:["あり","なし","カスタム"],
+  shugi_ura:["あり","なし","カスタム"],
+  shugi_aka:["鳴き祝儀","門前祝儀","なし","カスタム"],
+  shugi_all_star:["6枚","なし","カスタム"],
+  shugi_pocchi:["あり（リーチ後白ポッチツモ）","なし","カスタム"],
+  shugi_ym_tsumo:["5枚オール","3枚オール","なし","カスタム"],
+  shugi_ym_ron:["10枚","5枚","なし","カスタム"],
+  shugi_kazoe:["対象外","対象","カスタム"],
+  tobi_shou:["場に3枚(飛ばした人が受け取る)","なし","カスタム"],
+  sp_4mai_chii:["なし","あり（2翻）","カスタム"],
+  sp_shosharin:["なし","あり（混一七対子・6翻）","カスタム"],
+  shiro_pocchi:["なし","あり（リーチ後オールマイティ）","カスタム"],
+  pao_daisangen:["あり","なし","カスタム"],
+  pao_daisushi:["あり","なし","カスタム"],
+  pao_sukantu:["なし","あり","カスタム"],
+  pao_tsumo:["パオの人が全額","通常精算","カスタム"],
+  pao_ron:["パオの人と振込者で折半","振込者が全額","カスタム"],
+  chombo_batsu:["満貫払い","倍満払い","なし","カスタム"],
+  chombo_taiou:["やり直し","流局扱い","親なら流局","なし","カスタム"],
+  pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_noten_reach:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_hakai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_goron_no_taopai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_gonaki_sarashi:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_kuikae_ihan:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_tahai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_gonaki_hassei:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_shouhai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  keibappu_type:["1000点供託","なし","カスタム"],
+  keibappu_taiou:["ゲーム続行","なし","カスタム"],
+  penalty_misehai:["なし","カスタム"],
+  penalty_koshihai:["なし","カスタム"],
 };
 
 const OPTIONS_3 = {
-  length:["東南戦","東風戦"],
+  length:["東南戦","東風戦","カスタム"],
   mochi_ten:["30000点","35000点","50000点","カスタム"],
-  mochi_ten_custom:[""],
   kaeshi_ten:["35000点","40000点","50000点","カスタム"],
-  kaeshi_ten_custom:[""],
-  uma:["+20/±0/-20","+30/±0/-30","なし","カスタム"],
-  uma_custom:[""],
-  tobi:["あり（0点ちょうどで終了）","あり（0点未満で終了）","なし"],
-  tsumozon:["なし","あり"],
-  fu_keisan:["なし（専用点数表）","あり"],
-  tsumopin:["あり","なし"],
+  uma:["+10/±0/-10","+20/±0/-20","+30/±0/-30","なし","カスタム"],
+  tobi:["あり（0点ちょうどで終了）","あり（0点未満で終了）","なし","カスタム"],
+  tsumopin:["あり","なし","カスタム"],
   ipponba:["1000点","カスタム"],
-  ipponba_custom:[""],
+  tsumozon:["なし","あり","カスタム"],
+  fu_keisan:["なし(100点棒使用しない)","あり(100点棒使用する)","カスタム"],
   tenpai_ryou:["場に2000点","カスタム"],
-  renchan:["テンパイ連荘","テンパイ連荘（形テンNG）","アガリ連荘"],
+  renchan:["テンパイ連荘","テンパイ連荘（形テンNG）","アガリ連荘","カスタム"],
   oras_oya:["アガリ止め・テンパイ止めあり","アガリ止め・テンパイ止めなし","カスタム"],
-  oras_oya_custom:[""],
-  tochu_kyushu:["あり","なし"],
-  tochu_sukan:["あり","なし"],
-  tochu_sancha:["あり","なし"],
-  tochu_honba:["積む","積まない"],
-  tochu_ryukyoku:["なし（3人リーチも続行）","あり"],
-  double_ron:["あり","なし（頭ハネ）"],
+  double_ron:["あり(本場・積み棒は頭ハネ)","頭ハネ","カスタム"],
   tsumo_yama:["ドラ表示牌の隣までツモり切り","王牌14枚残し","カスタム"],
-  kuitan:["あり","なし"],
-  atozuke:["あり","なし"],
+  tochu_kyushu:["あり","なし","カスタム"],
+  tochu_sukan:["あり","なし","カスタム"],
+  tochu_honba:["積む","積まない","途中流局なし","カスタム"],
+  kuitan:["あり","なし","カスタム"],
+  atozuke:["あり","なし","カスタム"],
+  kita:["共通役牌（北抜きなし）","抜きドラ","カスタム"],
+  hanapai:["あり（空気扱い・一発消えず・嶺上開花なし）","なし","カスタム"],
   aka_dora:["5に各2枚","カスタム"],
   niji_dora:["5に各2枚","カスタム"],
-  kita:["共通役牌（北抜きなし）","抜きドラ"],
-  hanapai:["あり（空気扱い・一発消えず・嶺上開花なし）","なし"],
   kan_dora:["先めくり","暗槓のみ先めくり","カスタム"],
-  reach_1000:["あり","なし","あり（局終了時にトビ）","あり（局終了時に0点でトビ）"],
-  furiten_reach:["可能（見逃しツモ可）","不可","カスタム"],
-  open_reach:["なし","あり","カスタム"],
-  furiten_open_reach:["あり","なし","カスタム"],
-  tsumo_nashi_reach:["不可","可"],
-  reach_ankan_okuri:["可","不可"],
-  reach_ankan_machi:["可","不可"],
-  reach_ankan_mentsu:["可","不可"],
-  reach_kan:["待ち不変ならOK","不可"],
-  niken_reach:["2軒リーチで残り1人手牌公開","なし"],
-  shiro_pocchi:["あり（リーチ後オールマイティ）","なし"],
-  sp_manzu_honitsu:["あり","なし"],
-  sp_daisharin:["あり（清一七対子）","なし"],
-  sp_renho:["あり","なし"],
-  sp_nagashi_ym:["あり","なし"],
-  sp_4mai_chii:["あり（2翻）","なし"],
-  sp_shosharin:["あり（混一七対子・6翻）","なし"],
-  yakuman_type:["雀魂に準ずる","天鑙に準ずる","カスタム"],
-  yakuman_custom_memo:[""],
-  kazoe_yakuman:["14飜以上","13飜以上","なし"],
-  w_yakuman:["なし","あり","カスタム"],
-  kokushi_ankan:["あり","なし"],
-  shugi_ippatsu:["あり","なし"],
-  shugi_ura:["あり","なし"],
-  shugi_niji:["あり（鳴き祝儀あり）","あり（鳴き祝儀なし）","なし"],
-  shugi_pocchi:["あり（リーチ後白ポッチツモ）","なし"],
-  shugi_ym_tsumo:["5枚","3枚","なし"],
-  shugi_ym_ron:["10枚","5枚","なし"],
-  shugi_kazoe:["対象外","対象"],
-  tobi_shou:["場に２枚（飛ばした人が受け取る）","カスタム"],
-  shugi_memo:[""],
-  pao_daisangen:["あり","なし"],
-  pao_daisushi:["あり","なし"],
-  pao_sukantu:["なし","あり"],
-  pao_tsumo:["パオが全額（チップ5枚）","通常精算"],
-  pao_ron:["パオと振込者で折半（チップ各5枚）","振込者が全額"],
-  chombo_batsu:["倍満払い","満貫払い","カスタム","なし"],
-  chombo_memo:[""],
-  chombo_taiou:["やり直し","流局扱い","親なら流局","なし"],
-  keibappu_type:["1000点供託","カスタム"],
-  pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
-  pen_noten_reach:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
-  pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","カスタム","なし"],
-  pen_goron_no_taopai:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_gonaki_sarashi:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_kuikae_ihan:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_tahai:["上がり放棄","チョンボ","軽罰符","カスタム","なし"],
-  pen_gonaki_hassei:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
-  pen_reach_torikeshi:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
-  pen_shouhai:["軽罰符","上がり放棄","チョンボ","カスタム","なし"],
+  yakuman_type:["雀魂に準ずる","カスタム"],
+  yakuman_fukugo:["なし","あり","カスタム"],
+  kazoe_yakuman:["14飜以上","13飜以上","なし","カスタム"],
+  kokushi_ankan:["あり","なし","カスタム"],
+  furiten_reach:["あり","チョンボ","カスタム"],
+  open_reach:["なし","あり","フリテンOK","カスタム"],
+  tsumo_nashi_reach:["あり、なし","カスタム"],
+  reach_1000:["あり(局終了時にトビ)","あり(局終了時に0点でトビ)","なし","カスタム"],
+  reach_ankan_okuri:["可","不可","カスタム"],
+  reach_ankan_machi:["可","不可","カスタム"],
+  reach_ankan_mentsu:["可","不可","カスタム"],
+  shugi_value:["2000点相当","4000点相当","10000点相当","なし","カスタム"],
+  shugi_ippatsu:["あり","なし","カスタム"],
+  shugi_ura:["あり","なし","カスタム"],
+  shugi_niji:["鳴き祝儀","門前祝儀","なし","カスタム"],
+  shugi_all_star:["6枚","なし","カスタム"],
+  shugi_pocchi:["あり（リーチ後白ポッチツモ）","なし","カスタム"],
+  shugi_ym_tsumo:["5枚","3枚","なし","カスタム"],
+  shugi_ym_ron:["10枚","5枚","なし","カスタム"],
+  shugi_kazoe:["対象外","対象","カスタム"],
+  tobi_shou:["場に2枚(飛ばした人が受け取る)","なし","カスタム"],
+  sp_4mai_chii:["あり（2翻）","なし","カスタム"],
+  sp_shosharin:["あり（混一七対子・6翻）","なし","カスタム"],
+  sp_manzu_honitsu:["あり","なし","カスタム"],
+  sp_daisharin:["あり（清一七対子）","なし","カスタム"],
+  sp_renho:["あり","なし","カスタム"],
+  sp_nagashi_ym:["あり","なし","カスタム"],
+  shiro_pocchi:["あり（リーチ後オールマイティ）","なし","カスタム"],
+  pao_daisangen:["あり","なし","カスタム"],
+  pao_daisushi:["あり","なし","カスタム"],
+  pao_sukantu:["なし","あり","カスタム"],
+  pao_tsumo:["パオが全額(チップ5枚)","通常精算","カスタム"],
+  pao_ron:["パオと振込者で折半","振込者が全額","カスタム"],
+  chombo_batsu:["倍満払い","満貫払い","なし","カスタム"],
+  chombo_taiou:["やり直し","流局扱い","親なら流局","なし","カスタム"],
+  pen_goron_taopai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_noten_reach:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_reach_bad_ankan:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_hakai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_goron_no_taopai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_gonaki_sarashi:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_kuikae_ihan:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_tahai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_gonaki_hassei:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  pen_shouhai:["チョンボ","上がり放棄","軽罰符","なし","カスタム"],
+  keibappu_type:["1000点供託","なし","カスタム"],
+  keibappu_taiou:["ゲーム続行","なし","カスタム"],
+  penalty_misehai:["なし","カスタム"],
+  penalty_koshihai:["なし","カスタム"],
 };
+
+const customDropdownKeys = new Set(["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","tsumopin","ipponba","renchan","oras_oya","double_ron","triple_ron","naki_priority","tsumo_yama","tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba","kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","yakuman_type","yakuman_fukugo","kazoe_yakuman","kokushi_ankan","furiten_reach","open_reach","tsumo_nashi_reach","reach_1000miman","reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu","shugi_value","shugi_ippatsu","shugi_ura","shugi_aka","shugi_all_star","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou","sp_4mai_chii","sp_shosharin","shiro_pocchi","pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron","chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan","pen_hakai","pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai","pen_gonaki_hassei","pen_shouhai","keibappu_type","keibappu_taiou","penalty_misehai","penalty_koshihai","tsumozon","fu_keisan","tenpai_ryou","kita","hanapai","niji_dora","reach_1000","shugi_niji","sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]);
 
 // --- 基準ルール ---
-const _BASE_4_COMMON = {
-  length:"東南戦", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点", kaeshi_ten_custom:"",
-  tobi:"あり（0点未満で終了）", ipponba:"300点", ipponba_custom:"",
-  renchan:"テンパイ連荘", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
-  tochu_kyushu:"あり", tochu_sufon:"あり", tochu_sukan:"あり", tochu_sucha:"あり", tochu_sancha:"あり",
-  tochu_honba:"積む", naki_priority:"発声優先（同時ならポン・カン優先）",
-  tsumo_yama:"王牌14枚残し",
-  kuitan:"あり", atozuke:"あり", kuikae:"禁止",
-  aka_dora:"各１枚（計3枚）", kan_dora:"先めくり", tsumopin:"あり", renpai_toitsu:"2符",
-  kokushi_ankan:"あり", yakuman_fukugo:"なし", kazoe_yakuman:"13飜以上",
-  yakuman_custom_memo:"",
-  furiten_reach:"あり", open_reach:"なし", furiten_open_reach:"なし",
-  tsumo_nashi_reach:"不可",
-  reach_1000:"なし",
-  reach_ankan_okuri:"可", reach_ankan_machi:"不可", reach_ankan_mentsu:"不可",
-};
-
 const BASE_RULES_4 = {
-  "雀魂（四麻・段位戦）": {..._BASE_4_COMMON, uma:"5-15", nishiiri:"あり",
-    double_ron:"あり", triple_ron:"全員アガリ", kiriage:"なし", nagashi:"あり（流局時成立）",
-    yakuman_type:"雀魂に準ずる", 
-    chombo_batsu:"なし", chombo_taiou:"なし",
-    pen_goron_taopai:"なし", pen_noten_reach:"なし", pen_reach_bad_ankan:"なし",
-    pen_goron_no_taopai:"なし", pen_gonaki_sarashi:"なし", pen_kuikae_ihan:"なし",
-    pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_reach_torikeshi:"なし", pen_shouhai:"なし",
-    shugi_type:"なし", shugi_ippatsu:"なし", shugi_ura:"なし", shugi_aka:"なし", shugi_pocchi:"なし",
-    shugi_ym_tsumo:"なし", shugi_ym_ron:"なし", shugi_kazoe:"対象外", shugi_memo:"",
-    pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
-    pao_tsumo:"パオの人が全額", pao_ron:"パオの人と振込者で折半",
-    sp_daisharin:"なし", sp_renho:"なし", sp_nagashi_ym:"なし", sp_4mai_chii:"なし", sp_shosharin:"なし",
+  "例": {
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"10-20", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    nishiiri:"なし", nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点",
+    ipponba_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
+    oras_oya_custom:"", double_ron:"あり(本場・積み棒は頭ハネ)", double_ron_custom:"", triple_ron:"あり(本場・積み棒は頭ハネ)",
+    triple_ron_custom:"", naki_priority:"発声優先(同時ならポン・カン優先)", naki_priority_custom:"", tsumo_yama:"王牌14枚残し",
+    tsumo_yama_custom:"", tochu_kyushu:"あり", tochu_kyushu_custom:"", tochu_sufon:"あり",
+    tochu_sufon_custom:"", tochu_sukan:"あり", tochu_sukan_custom:"", tochu_sucha:"あり", tochu_sucha_custom:"",
+    tochu_sancha:"なし", tochu_sancha_custom:"", tochu_honba:"積む", tochu_honba_custom:"",
+    kuitan:"あり", kuitan_custom:"", atozuke:"あり", atozuke_custom:"", kuikae:"禁止", kuikae_custom:"",
+    aka_dora:"各１枚（計3枚）", aka_dora_custom:"", kan_dora:"暗槓のみ先めくり", kan_dora_custom:"", kiriage:"なし",
+    kiriage_custom:"", renpai_toitsu:"4符", renpai_toitsu_custom:"", nagashi:"あり（流局時成立）",
+    nagashi_custom:"", yakuman_type:"雀魂に準ずる", yakuman_type_custom:"", yakuman_fukugo:"なし",
+    yakuman_fukugo_custom:"", kazoe_yakuman:"13飜以上", kazoe_yakuman_custom:"", kokushi_ankan:"あり",
+    kokushi_ankan_custom:"", furiten_reach:"あり", furiten_reach_custom:"", open_reach:"なし",
+    open_reach_custom:"", tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000miman:"なし",
+    reach_1000miman_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可",
+    reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
+    shugi_value:"2000点相当", shugi_value_custom:"", shugi_ippatsu:"あり", shugi_ippatsu_custom:"",
+    shugi_ura:"あり", shugi_ura_custom:"", shugi_aka:"あり", shugi_aka_custom:"", shugi_all_star:"6枚",
+    shugi_all_star_custom:"", shugi_pocchi:"なし", shugi_pocchi_custom:"", shugi_ym_tsumo:"5枚オール",
+    shugi_ym_tsumo_custom:"", shugi_ym_ron:"10枚", shugi_ym_ron_custom:"", shugi_kazoe:"対象外",
+    shugi_kazoe_custom:"", tobi_shou:"なし", tobi_shou_custom:"", sp_4mai_chii:"なし", sp_4mai_chii_custom:"",
+    sp_shosharin:"なし", sp_shosharin_custom:"", shiro_pocchi:"なし", shiro_pocchi_custom:"",
+    pao_daisangen:"あり", pao_daisangen_custom:"", pao_daisushi:"あり", pao_daisushi_custom:"",
+    pao_sukantu:"なし", pao_sukantu_custom:"", pao_tsumo:"パオの人が全額", pao_tsumo_custom:"",
+    pao_ron:"パオの人と振込者で折半", pao_ron_custom:"", chombo_batsu:"満貫払い", chombo_batsu_custom:"",
+    chombo_taiou:"やり直し", chombo_taiou_custom:"", pen_goron_taopai:"チョンボ", pen_goron_taopai_custom:"",
+    pen_noten_reach:"チョンボ", pen_noten_reach_custom:"", pen_reach_bad_ankan:"チョンボ", pen_reach_bad_ankan_custom:"",
+    pen_hakai:"チョンボ", pen_hakai_custom:"", pen_goron_no_taopai:"上がり放棄", pen_goron_no_taopai_custom:"",
+    pen_gonaki_sarashi:"上がり放棄", pen_gonaki_sarashi_custom:"", pen_kuikae_ihan:"上がり放棄",
+    pen_kuikae_ihan_custom:"", pen_tahai:"上がり放棄", pen_tahai_custom:"", pen_gonaki_hassei:"軽罰符",
+    pen_gonaki_hassei_custom:"", pen_shouhai:"軽罰符", pen_shouhai_custom:"", keibappu_type:"1000点供託",
+    keibappu_type_custom:"", keibappu_taiou:"ゲーム続行", keibappu_taiou_custom:"", penalty_misehai:"なし",
+    penalty_misehai_custom:"", penalty_koshihai:"なし", penalty_koshihai_custom:"",
   },
-  "Mリーグ公式（四麻）":{..._BASE_4_COMMON, uma:"10-30", uma_custom:"", nishiiri:"なし", tobi:"なし", oras_oya:"アガリ止め・テンパイ止めなし",
-    tochu_kyushu:"なし", tochu_sufon:"なし", tochu_sukan:"なし", tochu_sucha:"なし", tochu_sancha:"なし",
-    double_ron:"なし（頭ハネ）", triple_ron:"頭ハネ",
-    kiriage:"あり", nagashi:"なし", yakuman_type:"カスタム"},
-  "天鳳（四麻）": {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
-    double_ron:"あり", triple_ron:"流局（三家和）", kiriage:"なし", nagashi:"あり（流局時成立）",
-    yakuman_type:"天鳳に準ずる", 
-    chombo_batsu:"なし", chombo_taiou:"なし",
-    pen_goron_taopai:"なし", pen_noten_reach:"なし", pen_reach_bad_ankan:"なし",
-    pen_goron_no_taopai:"なし", pen_gonaki_sarashi:"なし", pen_kuikae_ihan:"なし",
-    pen_tahai:"なし", pen_gonaki_hassei:"なし", pen_reach_torikeshi:"なし", pen_shouhai:"なし",
-    shugi_type:"なし", shugi_ippatsu:"なし", shugi_ura:"なし", shugi_aka:"なし", shugi_pocchi:"なし",
-    shugi_ym_tsumo:"なし", shugi_ym_ron:"なし", shugi_kazoe:"対象外", shugi_memo:"",
-    pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
-    pao_tsumo:"パオの人が全額", pao_ron:"パオの人と振込者で折半",
-    sp_daisharin:"なし", sp_renho:"なし", sp_nagashi_ym:"なし", sp_4mai_chii:"なし", sp_shosharin:"なし",
+  "雀魂": {
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"5-15", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    nishiiri:"あり", nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点",
+    ipponba_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
+    oras_oya_custom:"", double_ron:"あり(本場・積み棒は頭ハネ)", double_ron_custom:"", triple_ron:"あり(本場・積み棒は頭ハネ)",
+    triple_ron_custom:"", naki_priority:"ポン・カン優先", naki_priority_custom:"", tsumo_yama:"王牌14枚残し",
+    tsumo_yama_custom:"", tochu_kyushu:"あり", tochu_kyushu_custom:"", tochu_sufon:"あり",
+    tochu_sufon_custom:"", tochu_sukan:"あり", tochu_sukan_custom:"", tochu_sucha:"あり", tochu_sucha_custom:"",
+    tochu_sancha:"なし", tochu_sancha_custom:"", tochu_honba:"積む", tochu_honba_custom:"",
+    kuitan:"あり", kuitan_custom:"", atozuke:"あり", atozuke_custom:"", kuikae:"禁止", kuikae_custom:"",
+    aka_dora:"各１枚（計3枚）", aka_dora_custom:"", kan_dora:"暗槓のみ先めくり", kan_dora_custom:"", kiriage:"なし",
+    kiriage_custom:"", renpai_toitsu:"4符", renpai_toitsu_custom:"", nagashi:"あり（流局時成立）",
+    nagashi_custom:"", yakuman_type:"雀魂に準ずる", yakuman_type_custom:"", yakuman_fukugo:"あり",
+    yakuman_fukugo_custom:"", kazoe_yakuman:"13飜以上", kazoe_yakuman_custom:"", kokushi_ankan:"あり",
+    kokushi_ankan_custom:"", furiten_reach:"あり", furiten_reach_custom:"", open_reach:"なし",
+    open_reach_custom:"", tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000miman:"なし",
+    reach_1000miman_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可",
+    reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
+    shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
+    shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"", shugi_all_star:"なし",
+    shugi_all_star_custom:"", shugi_pocchi:"なし", shugi_pocchi_custom:"", shugi_ym_tsumo:"なし",
+    shugi_ym_tsumo_custom:"", shugi_ym_ron:"なし", shugi_ym_ron_custom:"", shugi_kazoe:"対象外",
+    shugi_kazoe_custom:"", tobi_shou:"なし", tobi_shou_custom:"", sp_4mai_chii:"なし", sp_4mai_chii_custom:"",
+    sp_shosharin:"なし", sp_shosharin_custom:"", shiro_pocchi:"なし", shiro_pocchi_custom:"",
+    pao_daisangen:"あり", pao_daisangen_custom:"", pao_daisushi:"あり", pao_daisushi_custom:"",
+    pao_sukantu:"なし", pao_sukantu_custom:"", pao_tsumo:"パオの人が全額", pao_tsumo_custom:"",
+    pao_ron:"パオの人と振込者で折半", pao_ron_custom:"", chombo_batsu:"なし", chombo_batsu_custom:"",
+    chombo_taiou:"なし", chombo_taiou_custom:"", pen_goron_taopai:"なし", pen_goron_taopai_custom:"",
+    pen_noten_reach:"なし", pen_noten_reach_custom:"", pen_reach_bad_ankan:"なし", pen_reach_bad_ankan_custom:"",
+    pen_hakai:"なし", pen_hakai_custom:"", pen_goron_no_taopai:"なし", pen_goron_no_taopai_custom:"",
+    pen_gonaki_sarashi:"なし", pen_gonaki_sarashi_custom:"", pen_kuikae_ihan:"なし", pen_kuikae_ihan_custom:"",
+    pen_tahai:"なし", pen_tahai_custom:"", pen_gonaki_hassei:"なし", pen_gonaki_hassei_custom:"",
+    pen_shouhai:"なし", pen_shouhai_custom:"", keibappu_type:"なし", keibappu_type_custom:"",
+    keibappu_taiou:"なし", keibappu_taiou_custom:"", penalty_misehai:"なし", penalty_misehai_custom:"",
+    penalty_koshihai:"なし", penalty_koshihai_custom:"",
+  },
+  "Mリーグ": {
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"10-30", uma_custom:"", tobi:"なし", tobi_custom:"", nishiiri:"なし",
+    nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点", ipponba_custom:"",
+    renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めなし", oras_oya_custom:"",
+    double_ron:"頭ハネ", double_ron_custom:"", triple_ron:"頭ハネ", triple_ron_custom:"", naki_priority:"ポン・カン優先",
+    naki_priority_custom:"", tsumo_yama:"王牌14枚残し", tsumo_yama_custom:"", tochu_kyushu:"なし",
+    tochu_kyushu_custom:"", tochu_sufon:"なし", tochu_sufon_custom:"", tochu_sukan:"なし",
+    tochu_sukan_custom:"", tochu_sucha:"なし", tochu_sucha_custom:"", tochu_sancha:"なし",
+    tochu_sancha_custom:"", tochu_honba:"途中流局なし", tochu_honba_custom:"", kuitan:"あり", kuitan_custom:"",
+    atozuke:"あり", atozuke_custom:"", kuikae:"禁止", kuikae_custom:"", aka_dora:"各１枚（計3枚）",
+    aka_dora_custom:"", kan_dora:"暗槓のみ先めくり", kan_dora_custom:"", kiriage:"あり", kiriage_custom:"",
+    renpai_toitsu:"2符", renpai_toitsu_custom:"", nagashi:"なし", nagashi_custom:"", yakuman_type:"Mリーグに準拠",
+    yakuman_type_custom:"", yakuman_fukugo:"複合のみあり", yakuman_fukugo_custom:"", kazoe_yakuman:"13飜以上",
+    kazoe_yakuman_custom:"", kokushi_ankan:"なし", kokushi_ankan_custom:"", furiten_reach:"あり",
+    furiten_reach_custom:"", open_reach:"なし", open_reach_custom:"", tsumo_nashi_reach:"あり",
+    tsumo_nashi_reach_custom:"", reach_1000miman:"あり", reach_1000miman_custom:"", reach_ankan_okuri:"不可",
+    reach_ankan_okuri_custom:"", reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"不可",
+    reach_ankan_mentsu_custom:"", shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし",
+    shugi_ippatsu_custom:"", shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"",
+    shugi_all_star:"なし", shugi_all_star_custom:"", shugi_pocchi:"なし", shugi_pocchi_custom:"",
+    shugi_ym_tsumo:"なし", shugi_ym_tsumo_custom:"", shugi_ym_ron:"なし", shugi_ym_ron_custom:"",
+    shugi_kazoe:"対象外", shugi_kazoe_custom:"", tobi_shou:"なし", tobi_shou_custom:"", sp_4mai_chii:"なし",
+    sp_4mai_chii_custom:"", sp_shosharin:"なし", sp_shosharin_custom:"", shiro_pocchi:"なし",
+    shiro_pocchi_custom:"", pao_daisangen:"あり", pao_daisangen_custom:"", pao_daisushi:"あり",
+    pao_daisushi_custom:"", pao_sukantu:"なし", pao_sukantu_custom:"", pao_tsumo:"パオの人が全額",
+    pao_tsumo_custom:"", pao_ron:"パオの人と振込者で折半", pao_ron_custom:"", chombo_batsu:"20000点減点",
+    chombo_batsu_custom:"", chombo_taiou:"やり直し", chombo_taiou_custom:"", pen_goron_taopai:"チョンボ",
+    pen_goron_taopai_custom:"", pen_noten_reach:"チョンボ", pen_noten_reach_custom:"", pen_reach_bad_ankan:"チョンボ",
+    pen_reach_bad_ankan_custom:"", pen_hakai:"チョンボ", pen_hakai_custom:"", pen_goron_no_taopai:"上がり放棄",
+    pen_goron_no_taopai_custom:"", pen_gonaki_sarashi:"上がり放棄", pen_gonaki_sarashi_custom:"",
+    pen_kuikae_ihan:"上がり放棄", pen_kuikae_ihan_custom:"", pen_tahai:"上がり放棄", pen_tahai_custom:"",
+    pen_gonaki_hassei:"上がり放棄", pen_gonaki_hassei_custom:"", pen_shouhai:"上がり放棄", pen_shouhai_custom:"",
+    keibappu_type:"なし", keibappu_type_custom:"", keibappu_taiou:"なし", keibappu_taiou_custom:"",
+    penalty_misehai:"なし", penalty_misehai_custom:"", penalty_koshihai:"なし", penalty_koshihai_custom:"",
+  },
+  "天鳳": {
+    length:"東南戦", length_custom:"", mochi_ten:"25000点", mochi_ten_custom:"", kaeshi_ten:"30000点",
+    kaeshi_ten_custom:"", uma:"10-20", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    nishiiri:"あり", nishiiri_custom:"", tsumopin:"あり", tsumopin_custom:"", ipponba:"300点",
+    ipponba_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
+    oras_oya_custom:"", double_ron:"あり(本場・積み棒は頭ハネ)", double_ron_custom:"", triple_ron:"あり(本場・積み棒は頭ハネ)",
+    triple_ron_custom:"", naki_priority:"ポン・カン優先", naki_priority_custom:"", tsumo_yama:"王牌14枚残し",
+    tsumo_yama_custom:"", tochu_kyushu:"あり", tochu_kyushu_custom:"", tochu_sufon:"あり",
+    tochu_sufon_custom:"", tochu_sukan:"あり", tochu_sukan_custom:"", tochu_sucha:"あり", tochu_sucha_custom:"",
+    tochu_sancha:"あり", tochu_sancha_custom:"", tochu_honba:"積む", tochu_honba_custom:"",
+    kuitan:"あり", kuitan_custom:"", atozuke:"あり", atozuke_custom:"", kuikae:"禁止", kuikae_custom:"",
+    aka_dora:"各１枚（計3枚）", aka_dora_custom:"", kan_dora:"暗槓のみ先めくり", kan_dora_custom:"", kiriage:"なし",
+    kiriage_custom:"", renpai_toitsu:"4符", renpai_toitsu_custom:"", nagashi:"あり（流局時成立）",
+    nagashi_custom:"", yakuman_type:"天鳳に準ずる", yakuman_type_custom:"", yakuman_fukugo:"あり",
+    yakuman_fukugo_custom:"", kazoe_yakuman:"13飜以上", kazoe_yakuman_custom:"", kokushi_ankan:"あり",
+    kokushi_ankan_custom:"", furiten_reach:"あり", furiten_reach_custom:"", open_reach:"なし",
+    open_reach_custom:"", tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"", reach_1000miman:"なし",
+    reach_1000miman_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"", reach_ankan_machi:"不可",
+    reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
+    shugi_value:"なし", shugi_value_custom:"", shugi_ippatsu:"なし", shugi_ippatsu_custom:"",
+    shugi_ura:"なし", shugi_ura_custom:"", shugi_aka:"なし", shugi_aka_custom:"", shugi_all_star:"なし",
+    shugi_all_star_custom:"", shugi_pocchi:"なし", shugi_pocchi_custom:"", shugi_ym_tsumo:"なし",
+    shugi_ym_tsumo_custom:"", shugi_ym_ron:"なし", shugi_ym_ron_custom:"", shugi_kazoe:"対象外",
+    shugi_kazoe_custom:"", tobi_shou:"なし", tobi_shou_custom:"", sp_4mai_chii:"なし", sp_4mai_chii_custom:"",
+    sp_shosharin:"なし", sp_shosharin_custom:"", shiro_pocchi:"なし", shiro_pocchi_custom:"",
+    pao_daisangen:"あり", pao_daisangen_custom:"", pao_daisushi:"あり", pao_daisushi_custom:"",
+    pao_sukantu:"なし", pao_sukantu_custom:"", pao_tsumo:"パオの人が全額", pao_tsumo_custom:"",
+    pao_ron:"パオの人と振込者で折半", pao_ron_custom:"", chombo_batsu:"なし", chombo_batsu_custom:"",
+    chombo_taiou:"なし", chombo_taiou_custom:"", pen_goron_taopai:"なし", pen_goron_taopai_custom:"",
+    pen_noten_reach:"なし", pen_noten_reach_custom:"", pen_reach_bad_ankan:"なし", pen_reach_bad_ankan_custom:"",
+    pen_hakai:"なし", pen_hakai_custom:"", pen_goron_no_taopai:"なし", pen_goron_no_taopai_custom:"",
+    pen_gonaki_sarashi:"なし", pen_gonaki_sarashi_custom:"", pen_kuikae_ihan:"なし", pen_kuikae_ihan_custom:"",
+    pen_tahai:"なし", pen_tahai_custom:"", pen_gonaki_hassei:"なし", pen_gonaki_hassei_custom:"",
+    pen_shouhai:"なし", pen_shouhai_custom:"", keibappu_type:"なし", keibappu_type_custom:"",
+    keibappu_taiou:"なし", keibappu_taiou_custom:"", penalty_misehai:"なし", penalty_misehai_custom:"",
+    penalty_koshihai:"なし", penalty_koshihai_custom:"",
   },
 };
 
-const DEFAULT_4 = {..._BASE_4_COMMON, uma:"10-20", nishiiri:"あり",
-  double_ron:"あり", triple_ron:"全員アガリ", kiriage:"あり", nagashi:"あり（流局時成立）",
-  yakuman_type:"雀魂に準ずる",
-  shugi_ippatsu:"あり", shugi_ura:"あり", shugi_aka:"鳴き祝儀", shugi_pocchi:"なし",
-  shugi_ym_tsumo:"5枚オール", shugi_ym_ron:"10枚",
-  shugi_kazoe:"対象外", tobi_shou:"なし", shugi_memo:"",
-  pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
-  pao_tsumo:"パオの人が全額", pao_ron:"パオの人と振込者で折半",
-  chombo_batsu:"満貫払い", chombo_memo:"", chombo_taiou:"やり直し",
-  keibappu_type:"1000点供託",
-  pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
-  pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
-  pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
-  pen_gonaki_hassei:"軽罰符", pen_reach_torikeshi:"軽罰符",
-  pen_shouhai:"軽罰符",
-  shiro_pocchi:"なし",
-  sp_daisharin:"なし", sp_renho:"なし", sp_nagashi_ym:"なし",
-  sp_4mai_chii:"なし", sp_shosharin:"なし",
-};
+const DEFAULT_4 = {...BASE_RULES_4["例"]};
 
 const BASE_RULES_3 = {
-  "三人麻雀（標準）":{
-    length:"東南戦", mochi_ten:"35000点", kaeshi_ten:"40000点",
-    uma:"なし", tobi:"あり（0点未満で終了）",
-    tsumozon:"なし", fu_keisan:"なし（専用点数表）", tsumopin:"あり",
-    ipponba:"1000点", ipponba_custom:"", tenpai_ryou:"場に2000点",
-    renchan:"テンパイ連荘", oras_oya:"アガリ止め・テンパイ止めあり", oras_oya_custom:"",
-    tochu_kyushu:"あり", tochu_sukan:"あり",
-    tochu_honba:"積む", tochu_ryukyoku:"なし（3人リーチも続行）",
-    double_ron:"あり",
-    tsumo_yama:"ドラ表示牌の隣までツモり切り",
-    kuitan:"あり", atozuke:"あり", aka_dora:"5に各2枚",
-    niji_dora:"5に各2枚",
-    kita:"共通役牌（北抜きなし）",
-    hanapai:"あり（空気扱い・一発消えず・嶺上開花なし）", kan_dora:"先めくり",
-    reach_1000:"あり（局終了時にトビ）", furiten_reach:"不可",
-    open_reach:"あり",
-    furiten_open_reach:"あり", tsumo_nashi_reach:"不可",
-    reach_ankan_okuri:"可", reach_ankan_machi:"不可", reach_ankan_mentsu:"不可",
-    reach_kan:"待ち不変ならOK",
-    niken_reach:"2軒リーチで残り1人手牌公開", shiro_pocchi:"あり（リーチ後オールマイティ）",
-    sp_manzu_honitsu:"あり", sp_daisharin:"あり（清一七対子）",
-    sp_renho:"なし", sp_nagashi_ym:"あり",
-    sp_4mai_chii:"あり（2翻）", sp_shosharin:"あり（混一七対子・6翻）",
-    yakuman_type:"雀魂に準ずる", yakuman_custom_memo:"",
-    kazoe_yakuman:"14飜以上", w_yakuman:"なし", kokushi_ankan:"あり",
-    shugi_ippatsu:"あり", shugi_ura:"あり",
-    shugi_niji:"あり（鳴き祝儀あり）", shugi_pocchi:"あり（リーチ後白ポッチツモ）",
-    shugi_ym_tsumo:"5枚", shugi_ym_ron:"10枚", shugi_kazoe:"対象外",
-    tobi_shou:"場に２枚（飛ばした人が受け取る）", shugi_memo:"",
-    pao_daisangen:"あり", pao_daisushi:"あり", pao_sukantu:"なし",
-    pao_tsumo:"放銃扱い", pao_ron:"パオと振込者で折半（チップ各5枚）",
-    chombo_batsu:"倍満払い", chombo_memo:"", chombo_taiou:"やり直し",
-    pen_goron_taopai:"チョンボ", pen_noten_reach:"チョンボ", pen_reach_bad_ankan:"チョンボ",
-    pen_goron_no_taopai:"上がり放棄", pen_gonaki_sarashi:"上がり放棄",
-    pen_kuikae_ihan:"上がり放棄", pen_tahai:"上がり放棄",
-    keibappu_type:"1000点供託",
-    pen_gonaki_hassei:"軽罰符", pen_reach_torikeshi:"軽罰符",
-    pen_shouhai:"軽罰符＋山から補充",
-  }
+  "例":{
+    length:"東南戦", length_custom:"", mochi_ten:"35000点", mochi_ten_custom:"", kaeshi_ten:"40000点",
+    kaeshi_ten_custom:"", uma:"+20/±0/-20", uma_custom:"", tobi:"あり（0点未満で終了）", tobi_custom:"",
+    tsumopin:"あり", tsumopin_custom:"", ipponba:"1000点", ipponba_custom:"", tsumozon:"なし",
+    tsumozon_custom:"", fu_keisan:"なし(100点棒使用しない)", fu_keisan_custom:"", tenpai_ryou:"場に2000点",
+    tenpai_ryou_custom:"", renchan:"テンパイ連荘", renchan_custom:"", oras_oya:"アガリ止め・テンパイ止めあり",
+    oras_oya_custom:"", double_ron:"あり(本場・積み棒は頭ハネ)", double_ron_custom:"", tsumo_yama:"ドラ表示牌の隣までツモり切り",
+    tsumo_yama_custom:"", tochu_kyushu:"なし", tochu_kyushu_custom:"", tochu_sukan:"なし",
+    tochu_sukan_custom:"", tochu_honba:"途中流局なし", tochu_honba_custom:"", kuitan:"あり", kuitan_custom:"",
+    atozuke:"あり", atozuke_custom:"", kita:"共通役牌（北抜きなし）", kita_custom:"", hanapai:"あり（空気扱い・一発消えず・嶺上開花なし）",
+    hanapai_custom:"", aka_dora:"5に各2枚", aka_dora_custom:"", niji_dora:"5に各2枚", niji_dora_custom:"",
+    kan_dora:"先めくり", kan_dora_custom:"", yakuman_type:"雀魂に準ずる", yakuman_type_custom:"",
+    yakuman_fukugo:"なし", yakuman_fukugo_custom:"", kazoe_yakuman:"14飜以上", kazoe_yakuman_custom:"",
+    kokushi_ankan:"あり", kokushi_ankan_custom:"", furiten_reach:"あり", furiten_reach_custom:"",
+    open_reach:"フリテンOK", open_reach_custom:"", tsumo_nashi_reach:"なし", tsumo_nashi_reach_custom:"",
+    reach_1000:"あり(局終了時に0点でトビ)", reach_1000_custom:"", reach_ankan_okuri:"不可", reach_ankan_okuri_custom:"",
+    reach_ankan_machi:"不可", reach_ankan_machi_custom:"", reach_ankan_mentsu:"可", reach_ankan_mentsu_custom:"",
+    shugi_value:"2000点相当", shugi_value_custom:"", shugi_ippatsu:"あり", shugi_ippatsu_custom:"",
+    shugi_ura:"あり", shugi_ura_custom:"", shugi_niji:"鳴き祝儀", shugi_niji_custom:"", shugi_all_star:"なし",
+    shugi_all_star_custom:"", shugi_pocchi:"あり（リーチ後白ポッチツモ）", shugi_pocchi_custom:"", shugi_ym_tsumo:"5枚",
+    shugi_ym_tsumo_custom:"", shugi_ym_ron:"10枚", shugi_ym_ron_custom:"", shugi_kazoe:"対象外",
+    shugi_kazoe_custom:"", tobi_shou:"場に２枚（飛ばした人が受け取る）", tobi_shou_custom:"", sp_4mai_chii:"あり（2翻）",
+    sp_4mai_chii_custom:"", sp_shosharin:"あり（混一七対子・6翻）", sp_shosharin_custom:"", sp_manzu_honitsu:"あり",
+    sp_manzu_honitsu_custom:"", sp_daisharin:"あり（清一七対子）", sp_daisharin_custom:"", sp_renho:"あり",
+    sp_renho_custom:"", sp_nagashi_ym:"あり", sp_nagashi_ym_custom:"", shiro_pocchi:"あり（リーチ後オールマイティ）",
+    shiro_pocchi_custom:"", pao_daisangen:"あり", pao_daisangen_custom:"", pao_daisushi:"あり",
+    pao_daisushi_custom:"", pao_sukantu:"なし", pao_sukantu_custom:"", pao_tsumo:"パオの人が全額",
+    pao_tsumo_custom:"", pao_ron:"パオの人と振込者で折半", pao_ron_custom:"", chombo_batsu:"倍満払い",
+    chombo_batsu_custom:"", chombo_taiou:"やり直し", chombo_taiou_custom:"", pen_goron_taopai:"チョンボ",
+    pen_goron_taopai_custom:"", pen_noten_reach:"チョンボ", pen_noten_reach_custom:"", pen_reach_bad_ankan:"チョンボ",
+    pen_reach_bad_ankan_custom:"", pen_hakai:"チョンボ", pen_hakai_custom:"", pen_goron_no_taopai:"上がり放棄",
+    pen_goron_no_taopai_custom:"", pen_gonaki_sarashi:"上がり放棄", pen_gonaki_sarashi_custom:"",
+    pen_kuikae_ihan:"上がり放棄", pen_kuikae_ihan_custom:"", pen_tahai:"上がり放棄", pen_tahai_custom:"",
+    pen_gonaki_hassei:"軽罰符", pen_gonaki_hassei_custom:"", pen_shouhai:"軽罰符", pen_shouhai_custom:"",
+    keibappu_type:"1000点供託", keibappu_type_custom:"", keibappu_taiou:"ゲーム続行", keibappu_taiou_custom:"",
+    penalty_misehai:"なし", penalty_misehai_custom:"", penalty_koshihai:"なし", penalty_koshihai_custom:"",
+  },
 };
-const DEFAULT_3 = {...BASE_RULES_3["三人麻雀（標準）"]};
-
+const DEFAULT_3 = {...BASE_RULES_3["例"]};
 
 // --- ラベル ---
 const LABELS = {
-  length:"対局の長さ", mochi_ten:"持ち点", mochi_ten_custom:"持ち点（カスタム）",
-  kaeshi_ten:"返し点", kaeshi_ten_custom:"返し点（カスタム）",
-  uma:"ウマ", uma_custom:"ウマ（カスタム）",
-  tobi:"トビ終了", nishiiri:"西入",
-  ipponba:"一本場", ipponba_custom:"一本場（カスタム）",
+  length:"対局の長さ",
+  length_custom:"対局の長さ（カスタム）",
+  mochi_ten:"持ち点",
+  mochi_ten_custom:"持ち点（カスタム）",
+  kaeshi_ten:"返し点",
+  kaeshi_ten_custom:"返し点（カスタム）",
+  uma:"ウマ",
+  uma_custom:"ウマ（カスタム）",
+  tobi:"トビ終了",
+  tobi_custom:"トビ終了（カスタム）",
+  nishiiri:"西入",
+  nishiiri_custom:"西入（カスタム）",
+  tsumopin:"ツモピンフ",
+  tsumopin_custom:"ツモピンフ（カスタム）",
+  ipponba:"一本場",
+  ipponba_custom:"一本場（カスタム）",
+  tsumozon:"ツモ損",
+  tsumozon_custom:"ツモ損（カスタム）",
+  fu_keisan:"符計算",
+  fu_keisan_custom:"符計算（カスタム）",
   tenpai_ryou:"テンパイ料",
-  tsumozon:"ツモ損", fu_keisan:"符計算", tsumopin:"ツモピンフ",
-  renchan:"連荘条件", oras_oya:"オーラスの親の終了", oras_oya_custom:"オーラスの親の終了（カスタム）",
-  tochu_kyushu:"九種九牌", tochu_sufon:"四風連打", tochu_sukan:"四槓散了",
-  tochu_sucha:"四家立直", tochu_sancha:"三家和",
-  tochu_ryukyoku:"途中流局", tochu_honba:"途中流局時の本場",
-  double_ron:"ダブロン", triple_ron:"トリロン",
-  naki_priority:"鳴きの優先", tsumo_yama:"ツモ山",
-  kuitan:"喰いタン", atozuke:"後付け", kuikae:"喰い替え",
-  aka_dora:"赤ドラ（祝儀なし）", niji_dora:"虹ドラ（祝儀あり）",
-  kiriage:"切り上げ満貫", renpai_toitsu:"連風牌の対子",
-  nagashi:"流し満貫", kokushi_ankan:"国士の暗槓ロン",
-  yakuman_type:"役満の種類", yakuman_custom_memo:"役満カスタム詳細",
+  tenpai_ryou_custom:"テンパイ料（カスタム）",
+  renchan:"連荘条件",
+  renchan_custom:"連荘条件（カスタム）",
+  oras_oya:"オーラスの親",
+  oras_oya_custom:"オーラスの親（カスタム）",
+  double_ron:"ダブロン",
+  double_ron_custom:"ダブロン（カスタム）",
+  triple_ron:"トリロン",
+  triple_ron_custom:"トリロン（カスタム）",
+  naki_priority:"鳴きの優先",
+  naki_priority_custom:"鳴きの優先（カスタム）",
+  tsumo_yama:"ツモ山",
+  tsumo_yama_custom:"ツモ山（カスタム）",
+  tochu_kyushu:"九種九牌",
+  tochu_kyushu_custom:"九種九牌（カスタム）",
+  tochu_sufon:"四風連打",
+  tochu_sufon_custom:"四風連打（カスタム）",
+  tochu_sukan:"四槓散了",
+  tochu_sukan_custom:"四槓散了（カスタム）",
+  tochu_sucha:"四家立直",
+  tochu_sucha_custom:"四家立直（カスタム）",
+  tochu_sancha:"三家和",
+  tochu_sancha_custom:"三家和（カスタム）",
+  tochu_honba:"途中流局時の本場",
+  tochu_honba_custom:"途中流局時の本場（カスタム）",
+  kuitan:"喰いタン",
+  kuitan_custom:"喰いタン（カスタム）",
+  atozuke:"後付け",
+  atozuke_custom:"後付け（カスタム）",
+  kuikae:"喰い替え",
+  kuikae_custom:"喰い替え（カスタム）",
+  kita:"北の扱い",
+  kita_custom:"北の扱い（カスタム）",
+  hanapai:"花牌",
+  hanapai_custom:"花牌（カスタム）",
+  aka_dora:"赤ドラ",
+  aka_dora_custom:"赤ドラ（カスタム）",
+  niji_dora:"虹ドラ（祝儀あり）",
+  niji_dora_custom:"虹ドラ（祝儀あり）（カスタム）",
+  kan_dora:"カンドラ",
+  kan_dora_custom:"カンドラ（カスタム）",
+  kiriage:"切り上げ満貫",
+  kiriage_custom:"切り上げ満貫（カスタム）",
+  renpai_toitsu:"連風牌の対子",
+  renpai_toitsu_custom:"連風牌の対子（カスタム）",
+  nagashi:"流し満貫",
+  nagashi_custom:"流し満貫（カスタム）",
+  yakuman_type:"役満の種類",
+  yakuman_type_custom:"役満の種類（カスタム）",
   yakuman_fukugo:"役満の複合・W役満",
-  kazoe_yakuman:"数え役満", w_yakuman:"W役満",
-  kita:"北の扱い", hanapai:"花牌", kan_dora:"カンドラ",
-  furiten_reach:"フリテンリーチ", open_reach:"オープンリーチ",
-  furiten_open_reach:"フリテンオープンリーチ",
-  tsumo_nashi_reach:"ツモ番なしリーチ", reach_1000:"1000点未満のリーチ",
-  reach_ankan_okuri:"送り槓", reach_ankan_machi:"待ちの変わる槓", reach_ankan_mentsu:"面子構成の変わる槓",
-  reach_ankan:"リーチ後の暗槓", reach_kan:"リーチ後のカン",
-  niken_reach:"2軒リーチ時", shiro_pocchi:"白ポッチ",
-  sp_manzu_honitsu:"マンズ混一色（役満）", sp_daisharin:"大車輪",
-  sp_renho:"人和（役満）", sp_nagashi_ym:"流し役満",
-  sp_4mai_chii:"四枚使い七対子", sp_shosharin:"小車輪",
-  shugi_type:"祝儀の種類", shugi_ippatsu:"一発祝儀", shugi_ura:"裏ドラ祝儀",
-  shugi_aka:"赤ドラ祝儀", shugi_niji:"虹牌祝儀", shugi_pocchi:"白ポッチ祝儀",
-  shugi_ym_tsumo:"役満祝儀（ツモ）", shugi_ym_ron:"役満祝儀（ロン）",
+  yakuman_fukugo_custom:"役満の複合・W役満（カスタム）",
+  kazoe_yakuman:"数え役満",
+  kazoe_yakuman_custom:"数え役満（カスタム）",
+  kokushi_ankan:"国士の暗槓ロン",
+  kokushi_ankan_custom:"国士の暗槓ロン（カスタム）",
+  furiten_reach:"フリテンリーチ",
+  furiten_reach_custom:"フリテンリーチ（カスタム）",
+  open_reach:"オープンリーチ",
+  open_reach_custom:"オープンリーチ（カスタム）",
+  tsumo_nashi_reach:"ツモ番なしリーチ",
+  tsumo_nashi_reach_custom:"ツモ番なしリーチ（カスタム）",
+  reach_1000miman:"1000点未満のリーチ",
+  reach_1000miman_custom:"1000点未満のリーチ（カスタム）",
+  reach_1000:"1000点でのリーチ",
+  reach_1000_custom:"1000点でのリーチ（カスタム）",
+  reach_ankan_okuri:"送り槓",
+  reach_ankan_okuri_custom:"送り槓（カスタム）",
+  reach_ankan_machi:"待ちの変わる槓",
+  reach_ankan_machi_custom:"待ちの変わる槓（カスタム）",
+  reach_ankan_mentsu:"面子構成の変わる槓",
+  reach_ankan_mentsu_custom:"面子構成の変わる槓（カスタム）",
+  shugi_value:"チップの価値",
+  shugi_value_custom:"チップの価値（カスタム）",
+  shugi_ippatsu:"一発祝儀",
+  shugi_ippatsu_custom:"一発祝儀（カスタム）",
+  shugi_ura:"裏ドラ祝儀",
+  shugi_ura_custom:"裏ドラ祝儀（カスタム）",
+  shugi_aka:"赤ドラ祝儀",
+  shugi_aka_custom:"赤ドラ祝儀（カスタム）",
+  shugi_niji:"虹ドラ祝儀",
+  shugi_niji_custom:"虹ドラ祝儀（カスタム）",
+  shugi_all_star:"オールスター",
+  shugi_all_star_custom:"オールスター（カスタム）",
+  shugi_pocchi:"白ポッチ祝儀",
+  shugi_pocchi_custom:"白ポッチ祝儀（カスタム）",
+  shugi_ym_tsumo:"役満祝儀（ツモ）",
+  shugi_ym_tsumo_custom:"役満祝儀（ツモ）（カスタム）",
+  shugi_ym_ron:"役満祝儀（ロン）",
+  shugi_ym_ron_custom:"役満祝儀（ロン）（カスタム）",
   shugi_kazoe:"数え役満祝儀",
-  tobi_shou:"トビ賞", tobi_bunpai:"トビ賞分配",
-  pao_daisangen:"大三元パオ", pao_daisushi:"大四喜パオ", pao_sukantu:"四槓子パオ",
-  pao_tsumo:"パオ支払い（ツモ）", pao_ron:"パオ支払い（ロン）",
-  chombo_batsu:"チョンボ罰符", chombo_memo:"罰符の詳細", chombo_taiou:"チョンボ対処",
-  pen_goron_taopai:"誤ロン・誤ツモ（倒牌）", pen_noten_reach:"ノーテンリーチ流局",
+  shugi_kazoe_custom:"数え役満祝儀（カスタム）",
+  tobi_shou:"トビ賞",
+  tobi_shou_custom:"トビ賞（カスタム）",
+  sp_4mai_chii:"四枚使い七対子",
+  sp_4mai_chii_custom:"四枚使い七対子（カスタム）",
+  sp_shosharin:"小車輪",
+  sp_shosharin_custom:"小車輪（カスタム）",
+  sp_manzu_honitsu:"マンズ混一色（役満）",
+  sp_manzu_honitsu_custom:"マンズ混一色（役満）（カスタム）",
+  sp_daisharin:"大車輪",
+  sp_daisharin_custom:"大車輪（カスタム）",
+  sp_renho:"人和（役満）",
+  sp_renho_custom:"人和（役満）（カスタム）",
+  sp_nagashi_ym:"流し役満",
+  sp_nagashi_ym_custom:"流し役満（カスタム）",
+  shiro_pocchi:"白ポッチ",
+  shiro_pocchi_custom:"白ポッチ（カスタム）",
+  pao_daisangen:"大三元パオ",
+  pao_daisangen_custom:"大三元パオ（カスタム）",
+  pao_daisushi:"大四喜パオ",
+  pao_daisushi_custom:"大四喜パオ（カスタム）",
+  pao_sukantu:"四槓子パオ",
+  pao_sukantu_custom:"四槓子パオ（カスタム）",
+  pao_tsumo:"パオ支払い（ツモ）",
+  pao_tsumo_custom:"パオ支払い（ツモ）（カスタム）",
+  pao_ron:"パオ支払い（ロン）",
+  pao_ron_custom:"パオ支払い（ロン）（カスタム）",
+  chombo_batsu:"チョンボ罰符",
+  chombo_batsu_custom:"チョンボ罰符（カスタム）",
+  chombo_taiou:"チョンボ対処",
+  chombo_taiou_custom:"チョンボ対処（カスタム）",
+  pen_goron_taopai:"誤ロン・誤ツモ（倒牌）",
+  pen_goron_taopai_custom:"誤ロン・誤ツモ（倒牌）（カスタム）",
+  pen_noten_reach:"ノーテンリーチ流局",
+  pen_noten_reach_custom:"ノーテンリーチ流局（カスタム）",
   pen_reach_bad_ankan:"リーチ後不正暗槓",
+  pen_reach_bad_ankan_custom:"リーチ後不正暗槓（カスタム）",
+  pen_hakai:"山破壊(修復不可)",
+  pen_hakai_custom:"山破壊(修復不可)（カスタム）",
   pen_goron_no_taopai:"誤ロン・誤ツモ（倒牌なし）",
-  pen_gonaki_sarashi:"誤鳴き（牌晒し）", pen_kuikae_ihan:"喰い替え違反",
-  pen_tahai:"多牌", keibappu_type:"軽罰符の内容",
+  pen_goron_no_taopai_custom:"誤ロン・誤ツモ（倒牌なし）（カスタム）",
+  pen_gonaki_sarashi:"誤鳴き（牌晒し）",
+  pen_gonaki_sarashi_custom:"誤鳴き（牌晒し）（カスタム）",
+  pen_kuikae_ihan:"喰い替え違反",
+  pen_kuikae_ihan_custom:"喰い替え違反（カスタム）",
+  pen_tahai:"多牌",
+  pen_tahai_custom:"多牌（カスタム）",
   pen_gonaki_hassei:"誤鳴き（発声のみ）",
-  pen_reach_torikeshi:"リーチ取消", pen_shouhai:"少牌",
+  pen_gonaki_hassei_custom:"誤鳴き（発声のみ）（カスタム）",
+  pen_shouhai:"少牌",
+  pen_shouhai_custom:"少牌（カスタム）",
+  keibappu_type:"軽罰符の内容",
+  keibappu_type_custom:"軽罰符の内容（カスタム）",
+  keibappu_taiou:"軽罰符後の対処",
+  keibappu_taiou_custom:"軽罰符後の対処（カスタム）",
+  penalty_misehai:"見せ牌",
+  penalty_misehai_custom:"見せ牌（カスタム）",
+  penalty_koshihai:"コシ牌",
+  penalty_koshihai_custom:"コシ牌（カスタム）",
 };
 
 // --- カテゴリ ---
 const CATEGORIES_4 = [
-  ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","nishiiri","tsumopin","ipponba","ipponba_custom"]],
-  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","double_ron","triple_ron","naki_priority","tsumo_yama"]],
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","kaeshi_ten","uma","tobi","nishiiri","tsumopin","ipponba"]],
+  ["2. 進行・連荘ルール",["renchan","oras_oya","double_ron","triple_ron","naki_priority","tsumo_yama"]],
   ["3. 途中流局",["tochu_kyushu","tochu_sufon","tochu_sukan","tochu_sucha","tochu_sancha","tochu_honba"]],
-  ["4. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","kokushi_ankan","yakuman_type","yakuman_custom_memo","yakuman_fukugo","kazoe_yakuman"]],
-  ["5. リーチ関連",["furiten_reach","open_reach","furiten_open_reach","tsumo_nashi_reach","reach_1000"]],
+  ["4. 役・ドラ",["kuitan","atozuke","kuikae","aka_dora","kan_dora","kiriage","renpai_toitsu","nagashi","yakuman_type","yakuman_fukugo","kazoe_yakuman","kokushi_ankan"]],
+  ["5. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000miman"]],
   ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
-  ["7. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_aka","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou"]],
-  ["8. 特殊牌",[]],
-  ["9. ローカル役",["sp_4mai_chii","sp_shosharin"]],
-  ["10. ローカル役満",["sp_daisharin","sp_renho","sp_nagashi_ym"]],
-  ["11. ローカルルール",["shiro_pocchi"]],
-  ["12. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
-  ["13. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
-  ["14. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["15. 軽罰符",["keibappu_type","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
+  ["7. 祝儀（チップ）",["shugi_value","shugi_ippatsu","shugi_ura","shugi_aka","shugi_all_star","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou"]],
+  ["8. ローカル役",["sp_4mai_chii","sp_shosharin"]],
+  ["9. ローカルルール",["shiro_pocchi"]],
+  ["10. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
+  ["11. チョンボ",["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan","pen_hakai"], true],
+  ["12. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
+  ["13. 軽罰符",["keibappu_type","keibappu_taiou","pen_gonaki_hassei","pen_shouhai"], true],
+  ["14. ペナルティ",["penalty_misehai","penalty_koshihai"]],
 ];
 
 const CATEGORIES_3 = [
-  ["1. 基本設定・ポイント精算",["length","mochi_ten","mochi_ten_custom","kaeshi_ten","kaeshi_ten_custom","uma","uma_custom","tobi","tsumozon","fu_keisan","tsumopin","ipponba","ipponba_custom","tenpai_ryou"]],
-  ["2. 進行・連荘ルール",["renchan","oras_oya","oras_oya_custom","double_ron","tsumo_yama"]],
+  ["1. 基本設定・ポイント精算",["length","mochi_ten","kaeshi_ten","uma","tobi","tsumopin","ipponba","tsumozon","fu_keisan","tenpai_ryou"]],
+  ["2. 進行・連荘ルール",["renchan","oras_oya","double_ron","tsumo_yama"]],
   ["3. 途中流局",["tochu_kyushu","tochu_sukan","tochu_honba"]],
-  ["4. 役・ドラ・牌の扱い",["kuitan","atozuke","aka_dora","niji_dora","kita","hanapai","kan_dora","yakuman_type","yakuman_custom_memo","kazoe_yakuman","w_yakuman","kokushi_ankan"]],
-  ["5. リーチ関連",["reach_1000","furiten_reach","open_reach","furiten_open_reach","tsumo_nashi_reach"]],
+  ["4. 役・ドラ・牌の扱い",["kuitan","atozuke","kita","hanapai","aka_dora","niji_dora","kan_dora","yakuman_type","yakuman_fukugo","kazoe_yakuman","kokushi_ankan"]],
+  ["5. リーチ関連",["furiten_reach","open_reach","tsumo_nashi_reach","reach_1000"]],
   ["6. リーチ後の暗槓",["reach_ankan_okuri","reach_ankan_machi","reach_ankan_mentsu"]],
-  ["7. ローカル役",["sp_4mai_chii","sp_shosharin"]],
-  ["8. ローカル役満",["sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]],
-  ["9. ローカルルール",["niken_reach","shiro_pocchi"]],
-  ["10. 祝儀（チップ）",["shugi_ippatsu","shugi_ura","shugi_niji","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou"]],
+  ["7. 祝儀（チップ）",["shugi_value","shugi_ippatsu","shugi_ura","shugi_niji","shugi_all_star","shugi_pocchi","shugi_ym_tsumo","shugi_ym_ron","shugi_kazoe","tobi_shou"]],
+  ["8. ローカル役",["sp_4mai_chii","sp_shosharin"]],
+  ["9. ローカル役満",["sp_manzu_honitsu","sp_daisharin","sp_renho","sp_nagashi_ym"]],
+  ["10. ローカルルール",["shiro_pocchi"]],
   ["11. パオ（責任払い）",["pao_daisangen","pao_daisushi","pao_sukantu","pao_tsumo","pao_ron"]],
-  ["12. チョンボ",["chombo_batsu","chombo_memo","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan"], true],
+  ["12. チョンボ",["chombo_batsu","chombo_taiou","pen_goron_taopai","pen_noten_reach","pen_reach_bad_ankan","pen_hakai"], true],
   ["13. 上がり放棄",["pen_goron_no_taopai","pen_gonaki_sarashi","pen_kuikae_ihan","pen_tahai"], true],
-  ["14. 軽罰符",["keibappu_type","pen_gonaki_hassei","pen_reach_torikeshi","pen_shouhai"], true],
+  ["14. 軽罰符",["keibappu_type","keibappu_taiou","pen_gonaki_hassei","pen_shouhai"], true],
+  ["15. ペナルティ",["penalty_misehai","penalty_koshihai"]],
 ];
+
+// --- 初期プリセット定義 ---
+const PRESET_INJECTIONS = [
+  { id: "preset_fpn_4", mode: "四麻", name: "例", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["例"]} },
+  { id: "preset_qhs2_4", mode: "四麻", name: "雀魂", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["雀魂"]} },
+  { id: "preset_8ros1_4", mode: "四麻", name: "Mリーグ", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["Mリーグ"]} },
+  { id: "preset_g0yy_4", mode: "四麻", name: "天鳳", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["天鳳"]} },
+  { id: "preset_fpn_3", mode: "三麻", name: "例", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3["例"]} },
+];
+const DEFAULT_PRESET_IDS_4 = ["preset_fpn_4","preset_qhs2_4","preset_8ros1_4","preset_g0yy_4"];
+const DEFAULT_PRESET_IDS_3 = ["preset_fpn_3"];
+/* __END_PRESETS__ */
 
 // =====================================================================
 // アプリ状態管理
@@ -660,13 +1016,217 @@ let appData = { rules: [] };
 let editingId = null;
 let deleteTargetId = null;
 let _editSnapshot = null;  // 編集前のスナップショット
-const customDropdownKeys = new Set(['mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tsumo_yama','kan_dora','aka_dora','niji_dora','tenpai_ryou','yakuman_fukugo','furiten_reach','open_reach','furiten_open_reach','w_yakuman','keibappu_type','tobi_shou','pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
+let _editDirty = false;  // ユーザーが設定を変更したか
 
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) appData = JSON.parse(raw);
   } catch(e) { appData = { rules: [] }; }
+  
+  if (!appData.presetsMigrated_v5) {
+    appData.presetsMigrated_v5 = true;
+    const presetsToInject = [
+      { id: 'preset_jantama_4', mode: '四麻', name: '雀魂', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['雀魂（四麻・段位戦）']} },
+      { id: 'preset_tenhou_4', mode: '四麻', name: '天鳳', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['天鳳（四麻）']} },
+      { id: 'preset_mleague_4', mode: '四麻', name: 'Mリーグ', readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4['Mリーグ公式（四麻）']} },
+      { id: 'preset_zoo_3', mode: '三麻', name: '関東三麻', readonly: false, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3['三人麻雀（標準）']} }
+    ];
+    appData.rules = [...presetsToInject, ...appData.rules];
+    
+    // Convert default standard rules to array mapping
+    const migrateDef = (key, mapping, fallback) => {
+        let def = localStorage.getItem(key);
+        if (def && !def.startsWith('[')) {
+            localStorage.setItem(key, JSON.stringify([mapping[def] || def]));
+        } else if (!def) {
+            localStorage.setItem(key, JSON.stringify([fallback]));
+        }
+    };
+    migrateDef('mahjong_default_base_4ma', {
+        '雀魂（四麻・段位戦）': 'preset_jantama_4',
+        '天鳳（四麻）': 'preset_tenhou_4',
+        'Mリーグ公式（四麻）': 'preset_mleague_4'
+    }, 'preset_jantama_4');
+    migrateDef('mahjong_default_base_3ma', {
+        '三人麻雀（標準）': 'preset_zoo_3'
+    }, 'preset_zoo_3');
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v6) {
+    appData.presetsMigrated_v6 = true;
+    try {
+        const raw4 = localStorage.getItem('mahjong_default_base_4ma');
+        let arr4 = raw4 ? JSON.parse(raw4) : [];
+        if (!Array.isArray(arr4)) arr4 = [];
+        
+        // Ensure the 3 core presets are starred by default on migration
+        if (!arr4.includes('preset_jantama_4')) arr4.push('preset_jantama_4');
+        if (!arr4.includes('preset_tenhou_4')) arr4.push('preset_tenhou_4');
+        if (!arr4.includes('preset_mleague_4')) arr4.push('preset_mleague_4');
+        
+        localStorage.setItem('mahjong_default_base_4ma', JSON.stringify(arr4));
+    } catch(e) {}
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v7) {
+    appData.presetsMigrated_v7 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_jantama_4' || rule.id === 'preset_tenhou_4' || rule.id === 'preset_mleague_4') {
+            rule.readonly = true;
+        }
+        if (rule.id === 'preset_zoo_3') {
+            rule.name = '関東三麻';
+        }
+        if (rule.date && rule.date.length === 16) {
+            rule.date = rule.date + ':00'; // Retroactively add seconds to older strings
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v8) {
+    appData.presetsMigrated_v8 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_mleague_4') {
+            rule.name = 'Mリーグ';
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v9) {
+    appData.presetsMigrated_v9 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_jantama_4' || rule.id === 'preset_tenhou_4') {
+            rule.settings.keibappu_type = 'なし';
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v10) {
+    appData.presetsMigrated_v10 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_jantama_4') {
+            Object.assign(rule.settings, {
+                naki_priority: "ポン・カン優先", tochu_sancha: "なし",
+                kan_dora: "暗槓のみ先めくり", renpai_toitsu: "4符",
+                furiten_reach: "なし", reach_ankan_okuri: "不可"
+            });
+        }
+        if (rule.id === 'preset_tenhou_4') {
+            Object.assign(rule.settings, {
+                naki_priority: "ポン・カン優先",
+                kan_dora: "暗槓のみ先めくり", renpai_toitsu: "4符",
+                furiten_reach: "なし", reach_ankan_okuri: "不可"
+            });
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v11) {
+    appData.presetsMigrated_v11 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_mleague_4') {
+            Object.assign(rule.settings, {
+                naki_priority: "ポン・カン優先", tochu_honba: "途中流局なし",
+                kan_dora: "暗槓のみ先めくり", kokushi_ankan: "なし",
+                yakuman_type: "Mリーグに準拠", tsumo_nashi_reach: "可",
+                reach_1000: "あり", reach_ankan_okuri: "不可",
+                shugi_type: "なし", shugi_ippatsu: "なし", shugi_ura: "なし", shugi_aka: "なし",
+                shugi_ym_tsumo: "なし", shugi_ym_ron: "なし",
+                pen_shouhai: "上がり放棄", pen_gonaki_hassei: "上がり放棄",
+                chombo_batsu: "20000点減点"
+            });
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v12) {
+    appData.presetsMigrated_v12 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_mleague_4') {
+            Object.assign(rule.settings, {
+                chombo_taiou: "やり直し",
+                pen_goron_taopai: "チョンボ", pen_noten_reach: "チョンボ", pen_reach_bad_ankan: "チョンボ",
+                pen_goron_no_taopai: "上がり放棄", pen_gonaki_sarashi: "上がり放棄", pen_kuikae_ihan: "上がり放棄",
+                pen_tahai: "上がり放棄"
+            });
+        }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v13) {
+    appData.presetsMigrated_v13 = true;
+    for (const rule of appData.rules) {
+      if ('pen_reach_torikeshi' in rule.settings) {
+         delete rule.settings['pen_reach_torikeshi'];
+      }
+      if (!('keibappu_taiou' in rule.settings)) {
+         rule.settings.keibappu_taiou = "なし";
+      }
+    }
+    saveData();
+  }
+
+  if (!appData.presetsMigrated_v14) {
+    appData.presetsMigrated_v14 = true;
+    for (const rule of appData.rules) {
+        if (rule.id === 'preset_zoo_3') {
+            Object.assign(rule.settings, {
+                uma: "+20/±0/-20",
+                tochu_kyushu: "なし",
+                tochu_sukan: "なし",
+                tochu_honba: "途中流局なし",
+                furiten_open_reach: "なし",
+                reach_ankan_okuri: "不可",
+                reach_ankan_mentsu: "可",
+                sp_renho: "あり"
+            });
+        }
+    }
+    saveData();
+  }
+
+  // プリセット同期: PRESET_INJECTIONSから毎回プリセットを最新に同期
+  if (typeof PRESET_INJECTIONS !== 'undefined') {
+    let presetsChanged = false;
+    for (const pi of PRESET_INJECTIONS) {
+      const existing = appData.rules.find(r => r.id === pi.id);
+      if (existing) {
+        existing.settings = {...pi.settings};
+        existing.name = pi.name;
+        existing.readonly = pi.readonly;
+      } else {
+        appData.rules.push({...pi});
+        presetsChanged = true;
+      }
+    }
+    const validIds = new Set(PRESET_INJECTIONS.map(p => p.id));
+    const before = appData.rules.length;
+    appData.rules = appData.rules.filter(r => !r.id.startsWith('preset_') || validIds.has(r.id));
+    if (appData.rules.length !== before) presetsChanged = true;
+    saveData(); // メモリとlocalStorageの一致を保証
+  }
+  // デフォルト標準ルール設定（初回のみ）
+  if (!appData.presetsMigrated_v15) {
+    appData.presetsMigrated_v15 = true;
+    if (typeof DEFAULT_PRESET_IDS_4 !== 'undefined') {
+      localStorage.setItem('mahjong_default_base_4ma', JSON.stringify(DEFAULT_PRESET_IDS_4));
+    }
+    if (typeof DEFAULT_PRESET_IDS_3 !== 'undefined') {
+      localStorage.setItem('mahjong_default_base_3ma', JSON.stringify(DEFAULT_PRESET_IDS_3));
+    }
+    saveData();
+  }
+
+
   // マイグレーション: 古いデータに不足しているキーをデフォルト値で補完
   let migrated = false;
   for (const rule of appData.rules) {
@@ -684,20 +1244,41 @@ function loadData() {
   if (migrated) saveData();
 }
 function saveData() {
+  if (editingId) {
+    const editingRule = getRule(editingId);
+    if (editingRule && !editingRule.readonly) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const h = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      editingRule.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
+    }
+  }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+  // ログイン済みならクラウドにも同期（バックグラウンド）
+  if (typeof syncRulesToCloud === 'function' && window._fbUser && !window._fbUser.isAnonymous) syncRulesToCloud();
 }
 
-function getBaseRuleName(k) { return k?.startsWith('__custom__') && customBaseRules[k.replace('__custom__','')] ? customBaseRules[k.replace('__custom__','')].name : (k || ''); }
+function getBaseRuleName(k) {
+  if (BASE_RULES_4[k]) return k;
+  if (BASE_RULES_3[k]) return k;
+  const r = appData.rules.find(rule => rule.id === k);
+  if (r) return r.name;
+  return k || ''; 
+}
 function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
 function getBaseRules(mode) {
   const base = mode === '四麻' ? {...BASE_RULES_4} : {...BASE_RULES_3};
-  for (const [id, rule] of Object.entries(customBaseRules)) {
-    if (rule.mode === mode) {
-      base['__custom__' + id] = rule.settings;
+  appData.rules.forEach(r => {
+    if (r.mode === mode) {
+      base[r.id] = r.settings;
     }
-  }
+  });
   return base;
 }
 function getDefault(mode) { return mode === '四麻' ? {...DEFAULT_4} : {...DEFAULT_3}; }
@@ -742,8 +1323,8 @@ function goHomeWithConfirm() {
       return;
   }
   
-  // 変更があるかチェック
-  const hasChanges = _editSnapshot && _editSnapshot !== JSON.stringify(appData);
+  // 変更があるかチェック（ユーザーの操作で変更があったかを追跡）
+  const hasChanges = _editDirty;
   
   if (!hasChanges) {
       // 変更がなければ確認なしで戻る。新規作成なら破棄する。
@@ -756,9 +1337,9 @@ function goHomeWithConfirm() {
   }
   
   if (confirm('保存せずに戻りますか？\n変更内容は破棄されます。')) {
-    // スナップショットを復元
-    if (_editSnapshot) {
-      appData = JSON.parse(_editSnapshot);
+    // 編集前の設定に復元
+    if (_editSnapshot && currentRule) {
+      currentRule.settings = JSON.parse(_editSnapshot);
       saveData();
     }
     goHome();
@@ -819,7 +1400,6 @@ function shareRule(id) {
   const rule = getRule(id);
   if (!rule) return;
   
-  // 不要な肥大化データの除外 (例: custom_tiles が空なら除外)
   const exportData = {
     m: rule.mode,
     n: rule.name,
@@ -827,77 +1407,96 @@ function shareRule(id) {
     s: rule.settings
   };
   
-  try {
-    const jsonStr = JSON.stringify(exportData);
-    // LZStringによって安全なURL用文字列に圧縮＆エンコード
-    const compressedStr = LZString.compressToEncodedURIComponent(jsonStr);
-    
-    const url = new URL(window.location.href);
-    url.searchParams.set('share', compressedStr);
-    
-    navigator.clipboard.writeText(url.href).then(() => {
-      showSnack('🔗 共有リンクをコピーしました');
-    }).catch(() => {
-      alert('リンクのコピーに失敗しました。以下のURLをコピーしてください：\n\n' + url.href);
-    });
-  } catch (e) {
-    console.error("shareRule Error:", e);
-    alert('共有リンクの生成に失敗しました: ' + e.message);
-  }
+  // IDを生成しURLを即座にクリップボードへ（ユーザー操作文脈を維持するため先にコピー）
+  const shareId = generateShareId();
+  const url = window.location.origin + window.location.pathname + '?share=' + shareId;
+  
+  navigator.clipboard.writeText(url).then(() => {
+    showSnack('🔗 共有リンクをコピーしました');
+  }).catch(() => {
+    // clipboard APIが使えない場合の代替（iOS Safari等）
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showSnack('🔗 共有リンクをコピーしました');
+  });
+  
+  // Firestoreに共有データをバックグラウンド保存
+  fbDb.collection('shared_rules').doc(shareId).set({
+    data: JSON.stringify(exportData),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(e => {
+    console.error("shareRule Firestore Error:", e);
+  });
 }
 
-function checkSharedRule() {
+// 短いランダムIDを生成（8文字、英数字）
+function generateShareId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let id = '';
+  for (let i = 0; i < 8; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+  return id;
+}
+
+async function checkSharedRule() {
   const urlParams = new URLSearchParams(window.location.search);
   const shareData = urlParams.get('share');
-  if (shareData) {
-    try {
-      // ① 最新の LZString でデコード＆展開を試行
+  if (!shareData) return false;
+  
+  try {
+    let parsed = null;
+    
+    if (shareData.length <= 20) {
+      // 短いID → Firestoreから取得
+      const doc = await fbDb.collection('shared_rules').doc(shareData).get();
+      if (!doc.exists) {
+        alert('共有ルールが見つかりません。リンクが無効か期限切れです。');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return false;
+      }
+      parsed = JSON.parse(doc.data().data);
+    } else {
+      // レガシー: 長いLZString圧縮データ（後方互換性）
       let jsonStr = null;
       try {
         jsonStr = LZString.decompressFromEncodedURIComponent(shareData);
-      } catch (err) { /* 無視して次へ */ }
-
-      // ② レガシー仕様（v4.8以下）の Base64URL 形式だった場合のフォールバック
+      } catch (err) { /* 無視 */ }
       if (!jsonStr) {
         let sanitizedBase64 = shareData.replace(/-/g, '+').replace(/_/g, '/').replace(/ /g, '+');
         while (sanitizedBase64.length % 4) sanitizedBase64 += '=';
         jsonStr = decodeURIComponent(atob(sanitizedBase64));
       }
-
-      if (!jsonStr) {
-        alert("エラー: 共有データの展開に失敗しました（空のデータ）");
-        throw new Error("Decompression produced empty string");
-      }
-      const parsed = JSON.parse(jsonStr);
-      
-      const id = 'shared_' + Date.now();
-      const sharedRule = {
-        id: id,
-        mode: parsed.m || '四麻',
-        name: parsed.n || '共有ルール',
-        base_rule: parsed.b || '',
-        settings: parsed.s || {},
-        readonly: true
-      };
-      
-      // 既存のリストには入れず一時データとして扱う
-      appData.rules.push(sharedRule); 
-      // URLからパラメータを消去
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
-      
-      isSharedMode = true;
-      editingId = id;
-      
-      renderEdit();
-      showScreen('edit');
-      return true;
-    } catch (e) {
-      console.error("checkSharedRule Error:", e);
-      alert('共有ルールの読み込みに失敗しました。\n詳細な原因: ' + e.message + '\n\n共有データ:\n' + shareData.substring(0, 50) + '...');
-      const fallbackUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, fallbackUrl);
+      if (!jsonStr) throw new Error("Decompression produced empty string");
+      parsed = JSON.parse(jsonStr);
     }
+    
+    const id = 'shared_' + Date.now();
+    const sharedRule = {
+      id: id,
+      mode: parsed.m || '四麻',
+      name: parsed.n || '共有ルール',
+      base_rule: parsed.b || '',
+      settings: parsed.s || {},
+      readonly: true
+    };
+    
+    appData.rules.push(sharedRule); 
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    isSharedMode = true;
+    editingId = id;
+    
+    renderEdit();
+    showScreen('edit');
+    return true;
+  } catch (e) {
+    console.error("checkSharedRule Error:", e);
+    alert('共有ルールの読み込みに失敗しました。\n詳細: ' + e.message);
+    window.history.replaceState({}, document.title, window.location.pathname);
   }
   return false;
 }
@@ -906,21 +1505,52 @@ function checkSharedRule() {
 // ルールCRUD
 // =====================================================================
 function createRule(mode) {
-  _editSnapshot = JSON.stringify(appData);
   const id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
-  const def = getDefault(mode);
-  const defBaseKey = mode === '四麻' ? (localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4')
-                                     : (localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3');
+  let activeDefaults = [];
+  try {
+     const raw = localStorage.getItem(mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
+     if (raw) activeDefaults = JSON.parse(raw);
+  } catch(e) {}
+  if (!Array.isArray(activeDefaults)) activeDefaults = [];
+
+  const candidates = appData.rules.filter(r => r.mode === mode && activeDefaults.includes(r.id));
+  const parseDateStr = (str) => {
+    if (!str) return 0;
+    const t = Date.parse(str.replace(/\//g, '-'));
+    return isNaN(t) ? 0 : t;
+  };
+  candidates.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
+
+  const targetBase = candidates[0];
+  let defBaseKey = null;
+  let initSettings = getDefault(mode);
+
+  if (targetBase) {
+      defBaseKey = targetBase.id;
+      initSettings = JSON.parse(JSON.stringify(targetBase.settings));
+  } else {
+      defBaseKey = mode === '四麻' ? 'preset_jantama_4' : 'preset_zoo_3';
+  }
+
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
   const rule = {
     id, mode,
     name: '新規ルール',
-    base_rule: defBaseKey,
-    settings: JSON.parse(JSON.stringify(def))
+    base_rule: '',
+    date: `${y}/${m}/${d} ${h}:${min}:${s}`,
+    settings: initSettings
   };
   appData.rules.push(rule);
   
   // 新規作成時は保存せずスナップショットだけ撮る
-  _editSnapshot = JSON.stringify(appData);
+  _editSnapshot = JSON.stringify(rule.settings);
+  _editDirty = false;
   _isNewlyCreated = true;
   isSharedMode = false;
   editingId = id;
@@ -928,10 +1558,27 @@ function createRule(mode) {
 }
 
 function editRule(id) {
-  _editSnapshot = JSON.stringify(appData);
+  const ruleForSnap = appData.rules.find(r => r.id === id);
+  _editSnapshot = ruleForSnap ? JSON.stringify(ruleForSnap.settings) : null;
+  _editDirty = false;
   const rule = getRule(id);
   // コピー等で保存された readonly ルールの場合は isSharedMode 相当の閲覧専用として扱う
   isSharedMode = rule && rule.readonly === true;
+  
+  let activeDefaults = [];
+  try {
+     const raw = localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
+     if (raw) activeDefaults = JSON.parse(raw);
+  } catch(e) {}
+  if (!Array.isArray(activeDefaults)) activeDefaults = [];
+  
+  // 標準ルール自身の場合は自身を比較対象にする、それ以外はデフォルト「-」
+  if (activeDefaults.includes(id)) {
+      rule.base_rule = id;
+  } else {
+      rule.base_rule = '';
+  }
+  
   editingId = id;
   goEdit();
 }
@@ -946,6 +1593,8 @@ function closeModal() {
 }
 function confirmDelete() {
   if (deleteTargetId) {
+    // クラウドからも削除
+    if (typeof deleteRuleFromCloud === 'function') deleteRuleFromCloud(deleteTargetId);
     appData.rules = appData.rules.filter(r => r.id !== deleteTargetId);
     saveData();
   }
@@ -961,6 +1610,15 @@ function duplicateRule(id) {
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = newId;
   copy.name = src.name + '（コピー）';
+  delete copy.readonly;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  copy.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
   appData.rules.push(copy);
   saveData();
   renderHome();
@@ -995,16 +1653,24 @@ function renderEdit() {
 
   if (brSection) {
     brSection.classList.remove('hidden');
-    let customKeys = Object.keys(bases).filter(k => k.startsWith('__custom__'));
-    if (!customKeys.includes(rule.base_rule) && customKeys.length > 0) {
-      if (!isSharedMode) {
-        rule.base_rule = customKeys[0];
-        saveData();
-      }
+    
+    let activeDefaults = [];
+    try {
+        const raw = localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
+        if (raw) activeDefaults = JSON.parse(raw);
+    } catch(e){}
+    if (!Array.isArray(activeDefaults)) activeDefaults = [];
+    
+    let availableKeys = [...activeDefaults];
+    
+    // 画面を開いた時のデフォルト base_rule を「-」（比較なし）にする
+    if (!rule.base_rule && rule.base_rule !== '') {
+      rule.base_rule = '';
     }
     
-    // Update dropdown options
-    brSelect.innerHTML = customKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+    // Update dropdown options（先頭に「-」を追加）
+    brSelect.innerHTML = `<option value="" ${rule.base_rule===''?'selected':''}>-</option>` 
+      + availableKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
     
     // Always show base rule selector, even in read-only mode, to allow diff comparison
     const brChevron = brSection.querySelector('.material-symbols-outlined');
@@ -1014,20 +1680,20 @@ function renderEdit() {
     if (displaySpan) displaySpan.classList.add('pr-6');
     
     // Update standard-rule-display text
-    if (displaySpan) displaySpan.innerText = getBaseRuleName(rule.base_rule) || '';
+    if (displaySpan) displaySpan.innerText = rule.base_rule ? (getBaseRuleName(rule.base_rule) || '-') : '-';
   } else {
     brSection.classList.add('hidden');
   }
 
   const cats = getCategories(rule.mode);
   const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-  const base = getBaseRules(rule.mode)[rule.base_rule] || null;
+  const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
 
   const fields = document.getElementById('edit-fields');
   
   let html = '';
 
-  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai'];
+  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
   const chomboMovedKeys = new Set();
   for (const pk of penaltyKeys) {
     if (rule.settings[pk] === 'チョンボ') chomboMovedKeys.add(pk);
@@ -1078,7 +1744,7 @@ function renderEdit() {
         const val = rule.settings[k] ?? '';
         const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
 
-        if (k.endsWith('_custom') && k !== 'yakuman_custom_memo') {
+        if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
           if (rule.settings[parentKey] === 'カスタム') {
             itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
@@ -1089,25 +1755,7 @@ function renderEdit() {
           continue;
         }
 
-        if (k === 'yakuman_custom_memo') {
-          if (rule.settings.yakuman_type === 'カスタム') {
-            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 mx-4">
-              <label class="text-[11px] font-bold text-theme-primary mb-1 block">📝 ${esc(LABELS[k] || k)}</label>
-              <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム役満の詳細を入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" rows="2" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
-            </div>`);
-          }
-          continue;
-        }
 
-        if (k === 'chombo_memo') {
-          if (rule.settings.chombo_batsu === 'カスタム') {
-            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 mx-4">
-              <label class="text-[11px] font-bold text-theme-primary mb-1 block">📝 ${esc(LABELS[k] || k)}</label>
-              <textarea data-key="${k}" oninput="onSettingChange('${k}',this.value)" placeholder="カスタム罰符の詳細を入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" rows="2" ${isSharedMode ? 'disabled' : ''}>${esc(val)}</textarea>
-            </div>`);
-          }
-          continue;
-        }
 
         let options = opts[k] || [val];
         const userOptions = rule.settings['user_options_' + k] || [];
@@ -1119,6 +1767,10 @@ function renderEdit() {
         const isCustom = val === 'カスタム';
         const optionsHtml = [...options, 'カスタム'].filter((v, i, a) => a.indexOf(v) === i).map(opt => `<option value="${esc(opt)}" ${val === opt ? 'selected' : ''}>${esc(opt)}</option>`).join('');
         const customAttrValue = rule.settings[k + '_custom'] || '';
+        
+        let valSizeClass = "text-[15px]";
+        if (val && val.length > 15) valSizeClass = "text-[13px]";
+        if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}">
@@ -1135,10 +1787,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(LABELS[k] || k)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="text-[15px] truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${valSizeClass} text-right w-full block pointer-events-none display-value-span whitespace-normal break-words ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(val)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1172,6 +1824,10 @@ function renderEdit() {
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
         const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
+        
+        let cValSizeClass = "text-[15px]";
+        if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
+        if (cVal && cVal.length > 18) cValSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
@@ -1188,10 +1844,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isSharedMode ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 truncate max-w-[45%]">${esc(itemName)}</span>
+                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
-                            <span class="text-[15px] truncate text-right w-full block pointer-events-none ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
+                            <span class="${cValSizeClass} text-right w-full block pointer-events-none whitespace-normal break-words ${!isSharedMode ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
                             ${!isSharedMode ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
@@ -1221,6 +1877,7 @@ function renderEdit() {
     }
 
     const catMemo = rule.settings['memo_' + catKey] || '';
+    const memoRows = Math.max(2, (catMemo.match(/\n/g) || []).length + 2);
     if (!isSharedMode || catMemo.trim() !== '') {
         catDivContent.push(`
             <div class="mt-3 w-full">
@@ -1231,7 +1888,7 @@ function renderEdit() {
                     </div>
                     <textarea placeholder="自由にメモや追加ルールを記載できます..." 
                         class="w-full bg-transparent border-none text-[14px] text-theme-text outline-none resize-none placeholder-gray-400 leading-relaxed" 
-                        rows="2" 
+                        rows="${memoRows}" 
                         oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'; onSettingChange('memo_${catKey}',this.value)"
                         ${isSharedMode ? 'disabled' : ''}>${esc(catMemo)}</textarea>
                 </div>
@@ -1265,6 +1922,7 @@ function onBaseRuleChange(val) {
   }
 }
 function onSettingChange(key, val) {
+  _editDirty = true;
   const rule = getRule(editingId);
   if (rule) { rule.settings[key] = val; saveData(); }
 
@@ -1277,7 +1935,7 @@ function onSettingChange(key, val) {
   // カスタム系ドロップダウンや罰則キーが変わったら再描画
   const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya',
     'pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai',
-    'pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_reach_torikeshi','pen_shouhai']);
+    'pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai']);
   if (reRenderKeys.has(key)) {
     renderEdit();
     return;
@@ -1291,6 +1949,18 @@ function onSettingChange(key, val) {
     if (swipeRow) {
       const isDiff = (!(key in base) || val !== String(base[key] || ""));
       swipeRow.classList.toggle('is-changed', isDiff);
+      
+      const valSpan = swipeRow.querySelector('.display-value-span');
+      if (valSpan) {
+          valSpan.textContent = val;
+          if (isDiff) {
+              valSpan.classList.add('text-theme-primary', 'font-bold');
+              valSpan.classList.remove('text-theme-textMuted');
+          } else {
+              valSpan.classList.add('text-theme-textMuted');
+              valSpan.classList.remove('text-theme-primary', 'font-bold');
+          }
+      }
     }
   }
 }
@@ -1735,7 +2405,7 @@ async function exportImage() {
           
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
-              if (k === 'yakuman_custom_memo' || k === 'chombo_memo') continue;
+              
 
               const val = rule.settings[k] ?? '';
               let displayValue = val;
@@ -1806,12 +2476,6 @@ async function exportImage() {
       const catMemo = rule.settings['memo_' + catKey] || '';
       let combinedMemo = catMemo;
       
-      if (catName.includes('役満') && rule.settings.yakuman_type === 'カスタム' && rule.settings.yakuman_custom_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.yakuman_custom_memo;
-      }
-      if (catName.includes('チョンボ') && rule.settings.chombo_batsu === 'カスタム' && rule.settings.chombo_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.chombo_memo;
-      }
 
       if (combinedMemo && combinedMemo.trim() !== '') {
           html += `
@@ -1931,7 +2595,7 @@ async function exportPDF() {
           
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
-              if (k === 'yakuman_custom_memo' || k === 'chombo_memo') continue;
+              
 
               const val = rule.settings[k] ?? '';
               let displayValue = val;
@@ -2002,12 +2666,6 @@ async function exportPDF() {
       const catMemo = rule.settings['memo_' + catKey] || '';
       let combinedMemo = catMemo;
       
-      if (catName.includes('役満') && rule.settings.yakuman_type === 'カスタム' && rule.settings.yakuman_custom_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.yakuman_custom_memo;
-      }
-      if (catName.includes('チョンボ') && rule.settings.chombo_batsu === 'カスタム' && rule.settings.chombo_memo) {
-          combinedMemo = (combinedMemo ? combinedMemo + '\n' : '') + rule.settings.chombo_memo;
-      }
 
       if (combinedMemo && combinedMemo.trim() !== '') {
           html += `
@@ -2093,25 +2751,7 @@ function showSnack(msg) {
 }
 
 // =====================================================================
-// PWA インストール
-// =====================================================================
-let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  if (window._triggerReactPWABanner) {
-    window._triggerReactPWABanner();
-  }
-});
-function installPWA() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => {
-      deferredPrompt = null;
-      if (window._hideReactPWABanner) window._hideReactPWABanner();
-    });
-  }
-}
+
 
 // =====================================================================
 // Service Worker 登録
@@ -2135,235 +2775,36 @@ if ('serviceWorker' in navigator) {
 // アプリ起動時の処理はスクリプト最下部で実行します
 // =====================================================================
 
-// =====================================================================
-// 標準ルールの管理
-// =====================================================================
-let customBaseRules = {}; // { id: { name, mode, settings } }
-let currentCustomBaseId = null;
-
-function loadCustomBaseRules() {
-  let isNew = false;
-  try {
-    const data = localStorage.getItem('mahjong_custom_base_rules');
-    if (data) customBaseRules = JSON.parse(data);
-    else isNew = true;
-  } catch(e) { isNew = true; }
-
-  // 空もしくは初期ロード時
-  if (isNew || Object.keys(customBaseRules).length === 0) {
-    customBaseRules = {
-      "preset_jantama_4": { "name": "雀魂（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["雀魂（四麻・段位戦）"]} },
-      "preset_tenhou_4": { "name": "天鳳（段位戦）", "mode": "四麻", "settings": {...BASE_RULES_4["天鳳（四麻）"]} },
-      "preset_mleague_4": { "name": "Mリーグ", "mode": "四麻", "settings": {...BASE_RULES_4["Mリーグ公式（四麻）"]} },
-      "preset_zoo_3": { "name": "三人麻雀（標準）", "mode": "三麻", "settings": {...BASE_RULES_3["三人麻雀（標準）"]} }
-    };
-    saveCustomBaseRules();
-  }
-}
-loadCustomBaseRules(); // 初期化時に読み込み
-
 // デフォルトベース設定関数
-function setDefaultBaseRule(mode, id) {
-  if (mode === '四麻') localStorage.setItem('mahjong_default_base_4ma', '__custom__' + id);
-  else localStorage.setItem('mahjong_default_base_3ma', '__custom__' + id);
-  renderCustomBaseManager(); // 再描画
-}
-
-function saveCustomBaseRules() {
-  localStorage.setItem('mahjong_custom_base_rules', JSON.stringify(customBaseRules));
-}
-
-function createNewCustomBase(mode) {
-  currentCustomBaseId = 'custom_' + Date.now();
-  customBaseRules[currentCustomBaseId] = {
-    name: "新規カスタムルール",
-    mode: mode,
-    settings: {...(mode === '四麻' ? DEFAULT_4 : DEFAULT_3)}
-  };
-  openCustomBaseEditor(currentCustomBaseId);
-}
-
-function openCustomBaseEditor(id) {
-  currentCustomBaseId = id;
-  const rule = customBaseRules[id];
-  document.getElementById('custom-base-title').textContent = `${rule.mode}基準ルールの編集`;
-  document.getElementById('custom-base-name').value = rule.name;
+window.toggleDefaultBaseRule = function(mode, id) {
+  const key = mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma';
+  let arr = [];
+  try {
+     const raw = localStorage.getItem(key);
+     if (raw) arr = JSON.parse(raw);
+  } catch(e) {}
+  if (!Array.isArray(arr)) arr = [];
   
-  // コピー元セレクトボックス
-  const srcSelect = document.getElementById('custom-base-source');
-  const bases = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  srcSelect.innerHTML = '<option value="">-- ベースにする基準ルールを選択 --</option>';
-  for (const b in bases) {
-    srcSelect.insertAdjacentHTML('beforeend', `<option value="${b}">${b}</option>`);
+  if (arr.includes(id)) {
+      arr = arr.filter(x => x !== id);
+  } else {
+      arr.push(id);
   }
-  srcSelect.value = '';
-
-  renderCustomBaseEditorItems();
-  showScreen('custom-base-editor');
-}
-
-function renderCustomBaseEditorItems() {
-  const rule = customBaseRules[currentCustomBaseId];
-  const listEl = document.getElementById('custom-base-editor-items');
-  listEl.innerHTML = '';
-  const cats = rule.mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3;
-  const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-
-  cats.forEach(cat => {
-    let catTitle = cat[0];
-    let catKeys = cat[1];
-    let ht = `<div><h2 class="text-[14px] font-bold text-theme-textMuted mb-3 px-1">${esc(catTitle)}</h2><div class="flex flex-col gap-3">`;
-    catKeys.forEach(k => {
-      let val = rule.settings[k] ?? '';
-      let isText = Array.isArray(opts[k]) && opts[k][0] === "";
-      let label = LABELS[k] || k;
-      
-      if (isText) {
-        let pVal = rule.settings[k.replace('_custom', '')] ?? '';
-        let isVis = (pVal === 'カスタム');
-        ht += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm" id="cbe-row-${k}" style="display:${isVis?'block':'none'}">
-                 <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">draw</span>↳ ${esc(label)}</label>
-                 <input type="text" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none focus:border-theme-primary/50" value="${esc(val)}" onchange="updateCustomBaseVal('${k}', this.value)">
-               </div>`;
-      } else {
-        ht += `<div class="bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm">
-                 <label class="flex items-center gap-1.5 text-[12px] font-bold text-theme-textMuted mb-2"><span class="material-symbols-outlined text-[16px]">settings</span>${esc(label)}</label>
-                 <div class="relative w-full">
-                   <select id="cbe-sel-${k}" onchange="updateCustomBaseVal('${k}', this.value); updateCustomBaseSub('${k}')" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2.5 text-[14px] text-theme-text outline-none appearance-none pr-8 focus:border-theme-primary/50">`;
-        opts[k].forEach(o => {
-          let sel = (o === val) ? 'selected' : '';
-          ht += `<option value="${esc(o)}" ${sel}>${esc(o)}</option>`;
-        });
-        ht += `  </select><span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-theme-textMuted pointer-events-none">expand_content</span>
-                 </div>
-               </div>`;
-      }
-    });
-    ht += `</div></div>`;
-    listEl.insertAdjacentHTML('beforeend', ht);
-  });
-}
-
-function updateCustomBaseVal(key, val) {
-  if (currentCustomBaseId && customBaseRules[currentCustomBaseId]) {
-    customBaseRules[currentCustomBaseId].settings[key] = val;
-  }
-}
-
-function updateCustomBaseSub(key) {
-  if (!currentCustomBaseId) return;
-  const rule = customBaseRules[currentCustomBaseId];
-  const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-  const customKey = key + '_custom';
-  if (opts[customKey]) {
-    const row = document.getElementById(`cbe-row-${customKey}`);
-    const isCustom = (document.getElementById(`cbe-sel-${key}`).value === 'カスタム');
-    if (row) row.style.display = isCustom ? 'flex' : 'none';
-  }
-}
-
-function copyBaseToCustom() {
-  const src = document.getElementById('custom-base-source').value;
-  if (!src) return;
-  const rule = customBaseRules[currentCustomBaseId];
-  const bases = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  if (bases[src]) {
-    rule.settings = {...bases[src]};
-    renderCustomBaseEditorItems();
-    showToast(`「${src}」をコピーしました`);
-  }
-}
-
-function saveCustomBaseRule() {
-  const name = document.getElementById('custom-base-name').value.trim();
-  if (!name) { alert("ルール名を入力してください"); return; }
-  customBaseRules[currentCustomBaseId].name = name;
-  saveCustomBaseRules();
-  showToast("保存しました");
-  renderCustomBaseManager();
-  showScreen('custom-base-manager');
-}
-
-function renderCustomBaseManager() {
-  const container = document.getElementById('custom-base-list');
-  let html = '';
-
-  const def4 = localStorage.getItem('mahjong_default_base_4ma') || '__custom__preset_jantama_4';
-  const def3 = localStorage.getItem('mahjong_default_base_3ma') || '__custom__preset_zoo_3';
-
-  const renderItem = (k, b, mode, isCustom) => {
-      const isDef = (mode === '四麻' && def4 === '__custom__' + k) || (mode === '三麻' && def3 === '__custom__' + k);
-      return `
-      <div class="bg-theme-surface p-4 rounded-2xl flex items-center justify-between shadow-sm border border-theme-border/50 cursor-pointer active:opacity-60 transition-opacity" onclick="${isCustom ? `openCustomBaseEditor('${k}')` : `setDefaultBaseRule('${mode}', '${k}')`}">
-        <div class="flex-1 min-w-0 pr-4 flex flex-col pointer-events-none">
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="bg-theme-bg px-2 py-0.5 rounded text-[11px] text-theme-textMuted border border-theme-border/50 font-normal">${mode}</span>
-            ${isDef ? `<span class="bg-theme-primary/10 text-theme-primary px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">star</span>デフォルト</span>` : ''}
-          </div>
-          <h2 class="text-base font-semibold ${isCustom ? 'text-theme-text' : 'text-theme-textMuted'} truncate">${esc(b.name)}</h2>
-          <div class="flex items-center gap-1 mt-1 text-theme-textMuted">
-            <span class="material-symbols-outlined text-[14px]">info</span>
-            <p class="text-xs">タップで${isCustom ? '編集' : '標準化'}</p>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-4 text-theme-textMuted z-10">
-          <button 
-            onclick="event.stopPropagation(); setDefaultBaseRule('${mode}', '${k}')"
-            class="flex items-center justify-center ${isDef ? 'text-theme-primary pointer-events-none' : 'hover:text-theme-primary cursor-pointer active:scale-90 transition-all font-inherit'}"
-            aria-label="デフォルトに設定"
-          >
-            <span class="material-symbols-outlined text-[24px]">${isDef ? 'star' : 'star_border'}</span>
-          </button>
-          ${isCustom ? `
-          <button 
-            onclick="event.stopPropagation(); deleteCustomBase('${k}')"
-            class="flex items-center justify-center hover:text-theme-danger cursor-pointer active:scale-90 transition-all font-inherit"
-            aria-label="削除"
-          >
-            <span class="material-symbols-outlined text-[22px]">delete</span>
-          </button>
-          ` : ''}
-        </div>
-      </div>
-      `;
-  };
-
-  const customRuleKeys = Object.keys(customBaseRules);
-  let hasCustom = false;
-  for (const k of customRuleKeys) {
-      if (!customBaseRules[k]) continue;
-      if (k.startsWith('preset_')) continue;
-      hasCustom = true;
-      html += renderItem(k, customBaseRules[k], customBaseRules[k].mode, true);
-  }
+  localStorage.setItem(key, JSON.stringify(arr));
   
-  if (hasCustom) html += '<hr class="my-3 border-theme-border/30 border-dashed">';
-
-  for (const k of customRuleKeys) {
-      if (!customBaseRules[k]) continue;
-      if (k.startsWith('preset_4')) html += renderItem(k, customBaseRules[k], '四麻', false);
-      else if (k.startsWith('preset_3') || (k.startsWith('preset_') && customBaseRules[k].mode)) html += renderItem(k, customBaseRules[k], customBaseRules[k].mode, false);
-  }
-
-  container.innerHTML = html;
-}
-
-function deleteCustomBase(id) {
-  if (confirm("このカスタムルールを削除しますか？")) {
-    delete customBaseRules[id];
-    saveCustomBaseRules();
-    renderCustomBaseManager();
-  }
-}
+  if (window.triggerReactRefresh) window.triggerReactRefresh();
+  else if (typeof window.renderHome === 'function') window.renderHome();
+};
 
 // =====================================================================
 // アプリ起動 (全ての変数・関数の定義後に実行)
 // =====================================================================
 loadData();
-if (!checkSharedRule()) {
-  renderHome();
-}
+(async () => {
+  if (!await checkSharedRule()) {
+    renderHome();
+  }
+})();
 </script>
 <script type="text/babel">
   const { useState, useEffect } = React;
@@ -2384,8 +2825,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v0.80", 
-    buildDate: "2026-03-17 11:45",
+    appVersion: "v2.27", 
+    buildDate: "2026-03-18 21:51",
   };
 
   // ==========================================
@@ -2393,22 +2834,24 @@ if (!checkSharedRule()) {
   // ==========================================
   function App({ rulesFromVanilla }) {
     const [activeTab, setActiveTab] = useState(4); // 4 = 四人麻雀, 3 = 三人麻雀
-    const [showPwaBanner, setShowPwaBanner] = useState(false);
+
+    const [refreshTrick, setRefreshTrick] = useState(0);
+
+    window.triggerReactRefresh = () => setRefreshTrick(prev => prev + 1);
     
     // VanillaJS側で保存されたルールをフィルタリング
-    const displayedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab);
+    let combinedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab);
 
-    useEffect(() => {
-      window._triggerReactPWABanner = () => setShowPwaBanner(true);
-      window._hideReactPWABanner = () => setShowPwaBanner(false);
-      if (window.deferredPrompt) setShowPwaBanner(true);
-      return () => {
-        window._triggerReactPWABanner = null;
-        window._hideReactPWABanner = null;
-      };
-    }, []);
+    const parseDateStr = (str) => {
+      if (!str) return 0;
+      const t = Date.parse(str.replace(/\//g, '-'));
+      return isNaN(t) ? 0 : t;
+    };
 
-    const handleInstallPWA = () => { if (window.installPWA) window.installPWA(); };
+    const displayedRules = combinedRules.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
+
+
+
 
     const handleAction = (action, rule) => {
       switch(action) {
@@ -2428,13 +2871,7 @@ if (!checkSharedRule()) {
               {CONFIG.strings.appTitle}
             </h1>
           </div>
-          <button 
-            onClick={() => window.showScreen('custom-base-manager')}
-            className="text-theme-primary text-sm font-medium flex items-center gap-1 active:opacity-70 transition-opacity z-10"
-          >
-            <span className="material-symbols-outlined text-[20px]">settings</span>
-            <span>{CONFIG.strings.manageStandardRules}</span>
-          </button>
+          <div className="flex-1"></div>
         </header>
 
         {/* タブ切り替え */}
@@ -2455,15 +2892,7 @@ if (!checkSharedRule()) {
           </div>
         </div>
 
-        {/* PWAインストールバナー */}
-        {showPwaBanner && (
-          <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-4">
-            <div onClick={handleInstallPWA} className="bg-theme-surface text-theme-primary text-xs font-bold px-4 py-3 rounded-xl border border-theme-border flex items-center justify-between cursor-pointer active:scale-95 transition-transform shadow-sm">
-              <span>📱 ホーム画面に追加してアプリとして使う</span>
-              <button className="bg-theme-primary text-white px-3 py-1.5 rounded-md shadow-sm">追加</button>
-            </div>
-          </div>
-        )}
+
 
         {/* 新規作成ボタン */}
         <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-6">
@@ -2481,6 +2910,14 @@ if (!checkSharedRule()) {
           <div className="flex flex-col gap-3">
             {displayedRules.map((rule) => {
               const isReadOnly = rule.readonly;
+              let def4 = []; let def3 = [];
+              try { def4 = JSON.parse(localStorage.getItem('mahjong_default_base_4ma') || '[]'); } catch(e){}
+              try { def3 = JSON.parse(localStorage.getItem('mahjong_default_base_3ma') || '[]'); } catch(e){}
+              if (!Array.isArray(def4)) def4 = [];
+              if (!Array.isArray(def3)) def3 = [];
+              
+              const isDef = (rule.mode === '四麻' && def4.includes(rule.id)) || (rule.mode === '三麻' && def3.includes(rule.id));
+
               return (
                 <div 
                   key={rule.id} 
@@ -2492,7 +2929,9 @@ if (!checkSharedRule()) {
                   >
                     {!isReadOnly ? (
                       <>
-                        <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
+                        <h2 className="text-base font-semibold text-theme-text truncate">
+                          {rule.name}{isDef ? <span className="text-theme-primary ml-1 text-sm">(標準ルール)</span> : ""}
+                        </h2>
                         <div className="flex items-center gap-1 mt-1 text-theme-textMuted">
                           <span className="material-symbols-outlined text-[14px]">calendar_today</span>
                           <p className="text-xs">更新: {rule.date || "2026/03/16"}</p>
@@ -2502,31 +2941,40 @@ if (!checkSharedRule()) {
                       <>
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            <h2 className="text-base font-semibold text-theme-text truncate">{rule.name}</h2>
+                            <h2 className="text-base font-semibold text-theme-text truncate">
+                              {rule.name}{isDef ? <span className="text-theme-primary ml-1 text-sm">(標準ルール)</span> : ""}
+                            </h2>
                             <span className="material-symbols-outlined text-theme-textMuted text-[18px]">lock</span>
                           </div>
                           <div className="flex items-center gap-1 text-theme-textMuted">
                             <span className="material-symbols-outlined text-[14px]">verified</span>
-                            <p className="text-xs">共有ルール（改変不可）</p>
+                            <p className="text-xs">編集不可</p>
                           </div>
                         </div>
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-theme-textMuted">
+                  <div className="flex items-center gap-4 text-theme-textMuted z-10">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); window.toggleDefaultBaseRule(rule.mode, rule.id); }}
+                      className={`flex items-center justify-center ${isDef ? 'text-theme-primary' : 'text-theme-textMuted active:scale-90 transition-all font-inherit'}`}
+                      aria-label="標準設定"
+                    >
+                      <span className="material-symbols-outlined text-[24px]">{isDef ? 'star' : 'star_border'}</span>
+                    </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleAction('copy', rule); }}
                       className="flex items-center justify-center hover:text-theme-primary active:scale-90 transition-all font-inherit"
                       aria-label="コピー"
                     >
-                      <span className="material-symbols-outlined text-[22px]">content_copy</span>
+                      <span className="material-symbols-outlined text-[20px]">content_copy</span>
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
                       className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
                       aria-label="削除"
                     >
-                      <span className="material-symbols-outlined text-[22px]">delete</span>
+                      <span className="material-symbols-outlined text-[20px]">delete</span>
                     </button>
                   </div>
                 </div>
@@ -2541,12 +2989,66 @@ if (!checkSharedRule()) {
           </div>
         </main>
 
-        <footer className="py-6 text-center shrink-0">
+        <footer className="py-6 text-center shrink-0" style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }}>
+          {/* Firebase認証UI */}
+          {(() => {
+            const user = window._fbUser;
+            if (user && !user.isAnonymous) {
+              return (
+                <div style={{
+                  background: 'var(--color-surface, #fff)',
+                  border: '1px solid var(--color-border, #e5e5ea)',
+                  borderRadius: '12px', padding: '12px 16px', marginBottom: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '16px' }}>☁️</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text, #1c1c1e)' }}>クラウド同期ON</div>
+                      <div style={{ fontSize: '10px', color: 'var(--color-textMuted, #8e8e93)' }}>{user.email}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => window.signOutFirebase && window.signOutFirebase()} style={{
+                    fontSize: '11px', color: 'var(--color-textMuted, #8e8e93)',
+                    background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline',
+                  }}>ログアウト</button>
+                </div>
+              );
+            } else {
+              return (
+                <button onClick={() => window.linkToGoogle && window.linkToGoogle()} 
+                disabled={window._fbSigningIn}
+                style={{
+                  width: '100%', padding: '12px', marginBottom: '12px',
+                  background: window._fbSigningIn ? '#f5f5f5' : '#fff', 
+                  border: '1px solid #dadce0', borderRadius: '12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  cursor: window._fbSigningIn ? 'default' : 'pointer', 
+                  fontSize: '13px', fontWeight: '600', 
+                  color: window._fbSigningIn ? '#999' : '#3c4043',
+                  transition: 'all 0.2s',
+                  opacity: window._fbSigningIn ? 0.7 : 1,
+                }}>
+                  {window._fbSigningIn ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: '18px', height: '18px', border: '2px solid #dadce0', borderTopColor: '#4285F4', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></span>
+                      ログイン中...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                      Googleでログイン（データをクラウド保存）
+                    </>
+                  )}
+                </button>
+              );
+            }
+          })()}
           <p className="text-[11px] font-medium text-theme-textMuted tracking-wider mb-1">
-            VERSION {CONFIG.appVersion}
+            {CONFIG.appVersion}
           </p>
           <p className="text-[10px] text-theme-textMuted/70">
-            ビルド時刻: 2026-03-17 11:45
+            ビルド時刻: {CONFIG.buildDate}
           </p>
         </footer>
 
