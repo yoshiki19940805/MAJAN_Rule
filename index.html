@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.2";
+    const currentVersion = "v2.3";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       window.location.replace("?v=" + currentVersion);
@@ -2546,6 +2546,7 @@ const isStandalone = window.matchMedia('(display-mode: standalone)').matches
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome|CriOS|FxiOS/.test(navigator.userAgent);
 const isIOSSafari = isIOS && isSafari;
+window.isIOSSafari = isIOSSafari;
 
 // dismiss記憶（3日間非表示）
 function isPwaBannerDismissed() {
@@ -2660,8 +2661,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.2", 
-    buildDate: "2026-03-18 10:15",
+    appVersion: "v2.3", 
+    buildDate: "2026-03-18 10:18",
   };
 
   // ==========================================
