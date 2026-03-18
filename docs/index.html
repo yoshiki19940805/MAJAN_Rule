@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.18";
+    const currentVersion = "v2.19";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -85,9 +85,11 @@
     return rule && (rule.readonly === true || (rule.id && rule.id.startsWith('preset_')));
   }
 
-  // Firestoreにユーザールールを保存
+  // Firestoreにユーザールールを保存（ログイン済みユーザーのみ）
   async function syncRulesToCloud() {
     if (!_fbUid || _fbSyncing) return;
+    // 未ログイン（匿名 or null）の場合はスキップ
+    if (!fbAuth.currentUser || fbAuth.currentUser.isAnonymous) return;
     try {
       const userRules = (appData.rules || []).filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
       const batch = fbDb.batch();
@@ -152,9 +154,10 @@
     if (typeof renderHome === 'function') renderHome();
   }
 
-  // Firestoreから特定ルールを削除
+  // Firestoreから特定ルールを削除（ログイン済みユーザーのみ）
   async function deleteRuleFromCloud(ruleId) {
     if (!_fbUid) return;
+    if (!fbAuth.currentUser || fbAuth.currentUser.isAnonymous) return;
     try {
       await fbDb.collection('users').doc(_fbUid).collection('rules').doc(ruleId).delete();
     } catch (e) {
@@ -181,21 +184,20 @@
 
   // 認証状態の監視
   fbAuth.onAuthStateChanged(async (user) => {
-    if (user) {
+    if (user && !user.isAnonymous) {
+      // Googleログイン済みユーザー
       _fbUid = user.uid;
       window._fbUser = user;
-      // ログイン後にクラウドからルールをマージ
+      // クラウドからルールをマージ
       if (typeof STORAGE_KEY !== 'undefined') {
         await mergeCloudRules();
       }
       if (typeof renderHome === 'function') renderHome();
     } else {
-      // 匿名認証でサインイン
-      try {
-        await fbAuth.signInAnonymously();
-      } catch (e) {
-        console.warn('Anonymous auth failed:', e);
-      }
+      // 未ログイン（匿名含む）→ ローカルのみ
+      _fbUid = null;
+      window._fbUser = null;
+      if (typeof renderHome === 'function') renderHome();
     }
   });
 
@@ -208,43 +210,20 @@
     window._fbSigningIn = true;
     if (typeof renderHome === 'function') renderHome(); // ローディング表示に即座更新
     const provider = new firebase.auth.GoogleAuthProvider();
-    const oldUid = (fbAuth.currentUser && fbAuth.currentUser.isAnonymous) ? fbAuth.currentUser.uid : null;
     
     // ★ async処理なしで即座にポップアップを開く（iOS Safari対策）
     fbAuth.signInWithPopup(provider).then(async (result) => {
       _fbSigningIn = false;
       window._fbSigningIn = false;
-      // ログイン成功 → データ移行
-      if (oldUid && oldUid !== result.user.uid) {
-        // 匿名UIDのFirestoreデータを移行
-        try {
-          const snap = await fbDb.collection('users').doc(oldUid).collection('rules').get();
-          const existingIds = new Set(appData.rules.map(r => r.id));
-          snap.forEach(doc => {
-            const d = doc.data();
-            const rule = {
-              id: doc.id, mode: d.mode || '四麻', name: d.name || '',
-              base_rule: d.base_rule || '', date: d.date || '',
-              settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
-            };
-            if (!existingIds.has(rule.id)) appData.rules.push(rule);
-          });
-          // 古い匿名データを削除
-          const batch = fbDb.batch();
-          snap.forEach(doc => batch.delete(doc.ref));
-          if (snap.size > 0) await batch.commit();
-          await fbDb.collection('users').doc(oldUid).delete();
-        } catch (err) { console.warn('Anon migration failed:', err); }
-      }
+      // ログイン成功 → ローカルのルールをクラウドにアップロード
+      await mergeCloudRules();
       await syncRulesToCloud();
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(err) {}
-      localStorage.removeItem('_fb_pending_anon_uid');
       if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
       if (typeof renderHome === 'function') renderHome();
     }).catch((e) => {
       _fbSigningIn = false;
       window._fbSigningIn = false;
-      localStorage.removeItem('_fb_pending_anon_uid');
       if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
         return; // ユーザーが閉じた
       }
@@ -1267,8 +1246,8 @@ function saveData() {
     }
   }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
-  // クラウドにも同期（バックグラウンド）
-  if (typeof syncRulesToCloud === 'function') syncRulesToCloud();
+  // ログイン済みならクラウドにも同期（バックグラウンド）
+  if (typeof syncRulesToCloud === 'function' && window._fbUser && !window._fbUser.isAnonymous) syncRulesToCloud();
 }
 
 function getBaseRuleName(k) {
@@ -2813,8 +2792,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.18", 
-    buildDate: "2026-03-18 20:16",
+    appVersion: "v2.19", 
+    buildDate: "2026-03-18 20:21",
   };
 
   // ==========================================
