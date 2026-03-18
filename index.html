@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.21";
+    const currentVersion = "v2.22";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -1388,7 +1388,6 @@ function shareRule(id) {
   const rule = getRule(id);
   if (!rule) return;
   
-  // 不要な肥大化データの除外 (例: custom_tiles が空なら除外)
   const exportData = {
     m: rule.mode,
     n: rule.name,
@@ -1396,78 +1395,87 @@ function shareRule(id) {
     s: rule.settings
   };
   
-  try {
-    const jsonStr = JSON.stringify(exportData);
-    // LZStringによって安全なURL用文字列に圧縮＆エンコード
-    const compressedStr = LZString.compressToEncodedURIComponent(jsonStr);
-    
-    // クリーンなベースURL（?v= 等の不要パラメータを含まない）
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('share', compressedStr);
-    
-    navigator.clipboard.writeText(url.href).then(() => {
+  // Firestoreに共有データを保存して短いIDを生成
+  const shareId = generateShareId();
+  fbDb.collection('shared_rules').doc(shareId).set({
+    data: JSON.stringify(exportData),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    const url = window.location.origin + window.location.pathname + '?share=' + shareId;
+    navigator.clipboard.writeText(url).then(() => {
       showSnack('🔗 共有リンクをコピーしました');
     }).catch(() => {
-      alert('リンクのコピーに失敗しました。以下のURLをコピーしてください：\n\n' + url.href);
+      alert('リンクのコピーに失敗しました。以下のURLをコピーしてください：\n\n' + url);
     });
-  } catch (e) {
+  }).catch(e => {
     console.error("shareRule Error:", e);
     alert('共有リンクの生成に失敗しました: ' + e.message);
-  }
+  });
 }
 
-function checkSharedRule() {
+// 短いランダムIDを生成（8文字、英数字）
+function generateShareId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let id = '';
+  for (let i = 0; i < 8; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+  return id;
+}
+
+async function checkSharedRule() {
   const urlParams = new URLSearchParams(window.location.search);
   const shareData = urlParams.get('share');
-  if (shareData) {
-    try {
-      // ① 最新の LZString でデコード＆展開を試行
+  if (!shareData) return false;
+  
+  try {
+    let parsed = null;
+    
+    if (shareData.length <= 20) {
+      // 短いID → Firestoreから取得
+      const doc = await fbDb.collection('shared_rules').doc(shareData).get();
+      if (!doc.exists) {
+        alert('共有ルールが見つかりません。リンクが無効か期限切れです。');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return false;
+      }
+      parsed = JSON.parse(doc.data().data);
+    } else {
+      // レガシー: 長いLZString圧縮データ（後方互換性）
       let jsonStr = null;
       try {
         jsonStr = LZString.decompressFromEncodedURIComponent(shareData);
-      } catch (err) { /* 無視して次へ */ }
-
-      // ② レガシー仕様（v4.8以下）の Base64URL 形式だった場合のフォールバック
+      } catch (err) { /* 無視 */ }
       if (!jsonStr) {
         let sanitizedBase64 = shareData.replace(/-/g, '+').replace(/_/g, '/').replace(/ /g, '+');
         while (sanitizedBase64.length % 4) sanitizedBase64 += '=';
         jsonStr = decodeURIComponent(atob(sanitizedBase64));
       }
-
-      if (!jsonStr) {
-        alert("エラー: 共有データの展開に失敗しました（空のデータ）");
-        throw new Error("Decompression produced empty string");
-      }
-      const parsed = JSON.parse(jsonStr);
-      
-      const id = 'shared_' + Date.now();
-      const sharedRule = {
-        id: id,
-        mode: parsed.m || '四麻',
-        name: parsed.n || '共有ルール',
-        base_rule: parsed.b || '',
-        settings: parsed.s || {},
-        readonly: true
-      };
-      
-      // 既存のリストには入れず一時データとして扱う
-      appData.rules.push(sharedRule); 
-      // URLからパラメータを消去
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
-      
-      isSharedMode = true;
-      editingId = id;
-      
-      renderEdit();
-      showScreen('edit');
-      return true;
-    } catch (e) {
-      console.error("checkSharedRule Error:", e);
-      alert('共有ルールの読み込みに失敗しました。\n詳細な原因: ' + e.message + '\n\n共有データ:\n' + shareData.substring(0, 50) + '...');
-      const fallbackUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, fallbackUrl);
+      if (!jsonStr) throw new Error("Decompression produced empty string");
+      parsed = JSON.parse(jsonStr);
     }
+    
+    const id = 'shared_' + Date.now();
+    const sharedRule = {
+      id: id,
+      mode: parsed.m || '四麻',
+      name: parsed.n || '共有ルール',
+      base_rule: parsed.b || '',
+      settings: parsed.s || {},
+      readonly: true
+    };
+    
+    appData.rules.push(sharedRule); 
+    window.history.replaceState({}, document.title, window.location.pathname);
+    
+    isSharedMode = true;
+    editingId = id;
+    
+    renderEdit();
+    showScreen('edit');
+    return true;
+  } catch (e) {
+    console.error("checkSharedRule Error:", e);
+    alert('共有ルールの読み込みに失敗しました。\n詳細: ' + e.message);
+    window.history.replaceState({}, document.title, window.location.pathname);
   }
   return false;
 }
@@ -2771,9 +2779,11 @@ window.toggleDefaultBaseRule = function(mode, id) {
 // アプリ起動 (全ての変数・関数の定義後に実行)
 // =====================================================================
 loadData();
-if (!checkSharedRule()) {
-  renderHome();
-}
+(async () => {
+  if (!await checkSharedRule()) {
+    renderHome();
+  }
+})();
 </script>
 <script type="text/babel">
   const { useState, useEffect } = React;
@@ -2794,8 +2804,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.21", 
-    buildDate: "2026-03-18 20:53",
+    appVersion: "v2.22", 
+    buildDate: "2026-03-18 20:59",
   };
 
   // ==========================================
