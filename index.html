@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.22";
+    const currentVersion = "v2.23";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -1395,21 +1395,30 @@ function shareRule(id) {
     s: rule.settings
   };
   
-  // Firestoreに共有データを保存して短いIDを生成
+  // IDを生成しURLを即座にクリップボードへ（ユーザー操作文脈を維持するため先にコピー）
   const shareId = generateShareId();
+  const url = window.location.origin + window.location.pathname + '?share=' + shareId;
+  
+  navigator.clipboard.writeText(url).then(() => {
+    showSnack('🔗 共有リンクをコピーしました');
+  }).catch(() => {
+    // clipboard APIが使えない場合の代替（iOS Safari等）
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showSnack('🔗 共有リンクをコピーしました');
+  });
+  
+  // Firestoreに共有データをバックグラウンド保存
   fbDb.collection('shared_rules').doc(shareId).set({
     data: JSON.stringify(exportData),
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(() => {
-    const url = window.location.origin + window.location.pathname + '?share=' + shareId;
-    navigator.clipboard.writeText(url).then(() => {
-      showSnack('🔗 共有リンクをコピーしました');
-    }).catch(() => {
-      alert('リンクのコピーに失敗しました。以下のURLをコピーしてください：\n\n' + url);
-    });
   }).catch(e => {
-    console.error("shareRule Error:", e);
-    alert('共有リンクの生成に失敗しました: ' + e.message);
+    console.error("shareRule Firestore Error:", e);
   });
 }
 
@@ -2804,8 +2813,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.22", 
-    buildDate: "2026-03-18 20:59",
+    appVersion: "v2.23", 
+    buildDate: "2026-03-18 21:01",
   };
 
   // ==========================================
