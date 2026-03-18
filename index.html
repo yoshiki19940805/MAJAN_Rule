@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.20";
+    const currentVersion = "v2.21";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -1513,7 +1513,7 @@ function createRule(mode) {
   const rule = {
     id, mode,
     name: '新規ルール',
-    base_rule: defBaseKey,
+    base_rule: '',
     date: `${y}/${m}/${d} ${h}:${min}:${s}`,
     settings: initSettings
   };
@@ -1543,9 +1543,11 @@ function editRule(id) {
   } catch(e) {}
   if (!Array.isArray(activeDefaults)) activeDefaults = [];
   
-  // 標準ルールの場合は、開いた時に自身を比較対象の初期値にする
+  // 標準ルール自身の場合は自身を比較対象にする、それ以外はデフォルト「-」
   if (activeDefaults.includes(id)) {
       rule.base_rule = id;
+  } else {
+      rule.base_rule = '';
   }
   
   editingId = id;
@@ -1632,15 +1634,14 @@ function renderEdit() {
     
     let availableKeys = [...activeDefaults];
     
-    if (!availableKeys.includes(rule.base_rule) && availableKeys.length > 0) {
-      if (!isSharedMode) {
-        rule.base_rule = availableKeys[0];
-        saveData();
-      }
+    // 画面を開いた時のデフォルト base_rule を「-」（比較なし）にする
+    if (!rule.base_rule && rule.base_rule !== '') {
+      rule.base_rule = '';
     }
     
-    // Update dropdown options
-    brSelect.innerHTML = availableKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+    // Update dropdown options（先頭に「-」を追加）
+    brSelect.innerHTML = `<option value="" ${rule.base_rule===''?'selected':''}>-</option>` 
+      + availableKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
     
     // Always show base rule selector, even in read-only mode, to allow diff comparison
     const brChevron = brSection.querySelector('.material-symbols-outlined');
@@ -1650,14 +1651,14 @@ function renderEdit() {
     if (displaySpan) displaySpan.classList.add('pr-6');
     
     // Update standard-rule-display text
-    if (displaySpan) displaySpan.innerText = getBaseRuleName(rule.base_rule) || '';
+    if (displaySpan) displaySpan.innerText = rule.base_rule ? (getBaseRuleName(rule.base_rule) || '-') : '-';
   } else {
     brSection.classList.add('hidden');
   }
 
   const cats = getCategories(rule.mode);
   const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-  const base = getBaseRules(rule.mode)[rule.base_rule] || null;
+  const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
 
   const fields = document.getElementById('edit-fields');
   
@@ -2793,8 +2794,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.20", 
-    buildDate: "2026-03-18 20:43",
+    appVersion: "v2.21", 
+    buildDate: "2026-03-18 20:53",
   };
 
   // ==========================================
