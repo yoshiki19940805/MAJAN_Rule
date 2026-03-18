@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.11";
+    const currentVersion = "v2.12";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -73,6 +73,15 @@
   firebase.initializeApp(firebaseConfig);
   const fbAuth = firebase.auth();
   const fbDb = firebase.firestore();
+
+  // リダイレクトログイン後の結果を処理
+  fbAuth.getRedirectResult().then(result => {
+    if (result && result.user) {
+      console.log('Redirect sign-in success:', result.user.email);
+    }
+  }).catch(err => {
+    console.warn('getRedirectResult error:', err);
+  });
 
   // =====================================================================
   // Firebase 同期ヘルパー
@@ -2892,8 +2901,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.11", 
-    buildDate: "2026-03-18 19:51",
+    appVersion: "v2.12", 
+    buildDate: "2026-03-18 19:54",
   };
 
   // ==========================================
