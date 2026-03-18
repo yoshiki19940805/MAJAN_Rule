@@ -13,16 +13,28 @@
 <link rel="stylesheet" href="style.css">
 <!-- React / Tailwind -->
 <script>
-  // 強制キャッシュクリア
+  // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.23";
+    const currentVersion = "v2.24";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
-      // 共有URLの?shareパラメータを保持する
+      // リダイレクト回数をチェック（ループ防止）
+      const redirectKey = '_v_redirect_count';
+      const count = parseInt(sessionStorage.getItem(redirectKey) || '0');
+      if (count >= 3) {
+        // 3回以上リダイレクトしたらループとみなして停止
+        sessionStorage.removeItem(redirectKey);
+        return;
+      }
+      sessionStorage.setItem(redirectKey, String(count + 1));
+      
       const shareParam = urlParams.get('share');
       let newUrl = "?v=" + currentVersion;
       if (shareParam) newUrl += "&share=" + encodeURIComponent(shareParam);
       window.location.replace(newUrl);
+    } else {
+      // バージョンが一致したらカウンタをリセット
+      sessionStorage.removeItem('_v_redirect_count');
     }
   })();
 </script>
@@ -2813,8 +2825,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.23", 
-    buildDate: "2026-03-18 21:01",
+    appVersion: "v2.24", 
+    buildDate: "2026-03-18 21:16",
   };
 
   // ==========================================
