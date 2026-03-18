@@ -15,11 +15,9 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.13";
+    const currentVersion = "v2.14";
     const urlParams = new URLSearchParams(window.location.search);
-    // Firebase認証リダイレクト中はバージョンリダイレクトをスキップ
-    const isPendingAuth = localStorage.getItem('_fb_pending_anon_uid');
-    if (!isPendingAuth && urlParams.get('v') !== currentVersion) {
+    if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
       const shareParam = urlParams.get('share');
       let newUrl = "?v=" + currentVersion;
@@ -75,15 +73,6 @@
   firebase.initializeApp(firebaseConfig);
   const fbAuth = firebase.auth();
   const fbDb = firebase.firestore();
-
-  // リダイレクトログイン後の結果を処理
-  fbAuth.getRedirectResult().then(result => {
-    if (result && result.user) {
-      console.log('Redirect sign-in success:', result.user.email);
-    }
-  }).catch(err => {
-    console.warn('getRedirectResult error:', err);
-  });
 
   // =====================================================================
   // Firebase 同期ヘルパー
@@ -195,46 +184,9 @@
     if (user) {
       _fbUid = user.uid;
       window._fbUser = user;
-      
-      // リダイレクトログイン後の匿名データ移行処理
-      const pendingAnonUid = localStorage.getItem('_fb_pending_anon_uid');
-      if (pendingAnonUid && !user.isAnonymous && pendingAnonUid !== user.uid) {
-        localStorage.removeItem('_fb_pending_anon_uid');
-        // 匿名UIDのFirestoreデータを移行
-        try {
-          const snap = await fbDb.collection('users').doc(pendingAnonUid).collection('rules').get();
-          const anonRules = [];
-          snap.forEach(doc => {
-            const d = doc.data();
-            anonRules.push({
-              id: doc.id,
-              mode: d.mode || '四麻',
-              name: d.name || '',
-              base_rule: d.base_rule || '',
-              date: d.date || '',
-              settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
-            });
-          });
-          // ローカルにマージ
-          if (anonRules.length > 0 && typeof appData !== 'undefined') {
-            const existingIds = new Set(appData.rules.map(r => r.id));
-            for (const r of anonRules) {
-              if (!existingIds.has(r.id)) appData.rules.push(r);
-            }
-          }
-          // 古い匿名データを削除
-          const batch = fbDb.batch();
-          snap.forEach(doc => batch.delete(doc.ref));
-          if (snap.size > 0) await batch.commit();
-          await fbDb.collection('users').doc(pendingAnonUid).delete();
-        } catch (err) { console.warn('Anon data migration failed:', err); }
-      }
-      
       // ログイン後にクラウドからルールをマージ
       if (typeof STORAGE_KEY !== 'undefined') {
         await mergeCloudRules();
-        // ログイン中ならローカルルールもクラウドに同期
-        if (!user.isAnonymous) await syncRulesToCloud();
       }
       if (typeof renderHome === 'function') renderHome();
     } else {
@@ -247,46 +199,48 @@
     }
   });
 
-  // Googleアカウントでログイン（ポップアップ優先、フォールバックでリダイレクト）
-  async function linkToGoogle() {
+  // Googleログイン（ボタンクリック直後に即ポップアップ）
+  function linkToGoogle() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    const currentUser = fbAuth.currentUser;
+    const oldUid = (fbAuth.currentUser && fbAuth.currentUser.isAnonymous) ? fbAuth.currentUser.uid : null;
     
-    // 匿名UIDを保存（リダイレクトフォールバック用）
-    if (currentUser && currentUser.isAnonymous) {
-      localStorage.setItem('_fb_pending_anon_uid', currentUser.uid);
-    }
-    
-    try {
-      if (currentUser && currentUser.isAnonymous) {
-        // 初回: linkWithPopup（匿名→Google昇格、UIDが変わらない）
-        await currentUser.linkWithPopup(provider);
-        localStorage.removeItem('_fb_pending_anon_uid');
-        await syncRulesToCloud();
-        if (typeof showSnack === 'function') showSnack('Googleアカウントに連携しました');
-        if (typeof renderHome === 'function') renderHome();
-      } else if (currentUser && !currentUser.isAnonymous) {
-        if (typeof showSnack === 'function') showSnack('すでにログイン済みです');
-        localStorage.removeItem('_fb_pending_anon_uid');
-      } else {
-        // ユーザーなし: リダイレクトでサインイン
-        fbAuth.signInWithRedirect(provider);
+    // ★ async処理なしで即座にポップアップを開く（iOS Safari対策）
+    fbAuth.signInWithPopup(provider).then(async (result) => {
+      // ログイン成功 → データ移行
+      if (oldUid && oldUid !== result.user.uid) {
+        // 匿名UIDのFirestoreデータを移行
+        try {
+          const snap = await fbDb.collection('users').doc(oldUid).collection('rules').get();
+          const existingIds = new Set(appData.rules.map(r => r.id));
+          snap.forEach(doc => {
+            const d = doc.data();
+            const rule = {
+              id: doc.id, mode: d.mode || '四麻', name: d.name || '',
+              base_rule: d.base_rule || '', date: d.date || '',
+              settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
+            };
+            if (!existingIds.has(rule.id)) appData.rules.push(rule);
+          });
+          // 古い匿名データを削除
+          const batch = fbDb.batch();
+          snap.forEach(doc => batch.delete(doc.ref));
+          if (snap.size > 0) await batch.commit();
+          await fbDb.collection('users').doc(oldUid).delete();
+        } catch (err) { console.warn('Anon migration failed:', err); }
       }
-    } catch (e) {
-      if (e.code === 'auth/credential-already-in-use' || 
-          e.code === 'auth/popup-blocked' ||
-          e.code === 'auth/operation-not-supported-in-this-environment') {
-        // ポップアップ失敗 → リダイレクト方式にフォールバック
-        fbAuth.signInWithRedirect(provider);
-      } else if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
-        localStorage.removeItem('_fb_pending_anon_uid');
-        // ユーザーが閉じたので何もしない
-      } else {
-        localStorage.removeItem('_fb_pending_anon_uid');
-        console.error('Google sign-in failed:', e);
-        if (typeof showSnack === 'function') showSnack('ログインに失敗しました: ' + e.message);
+      await syncRulesToCloud();
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(err) {}
+      localStorage.removeItem('_fb_pending_anon_uid');
+      if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
+      if (typeof renderHome === 'function') renderHome();
+    }).catch((e) => {
+      localStorage.removeItem('_fb_pending_anon_uid');
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
+        return; // ユーザーが閉じた
       }
-    }
+      console.error('Google sign-in error:', e.code, e.message);
+      if (typeof showSnack === 'function') showSnack('ログインに失敗しました: ' + (e.code || e.message));
+    });
   }
 </script>
 <!-- lz-string (URL sharing compression) -->
@@ -2903,8 +2857,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.13", 
-    buildDate: "2026-03-18 19:56",
+    appVersion: "v2.14", 
+    buildDate: "2026-03-18 20:01",
   };
 
   // ==========================================
