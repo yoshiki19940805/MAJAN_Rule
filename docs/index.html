@@ -15,9 +15,11 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.12";
+    const currentVersion = "v2.13";
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('v') !== currentVersion) {
+    // Firebase認証リダイレクト中はバージョンリダイレクトをスキップ
+    const isPendingAuth = localStorage.getItem('_fb_pending_anon_uid');
+    if (!isPendingAuth && urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
       const shareParam = urlParams.get('share');
       let newUrl = "?v=" + currentVersion;
@@ -2901,8 +2903,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.12", 
-    buildDate: "2026-03-18 19:54",
+    appVersion: "v2.13", 
+    buildDate: "2026-03-18 19:56",
   };
 
   // ==========================================
