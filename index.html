@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.14";
+    const currentVersion = "v2.15";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -2730,62 +2730,7 @@ function showSnack(msg) {
 }
 
 // =====================================================================
-// PWA インストール
-// =====================================================================
-let deferredPrompt = null;
 
-// スタンドアロン（インストール済み）チェック
-const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-  || window.navigator.standalone === true;
-
-// iOS Safari検出
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome|CriOS|FxiOS/.test(navigator.userAgent);
-const isIOSSafari = isIOS && isSafari;
-window.isIOSSafari = isIOSSafari;
-
-// dismiss記憶（3日間非表示）
-function isPwaBannerDismissed() {
-  const d = localStorage.getItem('pwa_banner_dismissed');
-  if (!d) return false;
-  return (Date.now() - parseInt(d)) < 3 * 24 * 60 * 60 * 1000;
-}
-function dismissPwaBanner() {
-  localStorage.setItem('pwa_banner_dismissed', String(Date.now()));
-  if (window._hideReactPWABanner) window._hideReactPWABanner();
-}
-
-// PWAバナー表示判定
-function shouldShowPwaBanner() {
-  if (isStandalone) return false;
-  if (isPwaBannerDismissed()) return false;
-  return true;
-}
-
-// Android等: beforeinstallpromptイベント
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  if (shouldShowPwaBanner() && window._triggerReactPWABanner) {
-    window._triggerReactPWABanner();
-  }
-});
-
-// iOS Safari: beforeinstallpromptが発火しないので、自前でバナー表示
-if (isIOSSafari && !isStandalone && !isPwaBannerDismissed()) {
-  // Reactマウント後に表示するためフラグを立てる
-  window._showIOSInstallBanner = true;
-}
-
-function installPWA() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => {
-      deferredPrompt = null;
-      if (window._hideReactPWABanner) window._hideReactPWABanner();
-    });
-  }
-}
 
 // =====================================================================
 // Service Worker 登録
@@ -2857,8 +2802,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.14", 
-    buildDate: "2026-03-18 20:01",
+    appVersion: "v2.15", 
+    buildDate: "2026-03-18 20:04",
   };
 
   // ==========================================
@@ -2866,7 +2811,7 @@ if (!checkSharedRule()) {
   // ==========================================
   function App({ rulesFromVanilla }) {
     const [activeTab, setActiveTab] = useState(4); // 4 = 四人麻雀, 3 = 三人麻雀
-    const [showPwaBanner, setShowPwaBanner] = useState(false);
+
     const [refreshTrick, setRefreshTrick] = useState(0);
 
     window.triggerReactRefresh = () => setRefreshTrick(prev => prev + 1);
@@ -2882,22 +2827,7 @@ if (!checkSharedRule()) {
 
     const displayedRules = combinedRules.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
 
-    useEffect(() => {
-      window._triggerReactPWABanner = () => setShowPwaBanner(true);
-      window._hideReactPWABanner = () => setShowPwaBanner(false);
-      // Android: deferredPromptが既にあれば表示
-      if (window.deferredPrompt && window.shouldShowPwaBanner && window.shouldShowPwaBanner()) setShowPwaBanner(true);
-      // iOS Safari: フラグが立っていれば表示
-      if (window._showIOSInstallBanner) setShowPwaBanner(true);
-      return () => {
-        window._triggerReactPWABanner = null;
-        window._hideReactPWABanner = null;
-      };
-    }, []);
 
-    const handleInstallPWA = () => { if (window.installPWA) window.installPWA(); };
-    const handleDismissPWA = (e) => { e.stopPropagation(); if (window.dismissPwaBanner) window.dismissPwaBanner(); setShowPwaBanner(false); };
-    const isIOSDevice = typeof window.isIOSSafari !== 'undefined' && window.isIOSSafari;
 
 
     const handleAction = (action, rule) => {
@@ -2939,72 +2869,7 @@ if (!checkSharedRule()) {
           </div>
         </div>
 
-        {/* PWAインストールバナー */}
-        {showPwaBanner && (
-          <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-4">
-            <div style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              borderRadius: '16px',
-              padding: '16px',
-              color: 'white',
-              position: 'relative',
-              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
-            }}>
-              {/* 閉じるボタン */}
-              <button
-                onClick={handleDismissPWA}
-                style={{
-                  position: 'absolute', top: '8px', right: '8px',
-                  background: 'rgba(255,255,255,0.2)', border: 'none',
-                  borderRadius: '50%', width: '24px', height: '24px',
-                  color: 'white', fontSize: '14px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  lineHeight: 1,
-                }}>✕</button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '28px' }}>📲</span>
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '2px' }}>アプリとしてインストール</div>
-                  <div style={{ fontSize: '11px', opacity: 0.9 }}>ホーム画面からすぐにアクセスできます</div>
-                </div>
-              </div>
-
-              {isIOSDevice ? (
-                <div style={{
-                  background: 'rgba(255,255,255,0.15)',
-                  borderRadius: '10px',
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                  lineHeight: '1.6',
-                }}>
-                  <div style={{ marginBottom: '4px', fontWeight: '600' }}>インストール手順：</div>
-                  <div>① 画面下の <span style={{ 
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.25)', borderRadius: '4px',
-                    width: '22px', height: '22px', fontSize: '14px', verticalAlign: 'middle',
-                    margin: '0 2px',
-                  }}>↑</span> 共有ボタンをタップ</div>
-                  <div>② 「<strong>ホーム画面に追加</strong>」を選択</div>
-                </div>
-              ) : (
-                <button
-                  onClick={handleInstallPWA}
-                  style={{
-                    width: '100%', padding: '10px',
-                    background: 'rgba(255,255,255,0.95)', color: '#667eea',
-                    border: 'none', borderRadius: '10px',
-                    fontWeight: '700', fontSize: '14px',
-                    cursor: 'pointer',
-                    transition: 'transform 0.1s',
-                  }}
-                  onTouchStart={(e) => e.currentTarget.style.transform = 'scale(0.97)'}
-                  onTouchEnd={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                >インストールする</button>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* 新規作成ボタン */}
         <div style={{ paddingLeft: 'var(--app-padding)', paddingRight: 'var(--app-padding)' }} className="mb-6">
