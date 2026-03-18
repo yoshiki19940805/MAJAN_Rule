@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.6";
+    const currentVersion = "v2.7";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -217,13 +217,59 @@
       }
     } catch (e) {
       if (e.code === 'auth/credential-already-in-use') {
-        // 既存のGoogleアカウントでサインインし直す
-        const cred = e.credential;
-        await fbAuth.signInWithCredential(cred);
-        // クラウドのルールをマージ
+        // 匿名ユーザーのデータを移行する
+        const oldAnonUid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+        
+        // ① 匿名UIDのFirestoreデータを一時保存
+        let anonCloudRules = [];
+        if (oldAnonUid) {
+          try {
+            const snap = await fbDb.collection('users').doc(oldAnonUid).collection('rules').get();
+            snap.forEach(doc => {
+              const d = doc.data();
+              anonCloudRules.push({
+                id: doc.id,
+                mode: d.mode || '四麻',
+                name: d.name || '',
+                base_rule: d.base_rule || '',
+                date: d.date || '',
+                settings: typeof d.settings === 'string' ? JSON.parse(d.settings) : (d.settings || {})
+              });
+            });
+          } catch (err) { console.warn('Failed to read anon data:', err); }
+        }
+        
+        // ② Googleアカウントでサインイン
+        const cred = firebase.auth.GoogleAuthProvider.credential(e.customData._tokenResponse.oauthIdToken);
+        await fbAuth.signInWithPopup(provider);
+        
+        // ③ ローカルのルール（匿名時に作ったもの含む）をクラウドにマージ
         await mergeCloudRules();
-        // ローカルのルールもクラウドに同期
+        
+        // ④ 匿名UIDのFirestoreデータも新UIDにマージ
+        if (anonCloudRules.length > 0) {
+          const existingIds = new Set(appData.rules.map(r => r.id));
+          for (const r of anonCloudRules) {
+            if (!existingIds.has(r.id)) {
+              appData.rules.push(r);
+            }
+          }
+        }
         await syncRulesToCloud();
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(err) {}
+        
+        // ⑤ 古い匿名UIDのFirestoreデータを削除（孤児にしない）
+        if (oldAnonUid && oldAnonUid !== _fbUid) {
+          try {
+            const oldSnap = await fbDb.collection('users').doc(oldAnonUid).collection('rules').get();
+            const batch = fbDb.batch();
+            oldSnap.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            // ユーザードキュメント自体も削除
+            await fbDb.collection('users').doc(oldAnonUid).delete();
+          } catch (err) { console.warn('Failed to cleanup anon data:', err); }
+        }
+        
         if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
         if (typeof renderHome === 'function') renderHome();
       } else {
@@ -2847,8 +2893,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.6", 
-    buildDate: "2026-03-18 19:18",
+    appVersion: "v2.7", 
+    buildDate: "2026-03-18 19:39",
   };
 
   // ==========================================
