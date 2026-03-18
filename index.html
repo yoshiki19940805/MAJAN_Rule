@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア
   (function() {
-    const currentVersion = "v2.15";
+    const currentVersion = "v2.16";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // 共有URLの?shareパラメータを保持する
@@ -200,12 +200,16 @@
   });
 
   // Googleログイン（ボタンクリック直後に即ポップアップ）
+  let _fbSigningIn = false;
   function linkToGoogle() {
+    if (_fbSigningIn) return; // 二重タップ防止
+    _fbSigningIn = true;
     const provider = new firebase.auth.GoogleAuthProvider();
     const oldUid = (fbAuth.currentUser && fbAuth.currentUser.isAnonymous) ? fbAuth.currentUser.uid : null;
     
     // ★ async処理なしで即座にポップアップを開く（iOS Safari対策）
     fbAuth.signInWithPopup(provider).then(async (result) => {
+      _fbSigningIn = false;
       // ログイン成功 → データ移行
       if (oldUid && oldUid !== result.user.uid) {
         // 匿名UIDのFirestoreデータを移行
@@ -234,6 +238,7 @@
       if (typeof showSnack === 'function') showSnack('Googleアカウントでログインしました');
       if (typeof renderHome === 'function') renderHome();
     }).catch((e) => {
+      _fbSigningIn = false;
       localStorage.removeItem('_fb_pending_anon_uid');
       if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') {
         return; // ユーザーが閉じた
@@ -2802,8 +2807,8 @@ if (!checkSharedRule()) {
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.15", 
-    buildDate: "2026-03-18 20:04",
+    appVersion: "v2.16", 
+    buildDate: "2026-03-18 20:09",
   };
 
   // ==========================================
