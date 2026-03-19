@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.51";
+    const currentVersion = "v2.52";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1854,10 +1854,16 @@ function renderEdit() {
   
   let html = '';
 
-  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
-  const chomboMovedKeys = new Set();
+  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  // 各ペナルティキーの現在値に基づいて所属カテゴリを決定
+  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const penaltyKeyTargetCat = {}; // key -> 現在値に基づく所属カテゴリ名
   for (const pk of penaltyKeys) {
-    if (rule.settings[pk] === 'チョンボ') chomboMovedKeys.add(pk);
+    const val = rule.settings[pk] ?? '';
+    if (PENALTY_CATS.includes(val)) {
+      penaltyKeyTargetCat[pk] = val;
+    }
+    // 値がペナルティカテゴリ名でない場合（'なし'等）は元のカテゴリに留まる
   }
 
   let catDisplayNum = 0;
@@ -1891,11 +1897,21 @@ function renderEdit() {
       }
     } else {
       let renderKeys = [...keys];
-      if (catNameLong.includes('チョンボ')) {
-        for (const pk of chomboMovedKeys) { if (!renderKeys.includes(pk)) renderKeys.push(pk); }
-      } else {
-        renderKeys = renderKeys.filter(k => !chomboMovedKeys.has(k) || keys.includes(k) && catNameLong.includes('チョンボ'));
-        if (catNameLong.includes('上がり放棄') || catNameLong.includes('軽罰符')) renderKeys = renderKeys.filter(k => !chomboMovedKeys.has(k));
+      // ペナルティカテゴリの場合：値に基づいてキーを移動
+      const thisPenaltyCat = PENALTY_CATS.find(pc => catNameLong.includes(pc));
+      if (thisPenaltyCat) {
+        // このカテゴリに元々属さない但し値がこのカテゴリ名のキーを追加
+        for (const pk of penaltyKeys) {
+          if (!renderKeys.includes(pk) && penaltyKeyTargetCat[pk] === thisPenaltyCat) {
+            renderKeys.push(pk);
+          }
+        }
+        // このカテゴリに属するが値が別のペナルティカテゴリ名のキーを除外
+        renderKeys = renderKeys.filter(k => {
+          if (!penaltyKeys.includes(k)) return true; // 非ペナルティキーはそのまま
+          if (!(k in penaltyKeyTargetCat)) return true; // 値がカテゴリ名でないキーはそのまま
+          return penaltyKeyTargetCat[k] === thisPenaltyCat; // 現在値がこのカテゴリのものだけ残す
+        });
       }
 
       const deletedKeys = new Set(rule.settings.deleted_keys || []);
@@ -2557,13 +2573,36 @@ async function exportImage() {
 
   // カテゴリデータの生成
   const appCats = getCategories(rule.mode);
+
+  // ペナルティ移動ロジック（画像出力用）
+  const imgPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  const IMG_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const imgPenaltyKeyTargetCat = {};
+  for (const pk of imgPenaltyKeys) {
+    const val = rule.settings[pk] ?? '';
+    if (IMG_PENALTY_CATS.includes(val)) imgPenaltyKeyTargetCat[pk] = val;
+  }
   
   let imgCatNum = 0;
   for (const cat of appCats) {
       const catName = cat[0];
-      const keys = cat[1];
+      const origKeys = cat[1];
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
+
+      // ペナルティカテゴリのキー移動
+      let keys = [...origKeys];
+      const imgThisPenaltyCat = IMG_PENALTY_CATS.find(pc => catName.includes(pc));
+      if (imgThisPenaltyCat) {
+        for (const pk of imgPenaltyKeys) {
+          if (!keys.includes(pk) && imgPenaltyKeyTargetCat[pk] === imgThisPenaltyCat) keys.push(pk);
+        }
+        keys = keys.filter(k => {
+          if (!imgPenaltyKeys.includes(k)) return true;
+          if (!(k in imgPenaltyKeyTargetCat)) return true;
+          return imgPenaltyKeyTargetCat[k] === imgThisPenaltyCat;
+        });
+      }
       
       let rowIndex = 0;
       let rowsHtml = '';
@@ -2733,13 +2772,36 @@ async function exportPDF() {
 
   // カテゴリデータの生成
   const appCats = getCategories(rule.mode);
+
+  // ペナルティ移動ロジック（PDF出力用）
+  const pdfPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  const PDF_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const pdfPenaltyKeyTargetCat = {};
+  for (const pk of pdfPenaltyKeys) {
+    const val = rule.settings[pk] ?? '';
+    if (PDF_PENALTY_CATS.includes(val)) pdfPenaltyKeyTargetCat[pk] = val;
+  }
   
   let pdfCatNum = 0;
   for (const cat of appCats) {
       const catName = cat[0];
-      const keys = cat[1];
+      const origKeys = cat[1];
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
+
+      // ペナルティカテゴリのキー移動
+      let keys = [...origKeys];
+      const pdfThisPenaltyCat = PDF_PENALTY_CATS.find(pc => catName.includes(pc));
+      if (pdfThisPenaltyCat) {
+        for (const pk of pdfPenaltyKeys) {
+          if (!keys.includes(pk) && pdfPenaltyKeyTargetCat[pk] === pdfThisPenaltyCat) keys.push(pk);
+        }
+        keys = keys.filter(k => {
+          if (!pdfPenaltyKeys.includes(k)) return true;
+          if (!(k in pdfPenaltyKeyTargetCat)) return true;
+          return pdfPenaltyKeyTargetCat[k] === pdfThisPenaltyCat;
+        });
+      }
       
       let rowIndex = 0;
       let rowsHtml = '';
@@ -2985,8 +3047,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.51", 
-    buildDate: "2026-03-19 14:39",
+    appVersion: "v2.52", 
+    buildDate: "2026-03-19 14:52",
   };
 
   // ==========================================
