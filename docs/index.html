@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.53";
+    const currentVersion = "v2.54";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1874,6 +1874,9 @@ function renderEdit() {
     const catName = catNameLong.includes('.') ? catNameLong.split('.')[1].trim() : catNameLong;
     const catKey = catNameLong.replace(/^\d+\.\s*/, '');
 
+    // 途中流局が「なし」の場合、途中流局カテゴリをスキップ
+    if (catNameLong.includes('途中流局') && (rule.settings['tochu_ryukyoku'] === 'なし')) continue;
+
     const catDivContent = [];
 
     if (catNameLong.includes('特殊牌')) {
@@ -2592,6 +2595,9 @@ async function exportImage() {
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
 
+      // 途中流局が「なし」の場合、途中流局カテゴリをスキップ
+      if (catName.includes('途中流局') && (rule.settings['tochu_ryukyoku'] === 'なし')) continue;
+
       // ペナルティカテゴリのキー移動
       let keys = [...origKeys];
       const imgThisPenaltyCat = IMG_PENALTY_CATS.find(pc => catName.includes(pc));
@@ -2790,6 +2796,9 @@ async function exportPDF() {
       const origKeys = cat[1];
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
+
+      // 途中流局が「なし」の場合、途中流局カテゴリをスキップ
+      if (catName.includes('途中流局') && (rule.settings['tochu_ryukyoku'] === 'なし')) continue;
 
       // ペナルティカテゴリのキー移動
       let keys = [...origKeys];
@@ -3049,8 +3058,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.53", 
-    buildDate: "2026-03-19 15:17",
+    appVersion: "v2.54", 
+    buildDate: "2026-03-19 15:20",
   };
 
   // ==========================================
