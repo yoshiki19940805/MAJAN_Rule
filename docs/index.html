@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.54";
+    const currentVersion = "v2.55";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -738,7 +738,7 @@ const BASE_RULES_4 = {
     ipponba:"300点", ipponba_custom:"", tenpai_ryou:"場に3000点", tenpai_ryou_custom:"", renchan:"テンパイ連荘",
     renchan_custom:"", kuikae:"禁止", kuikae_custom:"", double_ron:"頭ハネ", double_ron_custom:"",
     triple_ron:"頭ハネ", triple_ron_custom:"", tsumo_yama:"王牌14枚残し", tsumo_yama_custom:"",
-    tenpai_sengen:"同時,親から周り順", tenpai_sengen_custom:"", tobi:"なし", tobi_custom:"", oras_oya:"アガリ止め・テンパイ止めなし",
+    tenpai_sengen:"親から周り順", tenpai_sengen_custom:"", tobi:"なし", tobi_custom:"", oras_oya:"アガリ止め・テンパイ止めなし",
     oras_oya_custom:"", Syuuryouji:"トップ取り", Syuuryouji_custom:"", kekka_douten:"ウマオカ折半",
     kekka_douten_custom:"", tochu_kyushu:"なし", tochu_kyushu_custom:"", tochu_sufon:"なし",
     tochu_sufon_custom:"", tochu_sukan:"なし", tochu_sukan_custom:"", tochu_sucha:"なし", tochu_sucha_custom:"",
@@ -3058,8 +3058,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.54", 
-    buildDate: "2026-03-19 15:20",
+    appVersion: "v2.55", 
+    buildDate: "2026-03-19 15:24",
   };
 
   // ==========================================
