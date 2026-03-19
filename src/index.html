@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.50";
+    const currentVersion = "v2.51";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1278,9 +1278,11 @@ function loadData() {
   }
 
 
-  // マイグレーション: 古いデータに不足しているキーをデフォルト値で補完
+  // マイグレーション: 初期プリセットのみ、不足しているキーをデフォルト値で補完
+  // ユーザー作成ルール・共有ルールには影響しない
   let migrated = false;
   for (const rule of appData.rules) {
+    if (!(rule.id && rule.id.startsWith('preset_'))) continue; // プリセットのみ対象
     const def = getDefault(rule.mode);
     const cats = getCategories(rule.mode);
     for (const [, keys] of cats) {
@@ -2983,8 +2985,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.50", 
-    buildDate: "2026-03-19 14:33",
+    appVersion: "v2.51", 
+    buildDate: "2026-03-19 14:39",
   };
 
   // ==========================================
