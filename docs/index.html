@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.45";
+    const currentVersion = "v2.46";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1521,11 +1521,14 @@ async function checkSharedRule() {
     }
     
     const id = 'shared_' + Date.now();
+    const now = new Date();
+    const sharedDate = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
     const sharedRule = {
       id: id,
       mode: parsed.m || '四麻',
       name: parsed.n || '共有ルール',
       base_rule: parsed.b || '',
+      date: sharedDate,
       settings: parsed.s || {},
       readonly: true
     };
@@ -2933,8 +2936,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.45", 
-    buildDate: "2026-03-19 13:13",
+    appVersion: "v2.46", 
+    buildDate: "2026-03-19 13:19",
   };
 
   // ==========================================
