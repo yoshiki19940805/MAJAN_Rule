@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.43";
+    const currentVersion = "v2.45";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -976,11 +976,11 @@ const CATEGORIES_3 = [
 
 // --- 初期プリセット定義 ---
 const PRESET_INJECTIONS = [
-  { id: "preset_fpn_4", mode: "四麻", name: "例", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["例"]} },
-  { id: "preset_qhs2_4", mode: "四麻", name: "雀魂", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["雀魂"]} },
-  { id: "preset_g0yy_4", mode: "四麻", name: "天鳳", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["天鳳"]} },
-  { id: "preset_8ros1_4", mode: "四麻", name: "Mリーグ", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["Mリーグ"]} },
-  { id: "preset_fpn_3", mode: "三麻", name: "例", readonly: true, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3["例"]} },
+  { id: "preset_fpn_4", mode: "四麻", name: "例", readonly: true, presetOrder: 0, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["例"]} },
+  { id: "preset_qhs2_4", mode: "四麻", name: "雀魂", readonly: true, presetOrder: 1, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["雀魂"]} },
+  { id: "preset_g0yy_4", mode: "四麻", name: "天鳳", readonly: true, presetOrder: 2, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["天鳳"]} },
+  { id: "preset_8ros1_4", mode: "四麻", name: "Mリーグ", readonly: true, presetOrder: 3, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_4["Mリーグ"]} },
+  { id: "preset_fpn_3", mode: "三麻", name: "例", readonly: true, presetOrder: 4, date: '1970/01/01 00:00:00', settings: {...BASE_RULES_3["例"]} },
 ];
 const DEFAULT_PRESET_IDS_4 = ["preset_fpn_4","preset_qhs2_4","preset_g0yy_4","preset_8ros1_4"];
 const DEFAULT_PRESET_IDS_3 = ["preset_fpn_3"];
@@ -1327,10 +1327,15 @@ function goHomeWithConfirm() {
     if (ruleToRestore) {
       if (_editSnapshot) ruleToRestore.settings = JSON.parse(_editSnapshot);
       if (_editNameSnapshot !== null) ruleToRestore.name = _editNameSnapshot;
+      // リバート時はdateを更新しない（editingIdを一時null化）
+      const savedEditingId = editingId;
+      editingId = null;
       saveData();
+      editingId = savedEditingId;
     }
     if (_isNewlyCreated) {
       appData.rules = appData.rules.filter(r => r.id !== editingId);
+      editingId = null;
       saveData();
       goHome();
     } else {
@@ -2928,8 +2933,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.43", 
-    buildDate: "2026-03-19 12:54",
+    appVersion: "v2.45", 
+    buildDate: "2026-03-19 13:13",
   };
 
   // ==========================================
@@ -2951,7 +2956,16 @@ loadData();
       return isNaN(t) ? 0 : t;
     };
 
-    const displayedRules = combinedRules.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
+    const displayedRules = combinedRules.sort((a, b) => {
+      const aIsPreset = a.presetOrder !== undefined;
+      const bIsPreset = b.presetOrder !== undefined;
+      // ユーザールールを先、プリセットを後に
+      if (aIsPreset !== bIsPreset) return aIsPreset ? 1 : -1;
+      // プリセット同士: TSV列順（presetOrder昇順）
+      if (aIsPreset && bIsPreset) return a.presetOrder - b.presetOrder;
+      // ユーザールール同士: 日付降順
+      return parseDateStr(b.date) - parseDateStr(a.date);
+    });
 
 
 

@@ -348,8 +348,9 @@ function generateJs(entries, presetCols) {
     allPresets.push({ id, mode, name: shortName(p.name), fullName: p.name, baseVar, readonly: p.readonly, isDefault: p.isDefault });
   }
   lines.push(`const PRESET_INJECTIONS = [`);
-  for (const p of allPresets) {
-    lines.push(`  { id: ${js(p.id)}, mode: ${js(p.mode)}, name: ${js(p.name)}, readonly: ${p.readonly}, date: '1970/01/01 00:00:00', settings: {...${p.baseVar}[${js(p.fullName)}]} },`);
+  for (let i = 0; i < allPresets.length; i++) {
+    const p = allPresets[i];
+    lines.push(`  { id: ${js(p.id)}, mode: ${js(p.mode)}, name: ${js(p.name)}, readonly: ${p.readonly}, presetOrder: ${i}, date: '1970/01/01 00:00:00', settings: {...${p.baseVar}[${js(p.fullName)}]} },`);
   }
   lines.push('];');
 
