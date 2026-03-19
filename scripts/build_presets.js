@@ -42,7 +42,6 @@ function parseTsv(text) {
 
 // 三麻で異なるカテゴリ名が必要な場合のマッピング
 const CAT_RENAME_3 = {
-  '役・ドラ': '役・ドラ・牌の扱い',
 };
 
 
@@ -102,11 +101,14 @@ function loadPresetData() {
     const key = row[1] || '';
     const opts4 = (row[3] || '').split(',').map(s => s.trim()).filter(Boolean);
     const opts3 = (row[4] || '').split(',').map(s => s.trim()).filter(Boolean);
-    const values = Object.fromEntries(presetCols.map(p => [p.fullKey, row[p.col] || '']));
+    const values = Object.fromEntries(presetCols.map(p => {
+      const raw = (row[p.col] || '').trim();
+      return [p.fullKey, raw === '非表示' ? '' : raw];
+    }));
 
-    // 四麻/三麻の所属判定
-    const has4 = opts4.length > 0 || presets4.some(p => (row[p.col] || '').trim() !== '');
-    const has3 = opts3.length > 0 || presets3.some(p => (row[p.col] || '').trim() !== '');
+    // 四麻/三麻の所属判定（「非表示」も空として扱う）
+    const has4 = opts4.length > 0 || presets4.some(p => { const v = (row[p.col] || '').trim(); return v !== '' && v !== '非表示'; });
+    const has3 = opts3.length > 0 || presets3.some(p => { const v = (row[p.col] || '').trim(); return v !== '' && v !== '非表示'; });
 
     // 四麻カテゴリ: ペナルティは動的判定
     let cat4 = '';
