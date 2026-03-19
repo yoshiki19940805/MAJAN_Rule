@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.47";
+    const currentVersion = "v2.48";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -2534,63 +2534,50 @@ async function exportImage() {
   // カテゴリデータの生成
   const appCats = getCategories(rule.mode);
   
-  appCats.forEach(cat => {
+  let imgCatNum = 0;
+  for (const cat of appCats) {
       const catName = cat[0];
       const keys = cat[1];
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
       
-      let catHtml = `<div style="margin-bottom: 32px;">`;
       let rowIndex = 0;
+      let rowsHtml = '';
       
       if (catName.includes('特殊牌')) {
           const tiles = rule.settings.custom_tiles || [];
-          if (tiles.length > 0) {
-              catHtml += `<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 10px 0; background-color: #e5e5ea; padding: 10px 16px; border-radius: 6px; color: #1c1c1e;">${esc(catName)}</h2>`;
-              catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 18px;">`;
-              for (const t of tiles) {
-                  if (t.name || t.effect) {
-                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      catHtml += `
-                          <tr style="background-color: ${bgColor};">
-                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">🀄 ${esc(t.name||'(未設定)')}</td>
-                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.5;">${esc(t.effect||'')}</td>
-                          </tr>`;
-                      rowIndex++;
-                  }
+          for (const t of tiles) {
+              if (t.name || t.effect) {
+                  const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                  rowsHtml += `
+                      <tr style="background-color: ${bgColor};">
+                          <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">🀄 ${esc(t.name||'(未設定)')}</td>
+                          <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.5;">${esc(t.effect||'')}</td>
+                      </tr>`;
+                  rowIndex++;
               }
-              catHtml += `</table>`;
           }
       } else {
-          catHtml += `<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 10px 0; background-color: #e5e5ea; padding: 10px 16px; border-radius: 6px; color: #1c1c1e;">${esc(catName)}</h2>`;
-          catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 18px;">`;
-          
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
-              
-
               const val = rule.settings[k] ?? '';
+              if (val === '') continue; // 非表示項目をスキップ
               let displayValue = val;
-              
               if (val === 'カスタム') {
                   const customVal = rule.settings[k + '_custom'] || '';
                   displayValue = customVal || '未入力';
               }
-
               const stdVal = standardObj ? String(standardObj[k] || "") : "";
               const isChanged = standardObj && (!(k in standardObj) || String(val) !== stdVal);
               const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
               const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-
-              catHtml += `
+              rowsHtml += `
                   <tr style="background-color: ${bgColor};">
                       <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(LABELS[k]||k)}</td>
                       <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(displayValue)}</td>
-                  </tr>
-              `;
+                  </tr>`;
               rowIndex++;
           }
-          
           if (customizable) {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
@@ -2601,8 +2588,7 @@ async function exportImage() {
                       const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      
-                      catHtml += `
+                      rowsHtml += `
                           <tr style="background-color: ${bgColor};">
                               <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemName)}</td>
                               <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(item.value||'')}</td>
@@ -2611,7 +2597,6 @@ async function exportImage() {
                   }
               }
           }
-
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
               if (item.name || item.value) {
@@ -2621,8 +2606,7 @@ async function exportImage() {
                   const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
                   const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                   const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                  
-                  catHtml += `
+                  rowsHtml += `
                       <tr style="background-color: ${bgColor};">
                           <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemName)}</td>
                           <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(item.value||'')}</td>
@@ -2630,26 +2614,29 @@ async function exportImage() {
                   rowIndex++;
               }
           }
-          catHtml += `</table>`;
       }
-      
-      html += catHtml;
 
+      // メモ
       const catMemo = rule.settings['memo_' + catKey] || '';
-      let combinedMemo = catMemo;
-      
+      // 項目もメモもなければカテゴリごとスキップ
+      if (rowIndex === 0 && (!catMemo || catMemo.trim() === '')) continue;
 
-      if (combinedMemo && combinedMemo.trim() !== '') {
+      imgCatNum++;
+      const displayCatName = `${imgCatNum}. ${catKey}`;
+      html += `<div style="margin-bottom: 32px;">`;
+      html += `<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 10px 0; background-color: #e5e5ea; padding: 10px 16px; border-radius: 6px; color: #1c1c1e;">${esc(displayCatName)}</h2>`;
+      if (rowIndex > 0) {
+          html += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 18px;">${rowsHtml}</table>`;
+      }
+      if (catMemo && catMemo.trim() !== '') {
           html += `
               <div style="background-color: #f2f2f7; padding: 14px 18px; border-left: 6px solid #c6c6c8; font-size: 16px; margin-bottom: 10px; line-height: 1.6; border-radius: 0 6px 6px 0;">
                   <strong style="color: #666; font-size: 14px;">特記事項:</strong><br>
-                  ${esc(combinedMemo).replace(/\n/g, '<br>')}
-              </div>
-          `;
+                  ${esc(catMemo).replace(/\n/g, '<br>')}
+              </div>`;
       }
-      
       html += `</div>`;
-  });
+  }
 
   container.innerHTML = html;
 
@@ -2723,64 +2710,51 @@ async function exportPDF() {
   // カテゴリデータの生成
   const appCats = getCategories(rule.mode);
   
-  appCats.forEach(cat => {
+  let pdfCatNum = 0;
+  for (const cat of appCats) {
       const catName = cat[0];
       const keys = cat[1];
       const customizable = cat[2] || false;
       const catKey = catName.replace(/^\d+\.\s*/, '');
       
-      let catHtml = `<div style="page-break-inside: avoid; margin-bottom: 28px;">`;
       let rowIndex = 0;
+      let rowsHtml = '';
       
       // 特殊牌カテゴリは例外処理
       if (catName.includes('特殊牌')) {
           const tiles = rule.settings.custom_tiles || [];
-          if (tiles.length > 0) {
-              catHtml += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(catName)}</h2>`;
-              catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 15px;">`;
-              for (const t of tiles) {
-                  if (t.name || t.effect) {
-                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      catHtml += `
-                          <tr style="background-color: ${bgColor};">
-                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">🀄 ${esc(t.name||'(未設定)')}</td>
-                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.4;">${esc(t.effect||'')}</td>
-                          </tr>`;
-                      rowIndex++;
-                  }
+          for (const t of tiles) {
+              if (t.name || t.effect) {
+                  const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                  rowsHtml += `
+                      <tr style="background-color: ${bgColor};">
+                          <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">🀄 ${esc(t.name||'(未設定)')}</td>
+                          <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.4;">${esc(t.effect||'')}</td>
+                      </tr>`;
+                  rowIndex++;
               }
-              catHtml += `</table>`;
           }
       } else {
-          catHtml += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(catName)}</h2>`;
-          catHtml += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 15px;">`;
-          
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
-              
-
               const val = rule.settings[k] ?? '';
+              if (val === '') continue; // 非表示項目をスキップ
               let displayValue = val;
-              
               if (val === 'カスタム') {
                   const customVal = rule.settings[k + '_custom'] || '';
                   displayValue = customVal || '未入力';
               }
-
               const stdVal = standardObj ? String(standardObj[k] || "") : "";
               const isChanged = standardObj && (!(k in standardObj) || String(val) !== stdVal);
               const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
               const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-
-              catHtml += `
+              rowsHtml += `
                   <tr style="background-color: ${bgColor};">
                       <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(LABELS[k]||k)}</td>
                       <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(displayValue)}</td>
-                  </tr>
-              `;
+                  </tr>`;
               rowIndex++;
           }
-          
           if (customizable) {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
@@ -2791,8 +2765,7 @@ async function exportPDF() {
                       const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      
-                      catHtml += `
+                      rowsHtml += `
                           <tr style="background-color: ${bgColor};">
                               <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
                               <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
@@ -2801,7 +2774,6 @@ async function exportPDF() {
                   }
               }
           }
-
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
               if (item.name || item.value) {
@@ -2811,8 +2783,7 @@ async function exportPDF() {
                   const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
                   const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                   const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                  
-                  catHtml += `
+                  rowsHtml += `
                       <tr style="background-color: ${bgColor};">
                           <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
                           <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
@@ -2820,26 +2791,29 @@ async function exportPDF() {
                   rowIndex++;
               }
           }
-          catHtml += `</table>`;
       }
-      
-      html += catHtml;
 
+      // メモ
       const catMemo = rule.settings['memo_' + catKey] || '';
-      let combinedMemo = catMemo;
-      
+      // 項目もメモもなければカテゴリごとスキップ
+      if (rowIndex === 0 && (!catMemo || catMemo.trim() === '')) continue;
 
-      if (combinedMemo && combinedMemo.trim() !== '') {
+      pdfCatNum++;
+      const displayCatName = `${pdfCatNum}. ${catKey}`;
+      html += `<div style="page-break-inside: avoid; margin-bottom: 28px;">`;
+      html += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(displayCatName)}</h2>`;
+      if (rowIndex > 0) {
+          html += `<table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 15px;">${rowsHtml}</table>`;
+      }
+      if (catMemo && catMemo.trim() !== '') {
           html += `
               <div style="background-color: #f2f2f7; padding: 12px 14px; border-left: 4px solid #c6c6c8; font-size: 14px; margin-bottom: 8px; line-height: 1.6; border-radius: 0 4px 4px 0;">
                   <strong style="color: #666; font-size: 12px;">特記事項:</strong><br>
-                  ${esc(combinedMemo).replace(/\n/g, '<br>')}
-              </div>
-          `;
+                  ${esc(catMemo).replace(/\n/g, '<br>')}
+              </div>`;
       }
-      
       html += `</div>`;
-  });
+  }
 
   pdfContainer.innerHTML = html;
 
@@ -2987,8 +2961,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.47", 
-    buildDate: "2026-03-19 13:48",
+    appVersion: "v2.48", 
+    buildDate: "2026-03-19 14:04",
   };
 
   // ==========================================
