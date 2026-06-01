@@ -342,7 +342,7 @@
 <body>
 <div class="app" id="app" style="background-color: transparent;"> <!-- style.cssの背景を上書きさせない -->
   <!-- ホーム画面 (React化) -->
-  <div class="screen active" style="padding:0; background-color: var(--color-bg);" id="screen-home">
+  <div class="screen" style="padding:0; background-color: var(--color-bg);" id="screen-home">
     <div id="react-home-root" style="flex:1; display:flex; flex-direction:column; height: 100%;"></div>
   </div>
   <!-- 編集画面 -->
@@ -3035,6 +3035,7 @@ window.toggleDefaultBaseRule = function(mode, id) {
 loadData();
 (async () => {
   if (!await checkSharedRule()) {
+    showScreen('home');
     renderHome();
   }
 })();

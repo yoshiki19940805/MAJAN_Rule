@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================
+    // 共有ルール (/shared_rules/{shareId})
+    // 誰でもルールを共有・閲覧できる
+    // ========================================
+    match /shared_rules/{shareId} {
+      // 読み取り: 誰でも可（共有URLからのアクセス）
+      allow read: if true;
+
+      // 作成: 誰でも可（ログイン不要で共有可能）
+      // データ構造のバリデーションを実施
+      allow create: if request.resource.data.keys().hasAll(['data', 'createdAt'])
+                    && request.resource.data.data is string
+                    && request.resource.data.data.size() > 0
+                    && request.resource.data.data.size() < 500000;
+
+      // 更新・削除は不可（共有ルールは不変）
+      allow update, delete: if false;
+    }
+
+    // ========================================
+    // ユーザールール (/users/{uid}/rules/{ruleId})
+    // 認証済みユーザーのみ自身のデータを操作可能
+    // ========================================
+    match /users/{uid} {
+      // ユーザードキュメント自体へのアクセスは不要
+      allow read, write: if false;
+
+      match /rules/{ruleId} {
+        // 読み書き: 認証済みかつ自分自身のデータのみ
+        allow read, write: if request.auth != null
+                          && request.auth.uid == uid;
+      }
+    }
+
+    // ========================================
+    // その他のコレクションは全拒否
+    // ========================================
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
