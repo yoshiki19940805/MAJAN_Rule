@@ -2186,7 +2186,7 @@ function renderEdit() {
     // 特記事項は文字単位の差分は取らず、「内容が完全一致しているか」だけで差分ハイライトする
     // （カテゴリごとに差分表示のON/OFFを切り替え可能。デフォルトはOFF）
     const baseMemo = base ? (base['memo_' + catKey] || '') : '';
-    const memoDiffEnabled = !!rule.settings['memoDiff_' + catKey];
+    const memoDiffEnabled = !!rule.settings[memoDiffSettingKey(rule.base_rule, catKey)];
     const isMemoDiff = !!(base && memoDiffEnabled && catMemo !== baseMemo);
     if (!isReadonlyView || catMemo.trim() !== '') {
         catDivContent.push(`
@@ -2197,6 +2197,7 @@ function renderEdit() {
                             <span class="material-symbols-outlined text-[16px] shrink-0">edit_note</span>
                             <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide truncate">${catName} の特記事項</span>
                         </div>
+                        ${!isReadonlyView ? `
                         <div class="flex items-center gap-1.5 shrink-0">
                             <span class="text-[11px] text-theme-textMuted font-medium">差分として表示</span>
                             <label class="ios-switch">
@@ -2204,6 +2205,7 @@ function renderEdit() {
                                 <span class="slider"></span>
                             </label>
                         </div>
+                        ` : ''}
                     </div>
                     <textarea placeholder="自由にメモや追加ルールを記載できます..." 
                         class="w-full bg-transparent border-none text-[14px] text-theme-text outline-none resize-none placeholder-gray-400 leading-relaxed" 
@@ -2276,10 +2278,12 @@ function onSettingChange(key, val) {
     const base = getBaseRules(rule.mode)[rule.base_rule] || {};
 
     if (key.startsWith('memo_')) {
-      // 特記事項の内容を編集したら、そのカテゴリの差分表示を自動でONにする
+      // 特記事項の内容を編集したら、その比較対象ルールに対するそのカテゴリの
+      // 差分表示を自動でONにする
       const catKey = key.slice('memo_'.length);
-      if (!rule.settings['memoDiff_' + catKey]) {
-        rule.settings['memoDiff_' + catKey] = true;
+      const diffKey = memoDiffSettingKey(rule.base_rule, catKey);
+      if (!rule.settings[diffKey]) {
+        rule.settings[diffKey] = true;
         saveData();
       }
       // 差分ハイライトをその場で更新（文字単位の差分は取らず、完全一致かどうかのみ）
@@ -2326,10 +2330,15 @@ function onSettingChange(key, val) {
   }
 }
 
+// 比較対象のルールごとに差分表示ON/OFFを別々に記憶するためのキーを生成する
+function memoDiffSettingKey(baseRuleId, catKey) {
+  return 'memoDiff_' + (baseRuleId || '_none_') + '_' + catKey;
+}
+
 function onMemoDiffToggle(catKey, checked) {
   const rule = getRule(editingId);
   if (!rule) return;
-  rule.settings['memoDiff_' + catKey] = checked;
+  rule.settings[memoDiffSettingKey(rule.base_rule, catKey)] = checked;
   if (!isSharedMode) saveData();
   renderEdit();
 }
