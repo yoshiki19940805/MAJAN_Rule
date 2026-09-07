@@ -351,6 +351,14 @@
       transform: translateX(16px);
   }
 
+  /* Safari/WebKitはdisabled状態のtextareaに独自の背景を描画してしまうため、
+     特記事項ボックスの背景色（差分ハイライトの水色など）が正しく透けるように上書きする */
+  .memo-box textarea:disabled {
+      background-color: transparent !important;
+      opacity: 1 !important;
+      -webkit-text-fill-color: currentColor;
+  }
+
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
     flex-shrink: 0;
