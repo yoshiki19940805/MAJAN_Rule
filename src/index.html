@@ -2132,13 +2132,16 @@ function renderEdit() {
 
     const catMemo = rule.settings['memo_' + catKey] || '';
     const memoRows = Math.max(2, (catMemo.match(/\n/g) || []).length + 2);
+    // 特記事項は文字単位の差分は取らず、「内容が完全一致しているか」だけで差分ハイライトする
+    const baseMemo = base ? (base['memo_' + catKey] || '') : '';
+    const isMemoDiff = !!(base && catMemo !== baseMemo);
     if (!isReadonlyView || catMemo.trim() !== '') {
         catDivContent.push(`
             <div class="mt-3 w-full">
-                <div class="bg-theme-surface rounded-xl p-3 shadow-sm border border-theme-border/30 relative flex flex-col">
-                    <div class="flex items-center gap-1.5 mb-2 text-theme-textMuted">
+                <div class="memo-box ${isMemoDiff ? 'bg-theme-highlightBg' : 'bg-theme-surface'} rounded-xl p-3 shadow-sm border border-theme-border/30 relative flex flex-col" data-memo-key="${esc(catKey)}">
+                    <div class="memo-header flex items-center gap-1.5 mb-2 ${isMemoDiff ? 'text-theme-primary' : 'text-theme-textMuted'}">
                         <span class="material-symbols-outlined text-[16px]">edit_note</span>
-                        <span class="text-[12px] font-medium tracking-wide">${catName} の特記事項</span>
+                        <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide">${catName} の特記事項</span>
                     </div>
                     <textarea placeholder="自由にメモや追加ルールを記載できます..." 
                         class="w-full bg-transparent border-none text-[14px] text-theme-text outline-none resize-none placeholder-gray-400 leading-relaxed" 
@@ -2208,6 +2211,30 @@ function onSettingChange(key, val) {
   // 差分更新（四麻・三麻共通）
   if (rule) {
     const base = getBaseRules(rule.mode)[rule.base_rule] || {};
+
+    if (key.startsWith('memo_')) {
+      // 特記事項の差分ハイライトをその場で更新（文字単位の差分は取らず、完全一致かどうかのみ）
+      const catKey = key.slice('memo_'.length);
+      const memoBox = document.querySelector(`[data-memo-key="${catKey}"]`);
+      if (memoBox) {
+        const baseMemoVal = base['memo_' + catKey] || '';
+        const isMemoDiff = !!(rule.base_rule && val !== baseMemoVal);
+        memoBox.classList.toggle('bg-theme-highlightBg', isMemoDiff);
+        memoBox.classList.toggle('bg-theme-surface', !isMemoDiff);
+        const header = memoBox.querySelector('.memo-header');
+        if (header) {
+          header.classList.toggle('text-theme-primary', isMemoDiff);
+          header.classList.toggle('text-theme-textMuted', !isMemoDiff);
+        }
+        const label = memoBox.querySelector('.memo-label');
+        if (label) {
+          label.classList.toggle('font-semibold', isMemoDiff);
+          label.classList.toggle('font-medium', !isMemoDiff);
+        }
+      }
+      return;
+    }
+
     // 新UIでは swipe-item クラスを持った親要素に is-changed クラスを付与する
     const swipeRow = document.querySelector(`[data-id="${key}"]`);
     if (swipeRow) {
@@ -3047,12 +3074,20 @@ function showSnack(msg) {
 // Service Worker 登録
 // =====================================================================
 if ('serviceWorker' in navigator) {
+  // このページ読み込み時点で、既にService Workerに制御されていたかどうかを先に記録しておく。
+  // （初回訪問・シークレットウィンドウ等ではここは必ず false になる）
+  const hadControllerBeforeRegister = !!navigator.serviceWorker.controller;
+
   navigator.serviceWorker.register('sw.js').then(reg => {
     reg.addEventListener('updatefound', () => {
       const newSW = reg.installing;
       if (newSW) {
         newSW.addEventListener('statechange', () => {
-          if (newSW.state === 'activated') {
+          // 「以前から制御していたSWが新しいSWに更新された」場合のみ、最新版を反映するためリロードする。
+          // 初回インストール時（＝それまでSWの制御が無かった場合）にリロードすると、
+          // 共有URL（?share=...）を開いた直後にページが再読み込みされてしまい、
+          // 共有ルールの表示に失敗してホーム画面に戻ってしまう不具合の原因になっていたため、対象外にする。
+          if (newSW.state === 'activated' && hadControllerBeforeRegister) {
             window.location.reload();
           }
         });
