@@ -1477,6 +1477,8 @@ function copySharedRule() {
   copy.id = newId;
   copy.name = rule.name + '（コピー）';
   delete copy.readonly;
+  // 比較対象のルールのデフォルトを、コピー元のルールにしておく
+  copy.base_rule = rule.id;
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -1486,17 +1488,18 @@ function copySharedRule() {
   const s = String(now.getSeconds()).padStart(2, '0');
   copy.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
   appData.rules.push(copy);
-  saveData();
+  // ここでは保存しない。新規作成ルールと同じ扱いにし、編集画面で「保存」を
+  // 押した時点で初めて保存する（保存せず戻った場合はこのコピーは破棄される）
   isSharedMode = false;
   isViewMode = false;
-  _isNewlyCreated = false;
+  _isNewlyCreated = true;
   editingId = newId;
   _editSnapshot = JSON.stringify(copy.settings);
   _editNameSnapshot = copy.name;
   _editDirty = false;
   renderEdit();
   showScreen('edit');
-  showSnack('ルールをコピーしました。編集できます。');
+  showSnack('ルールをコピーしました。保存するまでは反映されません。');
 }
 
 // =====================================================================
