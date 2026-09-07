@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>初期状態にリセット中...</title>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding: 50px;">
+<h2>ローカルテスト用に初期状態へリセットしています...</h2>
+<p>このページはローカル動作確認専用です。開くたびに保存データ(お気に入り・作成したルールなど)を消去してから index.html に移動します。</p>
+<script>
+  try { localStorage.clear(); } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+
+  function goToIndex() {
+    window.location.replace("./index.html?reset=" + Date.now());
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (registrations) {
+      var jobs = registrations.map(function (r) { return r.unregister(); });
+      Promise.all(jobs).then(function () {
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (names) {
+            Promise.all(names.map(function (n) { return caches.delete(n); })).then(goToIndex).catch(goToIndex);
+          }).catch(goToIndex);
+        } else {
+          goToIndex();
+        }
+      }).catch(goToIndex);
+    }).catch(goToIndex);
+  } else {
+    goToIndex();
+  }
+</script>
+</body>
+</html>
