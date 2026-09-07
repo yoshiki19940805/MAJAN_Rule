@@ -2190,7 +2190,7 @@ function renderEdit() {
                             <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide truncate">${catName} の特記事項</span>
                         </div>
                         <div class="flex items-center gap-1.5 shrink-0">
-                            <span class="text-[11px] text-theme-textMuted font-medium">差分表示</span>
+                            <span class="text-[11px] text-theme-textMuted font-medium">差分として表示</span>
                             <label class="ios-switch">
                                 <input type="checkbox" ${memoDiffEnabled ? 'checked' : ''} onchange="onMemoDiffToggle('${esc(catKey)}', this.checked)">
                                 <span class="slider"></span>
@@ -2268,14 +2268,17 @@ function onSettingChange(key, val) {
     const base = getBaseRules(rule.mode)[rule.base_rule] || {};
 
     if (key.startsWith('memo_')) {
-      // 特記事項の差分ハイライトをその場で更新（文字単位の差分は取らず、完全一致かどうかのみ。
-      // カテゴリごとの差分表示ON/OFF設定も考慮する）
+      // 特記事項の内容を編集したら、そのカテゴリの差分表示を自動でONにする
       const catKey = key.slice('memo_'.length);
+      if (!rule.settings['memoDiff_' + catKey]) {
+        rule.settings['memoDiff_' + catKey] = true;
+        saveData();
+      }
+      // 差分ハイライトをその場で更新（文字単位の差分は取らず、完全一致かどうかのみ）
       const memoBox = document.querySelector(`[data-memo-key="${catKey}"]`);
       if (memoBox) {
         const baseMemoVal = base['memo_' + catKey] || '';
-        const memoDiffEnabled = !!rule.settings['memoDiff_' + catKey];
-        const isMemoDiff = !!(rule.base_rule && memoDiffEnabled && val !== baseMemoVal);
+        const isMemoDiff = !!(rule.base_rule && val !== baseMemoVal);
         memoBox.classList.toggle('bg-theme-highlightBg', isMemoDiff);
         memoBox.classList.toggle('bg-theme-surface', !isMemoDiff);
         const header = memoBox.querySelector('.memo-header');
@@ -2288,6 +2291,8 @@ function onSettingChange(key, val) {
           label.classList.toggle('font-semibold', isMemoDiff);
           label.classList.toggle('font-medium', !isMemoDiff);
         }
+        const switchInput = memoBox.querySelector('.ios-switch input');
+        if (switchInput) switchInput.checked = true;
       }
       return;
     }
