@@ -1883,15 +1883,21 @@ function renderEdit() {
     // 表示画面のボトムバー: 編集 / コピーして編集 / 共有・出力 の3つを常に表示する
     // （アイコンは表示せず、テキストラベルのみ）
     const isRuleReadonly = !!(rule.readonly) || isSharedMode;
+    // 3つのボタンの大きさを完全に揃えるため、色違いでも同じ構造のクラス（border込み）を使う
+    const btnBase = 'flex-1 py-3 rounded-xl font-semibold text-[14px] border flex justify-center items-center transition-all';
+    const btnPrimary = btnBase + ' bg-theme-primary text-white border-transparent shadow-sm active:scale-95';
+    const btnSecondary = btnBase + ' bg-theme-surface text-theme-text border-theme-border active:bg-gray-50';
+    const btnDisabled = btnBase + ' bg-theme-surface text-theme-textMuted border-theme-border opacity-60 cursor-not-allowed';
     let btns = '';
     if (isRuleReadonly) {
       // 編集不可のルール: 編集ボタンはグレーアウトし、押しても編集できないようにする
-      btns += `<button class="flex-1 bg-theme-surface text-theme-textMuted border border-theme-border py-3 rounded-xl font-semibold text-[14px] flex justify-center items-center opacity-60 cursor-not-allowed" disabled>編集</button>`;
+      btns += `<button class="${btnDisabled}" disabled>編集</button>`;
     } else {
-      btns += `<button class="flex-1 bg-theme-primary text-white py-3 rounded-xl font-semibold text-[14px] shadow-sm active:scale-95 flex justify-center items-center transition-all" onclick="goEditMode()">編集</button>`;
+      btns += `<button class="${btnPrimary}" onclick="goEditMode()">編集</button>`;
     }
-    btns += `<button class="flex-1 ${isRuleReadonly ? 'bg-theme-primary text-white shadow-sm active:scale-95' : 'bg-theme-surface text-theme-text border border-theme-border active:bg-gray-50'} py-3 rounded-xl font-semibold text-[14px] flex justify-center items-center transition-all" onclick="copySharedRule()">コピーして編集</button>`;
-    btns += `<button class="flex-1 bg-theme-surface text-theme-text border border-theme-border py-3 rounded-xl font-semibold text-[14px] shadow-sm active:bg-gray-50 flex justify-center items-center transition-all" onclick="openActionSheet()">共有・出力</button>`;
+    // 「コピーして編集」は常に主要アクション（青色）として表示する
+    btns += `<button class="${btnPrimary}" onclick="copySharedRule()">コピーして編集</button>`;
+    btns += `<button class="${btnSecondary}" onclick="openActionSheet()">共有・出力</button>`;
     bottomBarContent.innerHTML = btns;
   } else {
     // 編集画面のボトムバー: 保存のみ
