@@ -1730,10 +1730,17 @@ function editRule(id) {
   // 全ルールでまず表示画面（閲覧専用）に遷移
   isSharedMode = false;
   isViewMode = true;
-  
-  // 比較対象のルールはデフォルトで未選択
-  rule.base_rule = '';
-  
+
+  // 前回選択した比較対象のルールを引き継ぐ。
+  // ただし、比較対象にしていたルールが削除されている場合は初期状態（未選択）に戻す。
+  if (rule && rule.base_rule) {
+    const baseStillExists = appData.rules.some(r => r.id === rule.base_rule && r.mode === rule.mode);
+    if (!baseStillExists) {
+      rule.base_rule = '';
+      saveData();
+    }
+  }
+
   editingId = id;
   goEdit();
 }
@@ -2183,8 +2190,9 @@ function onBaseRuleChange(val) {
   const rule = getRule(editingId);
   if (rule) {
     rule.base_rule = val;
-    // 閲覧専用ルールの単なる比較用変更であれば永続保存はしない
-    if (!(isViewMode || isSharedMode)) saveData();
+    // 表示画面での比較対象選択は次回開いたときも引き継げるよう保存する。
+    // ただし共有モードは一時的な閲覧データのため保存しない。
+    if (!isSharedMode) saveData();
     renderEdit();
   }
 }
