@@ -15,7 +15,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v2.55";
+    const currentVersion = "v2.56";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -360,7 +360,7 @@
             <input type="text" id="edit-name" placeholder="ルール名を入力" class="w-full text-2xl font-bold bg-transparent border-none outline-none placeholder-theme-textMuted mb-5" oninput="onNameChange(this.value)">
             
             <div id="base-rule-section" class="bg-theme-surface rounded-xl p-4 flex items-center justify-between shadow-sm border border-theme-border/30 hidden">
-                <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">標準ルール</span>
+                <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">比較対象のルール</span>
                 
                 <div class="relative flex-1 flex justify-end items-center min-w-0">
                     <span id="standard-rule-display" class="text-theme-textMuted text-sm font-medium pr-6 text-right truncate w-full pointer-events-none block"></span>
@@ -371,7 +371,7 @@
             
             <div class="mt-3 flex items-start gap-1.5 text-[11px] text-theme-textMuted px-1">
                 <span class="material-symbols-outlined text-[14px] text-theme-primary">info</span>
-                <p>標準ルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
+                <p>比較対象のルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
             </div>
         </div>
 
@@ -1696,19 +1696,8 @@ function editRule(id) {
   isSharedMode = false;
   isViewMode = true;
   
-  let activeDefaults = [];
-  try {
-     const raw = localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
-     if (raw) activeDefaults = JSON.parse(raw);
-  } catch(e) {}
-  if (!Array.isArray(activeDefaults)) activeDefaults = [];
-  
-  // 標準ルール自身の場合は自身を比較対象にする、それ以外はデフォルト「-」
-  if (activeDefaults.includes(id)) {
-      rule.base_rule = id;
-  } else {
-      rule.base_rule = '';
-  }
+  // 比較対象のルールはデフォルトで未選択
+  rule.base_rule = '';
   
   editingId = id;
   goEdit();
@@ -1817,6 +1806,7 @@ function renderEdit() {
   if (brSection) {
     brSection.classList.remove('hidden');
     
+    // 比較対象のルール: 同モードの全ルール（自分自身を除く）をメイン画面と同じ順番で表示
     let activeDefaults = [];
     try {
         const raw = localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma');
@@ -1824,16 +1814,32 @@ function renderEdit() {
     } catch(e){}
     if (!Array.isArray(activeDefaults)) activeDefaults = [];
     
-    let availableKeys = [...activeDefaults];
+    const sameModeSortedParseDateStr = (str) => {
+      if (!str) return 0;
+      const t = Date.parse(str.replace(/\//g, '-'));
+      return isNaN(t) ? 0 : t;
+    };
+    const sameModeRules = appData.rules
+      .filter(r => r.mode === rule.mode && r.id !== rule.id)
+      .sort((a, b) => {
+        const aIsFav = activeDefaults.includes(a.id);
+        const bIsFav = activeDefaults.includes(b.id);
+        if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
+        const aIsPreset = a.presetOrder !== undefined;
+        const bIsPreset = b.presetOrder !== undefined;
+        if (aIsPreset !== bIsPreset) return aIsPreset ? 1 : -1;
+        if (aIsPreset && bIsPreset) return a.presetOrder - b.presetOrder;
+        return sameModeSortedParseDateStr(b.date) - sameModeSortedParseDateStr(a.date);
+      });
     
     // 画面を開いた時のデフォルト base_rule を「-」（比較なし）にする
     if (!rule.base_rule && rule.base_rule !== '') {
       rule.base_rule = '';
     }
     
-    // Update dropdown options（先頭に「-」を追加）
+    // Update dropdown options（先頭に「-」を追加、全ルールを表示）
     brSelect.innerHTML = `<option value="" ${rule.base_rule===''?'selected':''}>-</option>` 
-      + availableKeys.map(k => `<option value="${esc(k)}" ${rule.base_rule===k?'selected':''}>${esc(getBaseRuleName(k))}</option>`).join('');
+      + sameModeRules.map(r => `<option value="${esc(r.id)}" ${rule.base_rule===r.id?'selected':''}>${esc(r.name)}</option>`).join('');
     
     // Always show base rule selector, even in read-only mode, to allow diff comparison
     const brChevron = brSection.querySelector('.material-symbols-outlined');
@@ -3049,7 +3055,6 @@ loadData();
   const CONFIG = {
     strings: {
       appTitle: "麻雀ルール共有",
-      manageStandardRules: "標準ルール",
       tab4p: "四人麻雀",
       tab3p: "三人麻雀",
       create4pRule: "新しいルールを作成する",
@@ -3059,8 +3064,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v2.55", 
-    buildDate: "2026-03-19 15:24",
+    appVersion: "v2.56", 
+    buildDate: "2026-09-07 14:10",
   };
 
   // ==========================================
@@ -3082,7 +3087,21 @@ loadData();
       return isNaN(t) ? 0 : t;
     };
 
+    // お気に入り判定用のデフォルト設定を取得
+    let favIds4 = []; let favIds3 = [];
+    try { favIds4 = JSON.parse(localStorage.getItem('mahjong_default_base_4ma') || '[]'); } catch(e){}
+    try { favIds3 = JSON.parse(localStorage.getItem('mahjong_default_base_3ma') || '[]'); } catch(e){}
+    if (!Array.isArray(favIds4)) favIds4 = [];
+    if (!Array.isArray(favIds3)) favIds3 = [];
+    const isFavorite = (rule) => {
+      return (rule.mode === '四麻' && favIds4.includes(rule.id)) || (rule.mode === '三麻' && favIds3.includes(rule.id));
+    };
+
     const displayedRules = combinedRules.sort((a, b) => {
+      // お気に入りを最上位に
+      const aIsFav = isFavorite(a);
+      const bIsFav = isFavorite(b);
+      if (aIsFav !== bIsFav) return aIsFav ? -1 : 1;
       const aIsPreset = a.presetOrder !== undefined;
       const bIsPreset = b.presetOrder !== undefined;
       // ユーザールールを先、プリセットを後に
@@ -3173,7 +3192,7 @@ loadData();
                     {!isReadOnly ? (
                       <>
                         <h2 className="text-base font-semibold text-theme-text truncate">
-                          {rule.name}{isDef ? <span className="text-theme-primary ml-1 text-sm">(標準ルール)</span> : ""}
+                          {rule.name}
                         </h2>
                         <div className="flex items-center gap-1 mt-1 text-theme-textMuted">
                           <span className="material-symbols-outlined text-[14px]">calendar_today</span>
@@ -3185,7 +3204,7 @@ loadData();
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
                             <h2 className="text-base font-semibold text-theme-text truncate">
-                              {rule.name}{isDef ? <span className="text-theme-primary ml-1 text-sm">(標準ルール)</span> : ""}
+                              {rule.name}
                             </h2>
                             <span className="material-symbols-outlined text-theme-textMuted text-[18px]">lock</span>
                           </div>
