@@ -1548,7 +1548,22 @@ function copySharedRule() {
   _editDirty = false;
   renderEdit();
   showScreen('edit');
+  // ルール名欄にフォーカスし、カーソルを末尾に置く（スマホでは自動的にキーボードが開く）
+  focusNameInputAtEnd();
   showSnack('ルールをコピーしました。保存するまでは反映されません。');
+}
+
+// ルール名の入力欄にフォーカスし、カーソルを文字列の末尾に移動する
+function focusNameInputAtEnd() {
+  const input = document.getElementById('edit-name');
+  if (!input) return;
+  input.focus();
+  const len = input.value.length;
+  try {
+    input.setSelectionRange(len, len);
+  } catch (e) {
+    // 一部の環境ではsetSelectionRangeが使えない場合があるため無視する
+  }
 }
 
 // =====================================================================
