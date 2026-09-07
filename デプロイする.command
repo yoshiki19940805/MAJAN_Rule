@@ -10,37 +10,15 @@
 set -e
 cd "$(dirname "$0")"
 
-# --- 完了後にこのTerminalウィンドウを自動で閉じるための仕組み ---
-_close_terminal_window() {
-  local target_tty
-  target_tty="$(tty 2>/dev/null)"
-  [ -z "$target_tty" ] && return
-  osascript -e "
-    tell application \"Terminal\"
-      repeat with w in windows
-        try
-          if tty of (selected tab of w) is \"$target_tty\" then
-            close w
-            exit repeat
-          end if
-        end try
-      end repeat
-    end tell
-  " > /dev/null 2>&1
-}
 _on_exit() {
   local code=$?
-  if [ $code -eq 0 ]; then
-    sleep 2
-    _close_terminal_window
-  else
+  if [ $code -ne 0 ]; then
     echo ""
     echo "⚠️ エラーが発生しました（終了コード: $code）。内容を確認してください。"
     read -n 1 -s -r -p "何かキーを押すと終了します..." _
   fi
 }
 trap _on_exit EXIT
-# ------------------------------------------------------------
 
 echo "==================================="
 echo " MAJAN_Rule デプロイスクリプト"
@@ -64,6 +42,7 @@ fi
 
 if [ "$NEEDS_DEPLOY" = "0" ]; then
   echo "  デプロイする変更はありません。"
+  sleep 1.5
   exit 0
 fi
 echo "  変更を検出しました。"
@@ -124,4 +103,5 @@ echo ""
 
 echo "✅ デプロイが完了しました！（${NEW_VERSION}）"
 echo "数分後に反映されます: https://yoshiki19940805.github.io/MAJAN_Rule/"
-echo "まもなくこのウィンドウは自動で閉じます。"
+echo "このウインドウはまもなく自動的に閉じます。"
+sleep 2
