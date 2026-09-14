@@ -279,6 +279,17 @@
   .swipe-item {
       position: relative;
       overflow: hidden;
+      /* iOSで長押し時にテキスト選択（コピー用の青いハイライト）やコールアウトメニューが
+         出てしまい、長押しドラッグの操作性を損なうため無効化する */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+  }
+  /* カスタム入力欄は通常通りテキスト選択・コピーができるようにする */
+  .swipe-item .custom-input-area input {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
   }
   
   .swipe-content {
