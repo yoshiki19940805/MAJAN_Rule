@@ -274,6 +274,15 @@
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent; 
     overflow-x: hidden;
+    /* iOSの長押しで出る「コピー」ポップアップメニューそのものを無効化する。
+       user-select:none とは別のプロパティで、これ単体では長押しドラッグの
+       ジェスチャー認識に影響しないため、bodyに常時指定している。
+       選択ハイライト自体は selectionchange 側の解除処理と合わせて防ぐ */
+    -webkit-touch-callout: none;
+  }
+  /* 入力欄は長押しでの貼り付け操作等に影響しないよう通常通りにする */
+  input, textarea {
+    -webkit-touch-callout: default;
   }
 
   .swipe-item {
