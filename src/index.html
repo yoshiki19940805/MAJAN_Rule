@@ -320,9 +320,6 @@
       box-shadow: 0 8px 20px rgba(0,0,0,0.18);
       cursor: grabbing;
   }
-  .swipe-item.reordering .reorder-handle-area {
-      cursor: grabbing;
-  }
   .swipe-item.reordering .swipe-content {
       transition: none;
   }
@@ -2316,7 +2313,7 @@ function renderEdit() {
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${!isReadonlyView ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
                 ${!isReadonlyView ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
@@ -2331,19 +2328,18 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isReadonlyView ? 'onpointerdown="handleTouchStart(event)" onpointermove="handleTouchMove(event)" onpointerup="handleTouchEnd(event)" onpointercancel="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0 ${!isReadonlyView ? 'reorder-handle-area' : ''}">
-                            ${!isReadonlyView ? `<span class="material-symbols-outlined text-[16px] text-theme-textMuted/60 shrink-0" style="pointer-events:none;">drag_indicator</span>` : ''}
+                        <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0">
                             <span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
                         </span>
                         
-                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full">
+                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full" ${!isReadonlyView ? `onclick="openValueSelect(event, this)"` : ''}>
                             <span class="${valSizeClass} text-right w-full block pointer-events-none display-value-span whitespace-normal break-words ${!isReadonlyView ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${val === '' ? '<span class="text-theme-textMuted italic">非表示</span>' : esc(val)}
                             </span>
                             ${!isReadonlyView ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
                                 unfold_more
                             </span>
-                            <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onSettingChange('${k}', this.value)">
+                            <select class="absolute right-0 top-0 w-9 h-full opacity-0 cursor-pointer" onchange="onSettingChange('${k}', this.value)">
                                 ${optionsHtml}
                             </select>` : ''}
                         </div>
@@ -2714,13 +2710,30 @@ function handleTouchEnd(e) {
 // カテゴリごとの並び順は、ルールごとに rule.settings['item_order_' + catKey] として保存する
 let _reorderPress = null; // 長押し判定中の状態
 let _reorder = null;      // 実際にドラッグ中の状態
+let _lastReorderEndAt = 0; // 直後の誤クリック(選択肢の意図しないオープン)を防ぐための記録
+
+// 値表示エリア(枠全体ドラッグの対象内だが、select本体以外の部分)をタップした際に、
+// 選択肢のドロップダウンを開く。長押しドラッグ直後のクリックは無視する
+function openValueSelect(e, container) {
+  if (e.target.tagName === 'SELECT') return; // select本体は自身のネイティブ動作に任せる
+  if (Date.now() - _lastReorderEndAt < 300) return; // ドラッグ終了直後の誤クリックを防止
+  const sel = container.querySelector('select');
+  if (!sel) return;
+  try { sel.focus({ preventScroll: true }); } catch(err) {}
+  try {
+    if (sel.showPicker) { sel.showPicker(); } else { sel.click(); }
+  } catch(err) {
+    try { sel.click(); } catch(err2) {}
+  }
+}
 
 function handleReorderPointerDown(e, key, catKey) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  // カスタム入力欄・スワイプの編集/削除ボタン・値表示エリア(選択肢のselect)の上では
+  // カスタム入力欄・スワイプの編集/削除ボタン・値の選択肢(select)そのものの上では
   // 並び替えを開始しない。特にPCではselect要素はmousedownで即座にネイティブの
-  // ドロップダウンが開いてしまうため、ラベル・ドラッグハンドル側でのみ長押しを受け付ける
-  if (e.target.closest('.custom-input-area') || e.target.closest('.swipe-actions') || e.target.closest('.item-value-area')) return;
+  // ドロップダウンが開いてしまうため衝突を避ける。それ以外(値表示のテキスト部分を
+  // 含む)は枠全体をドラッグの起点として扱う
+  if (e.target.closest('.custom-input-area') || e.target.closest('.swipe-actions') || e.target.closest('select')) return;
   if (_reorderPress || _reorder) return;
 
   const el = e.currentTarget;
@@ -2815,6 +2828,7 @@ function onReorderEnd(e) {
   if (!_reorder) return;
   const r = _reorder;
   _reorder = null;
+  _lastReorderEndAt = Date.now();
 
   try { r.el.releasePointerCapture(r.pointerId); } catch(err) {}
   r.el.removeEventListener('pointermove', onReorderPressMove);
