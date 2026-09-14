@@ -2805,7 +2805,6 @@ function startReorderDrag(el, key, catKey, pointerId, startClientY) {
 
   el.classList.add('reordering');
   el.style.zIndex = '30';
-  el.style.touchAction = 'none';
   // 移動先が分かるよう、他の項目を実際にずらして隙間を作るアニメーションを有効にする
   container.classList.add('reorder-active');
 }
@@ -2856,7 +2855,6 @@ function onReorderEnd(e) {
   r.el.classList.remove('reordering');
   r.el.style.transform = '';
   r.el.style.zIndex = '';
-  r.el.style.touchAction = '';
   r.container.classList.remove('reorder-active');
   r.siblings.forEach(s => { s.style.transform = ''; });
 
