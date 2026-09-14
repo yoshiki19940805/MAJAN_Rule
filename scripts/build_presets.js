@@ -85,7 +85,7 @@ function loadPresetData() {
   const defaultPreset3 = presets3.find(p => p.isDefault) || presets3[0];
 
   // ペナルティキーのカテゴリをデフォルトプリセットの値から動的に判定
-  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   function getPenaltyCat(row, baseCat, defaultPreset) {
     if (!PENALTY_CATS.some(pc => baseCat.includes(pc))) return null;
     if (!defaultPreset) return null;
