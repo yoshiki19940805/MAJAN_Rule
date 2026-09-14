@@ -274,19 +274,6 @@
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent; 
     overflow-x: hidden;
-    /* ページ全体でテキスト選択（コピー用の青いハイライト）・コールアウトメニューを
-       常時無効化する。.swipe-item など特定の操作要素にだけ指定すると、iOSの
-       長押しジェスチャー認識が変化して長押しドラッグが反応しなくなる不具合が
-       起きたため、ページ全体(body)側で指定するようにしている */
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
-  /* 入力欄は通常通りテキスト選択・コピー・カーソル操作ができるようにする */
-  input, textarea {
-    -webkit-user-select: text;
-    user-select: text;
-    -webkit-touch-callout: default;
   }
 
   .swipe-item {
@@ -2725,13 +2712,25 @@ let _reorder = null;      // 実際にドラッグ中の状態
 let _lastReorderEndAt = 0; // 直後の誤クリック(選択肢の意図しないオープン)を防ぐための記録
 
 // iOSで項目を長押しした際にテキスト選択（コピー用の青いハイライト）が始まるのを防ぐ。
-// CSSの user-select:none で常時無効化すると、iOS側の長押しジェスチャー認識が変化し、
-// 長押しドラッグそのものが反応しなくなる不具合が出たため、CSSではなく
-// selectstartイベントをピンポイントで無効化する方式にしている
-// （カスタム入力欄は従来通り選択・コピーできるよう対象から除外）
+// CSSの user-select:none は、bodyや.swipe-itemなどどこに指定してもiOS側の
+// 長押しジェスチャー認識自体を変化させてしまい、長押しドラッグそのものが
+// 反応しなくなる不具合が繰り返し起きたため、CSSでの無効化は一切行わない。
+// selectstartイベントの無効化も試したが、iOSのタッチ長押しによる選択では
+// selectstartが発火しないことがあり効果が無かったため、実際に選択が始まって
+// しまった場合にselectionchangeで検知して即座に選択解除する方式にしている
+// （カスタム入力欄・input/textareaは対象外とし、通常通り選択・コピーできる）
 document.addEventListener('selectstart', function(e) {
   if (e.target && e.target.closest && e.target.closest('.swipe-item') && !e.target.closest('.custom-input-area')) {
     e.preventDefault();
+  }
+});
+document.addEventListener('selectionchange', function() {
+  const sel = window.getSelection && window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.anchorNode) return;
+  const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+  if (!anchorEl || !anchorEl.closest) return;
+  if (anchorEl.closest('.swipe-item') && !anchorEl.closest('.custom-input-area') && !anchorEl.closest('input, textarea')) {
+    sel.removeAllRanges();
   }
 });
 
