@@ -1561,6 +1561,14 @@ function getBaseRuleName(k) {
 function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
+
+// チョンボ/上がり放棄/軽罰符/ノーペナルティの4大項目に属する全キーを取得する。
+// （動的カテゴリ移動の対象キー。CATEGORIES定義から動的に収集するため、
+//   これらの大項目に新しい設定項目を追加してもここを更新する必要はない）
+const PENALTY_MOVE_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
+function getPenaltyMovableKeys(mode) {
+  return getCategories(mode).filter(c => PENALTY_MOVE_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
+}
 function getBaseRules(mode) {
   const base = mode === '四麻' ? {...BASE_RULES_4} : {...BASE_RULES_3};
   appData.rules.forEach(r => {
@@ -2171,10 +2179,9 @@ function renderEdit() {
   let html = '';
 
   // ペナルティ系4カテゴリ（チョンボ/上がり放棄/軽罰符/ノーペナルティ）に属する全キーを、
-  // ハードコードではなくCATEGORIES定義から動的に収集する
-  // （これらのカテゴリに新しい項目を追加しても、このリストを手動更新する必要がないようにするため）
-  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
-  const penaltyKeys = cats.filter(c => PENALTY_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
+  // 共通ヘルパー(getPenaltyMovableKeys)を使って動的に収集する
+  const PENALTY_CATS = PENALTY_MOVE_CATS;
+  const penaltyKeys = getPenaltyMovableKeys(rule.mode);
   // 各ペナルティキーの現在値に基づいて所属カテゴリを決定
   const penaltyKeyTargetCat = {}; // key -> 現在値に基づく所属カテゴリ名
   for (const pk of penaltyKeys) {
@@ -2450,11 +2457,13 @@ function onSettingChange(key, val) {
     return;
   }
 
-  // カスタム系ドロップダウンや罰則キーが変わったら再描画
-  const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya',
-    'pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_goron_no_taopai',
-    'pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai']);
-  if (reRenderKeys.has(key)) {
+  // カスタム系ドロップダウンが変わったら再描画
+  const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya']);
+  // 罰則系4大項目(チョンボ/上がり放棄/軽罰符/ノーペナルティ)のキーが変わった場合も、
+  // 編集画面上でその場でカテゴリ間を移動させるため再描画する
+  // （対象キーはハードコードでなくCATEGORIES定義から動的に判定するため、
+  //   これらの大項目に新しい項目を追加しても自動で対応する）
+  if (reRenderKeys.has(key) || (rule && getPenaltyMovableKeys(rule.mode).includes(key))) {
     renderEdit();
     return;
   }
@@ -2914,9 +2923,9 @@ async function exportImage() {
   const appCats = getCategories(rule.mode);
 
   // ペナルティ移動ロジック（画像出力用）
-  const IMG_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
-  // ハードコードではなくCATEGORIES定義から動的に収集する（新規項目にも自動対応）
-  const imgPenaltyKeys = appCats.filter(c => IMG_PENALTY_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
+  const IMG_PENALTY_CATS = PENALTY_MOVE_CATS;
+  // 共通ヘルパー(getPenaltyMovableKeys)を使って動的に収集する（新規項目にも自動対応）
+  const imgPenaltyKeys = getPenaltyMovableKeys(rule.mode);
   const imgPenaltyKeyTargetCat = {};
   for (const pk of imgPenaltyKeys) {
     const val = rule.settings[pk] ?? '';
@@ -3102,9 +3111,9 @@ async function exportPDF() {
   const appCats = getCategories(rule.mode);
 
   // ペナルティ移動ロジック（PDF出力用）
-  const PDF_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
-  // ハードコードではなくCATEGORIES定義から動的に収集する（新規項目にも自動対応）
-  const pdfPenaltyKeys = appCats.filter(c => PDF_PENALTY_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
+  const PDF_PENALTY_CATS = PENALTY_MOVE_CATS;
+  // 共通ヘルパー(getPenaltyMovableKeys)を使って動的に収集する（新規項目にも自動対応）
+  const pdfPenaltyKeys = getPenaltyMovableKeys(rule.mode);
   const pdfPenaltyKeyTargetCat = {};
   for (const pk of pdfPenaltyKeys) {
     const val = rule.settings[pk] ?? '';
