@@ -311,10 +311,17 @@
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
 
   /* 項目の並び替え（長押しドラッグ） */
+  .reorder-handle-area {
+      cursor: grab;
+  }
   .swipe-item.reordering {
       z-index: 30;
       overflow: visible;
       box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+      cursor: grabbing;
+  }
+  .swipe-item.reordering .reorder-handle-area {
+      cursor: grabbing;
   }
   .swipe-item.reordering .swipe-content {
       transition: none;
@@ -2310,14 +2317,14 @@ function renderEdit() {
                 </div>
                 ` : ''}
                 
-                <div class="swipe-content" ${!isReadonlyView ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
+                <div class="swipe-content" ${!isReadonlyView ? 'onpointerdown="handleTouchStart(event)" onpointermove="handleTouchMove(event)" onpointerup="handleTouchEnd(event)" onpointercancel="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0">
+                        <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0 ${!isReadonlyView ? 'reorder-handle-area' : ''}">
                             ${!isReadonlyView ? `<span class="material-symbols-outlined text-[16px] text-theme-textMuted/60 shrink-0" style="pointer-events:none;">drag_indicator</span>` : ''}
                             <span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
                         </span>
                         
-                        <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
+                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full">
                             <span class="${valSizeClass} text-right w-full block pointer-events-none display-value-span whitespace-normal break-words ${!isReadonlyView ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${val === '' ? '<span class="text-theme-textMuted italic">非表示</span>' : esc(val)}
                             </span>
@@ -2370,11 +2377,11 @@ function renderEdit() {
                 </div>
                 ` : ''}
                 
-                <div class="swipe-content" ${!isReadonlyView ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
+                <div class="swipe-content" ${!isReadonlyView ? 'onpointerdown="handleTouchStart(event)" onpointermove="handleTouchMove(event)" onpointerup="handleTouchEnd(event)" onpointercancel="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
                         
-                        <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
+                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full">
                             <span class="${cValSizeClass} text-right w-full block pointer-events-none whitespace-normal break-words ${!isReadonlyView ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
@@ -2631,14 +2638,18 @@ function onCustomPenaltySelect(catKey, idx, val) {
   // 通常選択した場合はそのまま
 }
 
-// --- スワイプ削除 ---
+// --- スワイプ削除（Pointer Eventsでタッチ・マウス両対応） ---
 let _swipeStartX = 0, _swipeStartY = 0, _swipeCurrentX = 0, _activeSwipe = null;
 let _swipeMoved = false;
+let _swipePointerId = null;
 const SWIPE_WIDTH = -120; 
 
 function handleTouchStart(e) {
-    _swipeStartX = e.touches[0].clientX;
-    _swipeStartY = e.touches[0].clientY;
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // マウスは左クリックのみ
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch(err) {}
+    _swipePointerId = e.pointerId;
+    _swipeStartX = e.clientX;
+    _swipeStartY = e.clientY;
     _swipeCurrentX = _swipeStartX;
     _activeSwipe = e.currentTarget;
     _swipeMoved = false;
@@ -2648,9 +2659,9 @@ function handleTouchStart(e) {
 }
 
 function handleTouchMove(e) {
-    if (!_activeSwipe) return;
-    _swipeCurrentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
+    if (!_activeSwipe || e.pointerId !== _swipePointerId) return;
+    _swipeCurrentX = e.clientX;
+    const currentY = e.clientY;
     const diffX = _swipeCurrentX - _swipeStartX;
     const diffY = currentY - _swipeStartY;
     
@@ -2674,7 +2685,8 @@ function handleTouchMove(e) {
 }
 
 function handleTouchEnd(e) {
-    if (!_activeSwipe) return;
+    if (!_activeSwipe || (e.pointerId !== undefined && e.pointerId !== _swipePointerId)) return;
+    try { _activeSwipe.releasePointerCapture(_swipePointerId); } catch(err) {}
     const diffX = _swipeCurrentX - _swipeStartX;
     if (_swipeMoved && diffX < SWIPE_WIDTH / 2) {
         _activeSwipe.style.transform = `translateX(${SWIPE_WIDTH}px)`;
@@ -2683,6 +2695,7 @@ function handleTouchEnd(e) {
     }
     _activeSwipe = null;
     _swipeMoved = false;
+    _swipePointerId = null;
 }
 
 // --- 項目の並び替え（長押しドラッグ） ---
@@ -2692,8 +2705,10 @@ let _reorder = null;      // 実際にドラッグ中の状態
 
 function handleReorderPointerDown(e, key, catKey) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  // カスタム入力欄やスワイプの編集・削除ボタン上では並び替えを開始しない
-  if (e.target.closest('.custom-input-area') || e.target.closest('.swipe-actions')) return;
+  // カスタム入力欄・スワイプの編集/削除ボタン・値表示エリア(選択肢のselect)の上では
+  // 並び替えを開始しない。特にPCではselect要素はmousedownで即座にネイティブの
+  // ドロップダウンが開いてしまうため、ラベル・ドラッグハンドル側でのみ長押しを受け付ける
+  if (e.target.closest('.custom-input-area') || e.target.closest('.swipe-actions') || e.target.closest('.item-value-area')) return;
   if (_reorderPress || _reorder) return;
 
   const el = e.currentTarget;
