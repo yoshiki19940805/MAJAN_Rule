@@ -2170,9 +2170,12 @@ function renderEdit() {
   
   let html = '';
 
-  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai','penalty_misehai','penalty_koshihai'];
-  // 各ペナルティキーの現在値に基づいて所属カテゴリを決定
+  // ペナルティ系4カテゴリ（チョンボ/上がり放棄/軽罰符/ノーペナルティ）に属する全キーを、
+  // ハードコードではなくCATEGORIES定義から動的に収集する
+  // （これらのカテゴリに新しい項目を追加しても、このリストを手動更新する必要がないようにするため）
   const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
+  const penaltyKeys = cats.filter(c => PENALTY_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
+  // 各ペナルティキーの現在値に基づいて所属カテゴリを決定
   const penaltyKeyTargetCat = {}; // key -> 現在値に基づく所属カテゴリ名
   for (const pk of penaltyKeys) {
     const val = rule.settings[pk] ?? '';
@@ -2911,8 +2914,9 @@ async function exportImage() {
   const appCats = getCategories(rule.mode);
 
   // ペナルティ移動ロジック（画像出力用）
-  const imgPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai','penalty_misehai','penalty_koshihai'];
   const IMG_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
+  // ハードコードではなくCATEGORIES定義から動的に収集する（新規項目にも自動対応）
+  const imgPenaltyKeys = appCats.filter(c => IMG_PENALTY_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
   const imgPenaltyKeyTargetCat = {};
   for (const pk of imgPenaltyKeys) {
     const val = rule.settings[pk] ?? '';
@@ -3098,8 +3102,9 @@ async function exportPDF() {
   const appCats = getCategories(rule.mode);
 
   // ペナルティ移動ロジック（PDF出力用）
-  const pdfPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai','penalty_misehai','penalty_koshihai'];
   const PDF_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
+  // ハードコードではなくCATEGORIES定義から動的に収集する（新規項目にも自動対応）
+  const pdfPenaltyKeys = appCats.filter(c => PDF_PENALTY_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
   const pdfPenaltyKeyTargetCat = {};
   for (const pk of pdfPenaltyKeys) {
     const val = rule.settings[pk] ?? '';
