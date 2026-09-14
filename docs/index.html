@@ -280,6 +280,23 @@
        選択ハイライト自体は selectionchange 側の解除処理と合わせて防ぐ */
     -webkit-touch-callout: none;
   }
+  /* 選択が一瞬でも発生した際に「青いハイライト」自体が見えないよう、選択部分の
+     配色を透明化する。selectionchangeでの解除がJSの都合で一瞬遅れても、
+     色が付かないため視覚的なちらつきが残らない。user-select:noneのように
+     選択の可否そのものを変える指定ではないため、長押しドラッグには影響しない */
+  ::selection {
+    background: transparent;
+    color: inherit;
+  }
+  ::-moz-selection {
+    background: transparent;
+    color: inherit;
+  }
+  /* 入力欄では通常通りの選択色に戻す(ブラウザ既定に戻すだけでrevertを使用) */
+  input::selection, textarea::selection {
+    background: revert;
+    color: revert;
+  }
   /* 入力欄は長押しでの貼り付け操作等に影響しないよう通常通りにする */
   input, textarea {
     -webkit-touch-callout: default;
