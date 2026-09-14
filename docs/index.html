@@ -1585,12 +1585,24 @@ function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
 
-// チョンボ/上がり放棄/軽罰符/ノーペナルティの4大項目に属する全キーを取得する。
-// （動的カテゴリ移動の対象キー。CATEGORIES定義から動的に収集するため、
-//   これらの大項目に新しい設定項目を追加してもここを更新する必要はない）
+// チョンボ/上がり放棄/軽罰符/ノーペナルティの4大項目に属するキーのうち、
+// 「その項目自体がどの大項目に該当するかを選ぶ」タイプの項目（選択肢が
+// チョンボ/上がり放棄/軽罰符/ノーペナルティそのものだけで構成されている項目）
+// だけを動的カテゴリ移動の対象として取得する。
+// （例: chombo_taiou の選択肢は「やり直し,流局扱い,親なら流局,ノーペナルティ」で、
+//   値として「ノーペナルティ」を取り得るが、これは「チョンボの対処法」を表す値で
+//   あって「この項目自体をノーペナルティ大項目へ移動する」という意味ではないため、
+//   選択肢の一部だけがカテゴリ名と一致する項目は対象から除外する）
 const PENALTY_MOVE_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
 function getPenaltyMovableKeys(mode) {
-  return getCategories(mode).filter(c => PENALTY_MOVE_CATS.some(pc => c[0].includes(pc))).flatMap(c => c[1]);
+  const opts = getOptions(mode);
+  return getCategories(mode)
+    .filter(c => PENALTY_MOVE_CATS.some(pc => c[0].includes(pc)))
+    .flatMap(c => c[1])
+    .filter(k => {
+      const keyOpts = (opts[k] || []).filter(o => o !== 'カスタム');
+      return keyOpts.length > 0 && keyOpts.every(o => PENALTY_MOVE_CATS.includes(o));
+    });
 }
 function getBaseRules(mode) {
   const base = mode === '四麻' ? {...BASE_RULES_4} : {...BASE_RULES_3};
