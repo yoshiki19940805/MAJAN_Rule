@@ -323,11 +323,10 @@
   .swipe-item.reordering .swipe-content {
       transition: none;
   }
-  .swipe-item.drop-before {
-      box-shadow: inset 0 2px 0 0 var(--color-primary);
-  }
-  .swipe-item.drop-after {
-      box-shadow: inset 0 -2px 0 0 var(--color-primary);
+  /* ドラッグ中、追い越された他の項目が実際にずれて隙間を作ることで、
+     どこに移動しようとしているかが分かるようにする */
+  .reorder-active .swipe-item:not(.reordering) {
+      transition: transform 0.2s ease;
   }
 
   /* iOS風トグルスイッチ（特記事項ごとの差分表示ON/OFF切り替えに使用） */
@@ -2789,6 +2788,7 @@ function startReorderDrag(el, key, catKey, pointerId, startClientY) {
     key, catKey, el, container, siblings, rects, draggedIndex,
     startClientY,
     startCenterY: draggedRect.top + draggedRect.height / 2,
+    draggedHeight: draggedRect.height,
     targetIndexAmongOthers: draggedIndex,
     pointerId,
   };
@@ -2796,6 +2796,8 @@ function startReorderDrag(el, key, catKey, pointerId, startClientY) {
   el.classList.add('reordering');
   el.style.zIndex = '30';
   el.style.touchAction = 'none';
+  // 移動先が分かるよう、他の項目を実際にずらして隙間を作るアニメーションを有効にする
+  container.classList.add('reorder-active');
 }
 
 function onReorderMove(e) {
@@ -2815,12 +2817,19 @@ function onReorderMove(e) {
     if (draggedCenterY < centerY) { targetIndex = idx; break; }
   }
 
-  others.forEach(o => o.s.classList.remove('drop-before', 'drop-after'));
-  if (targetIndex < others.length) {
-    others[targetIndex].s.classList.add('drop-before');
-  } else if (others.length > 0) {
-    others[others.length - 1].s.classList.add('drop-after');
-  }
+  // ドラッグ中の項目が「通り過ぎた」項目だけを、空いた/詰まる分だけ実際にずらして表示し、
+  // どこに移動しようとしているかが一目で分かるようにする
+  // （元のギャップ位置=draggedIndex、現在のギャップ位置=targetIndex を othersのインデックス基準で比較）
+  const originalGapIndex = _reorder.draggedIndex;
+  others.forEach((o, i) => {
+    let shift = 0;
+    if (targetIndex > originalGapIndex && i >= originalGapIndex && i < targetIndex) {
+      shift = -1; // ドラッグ項目がこの項目を追い越して下に移動する → この項目は上に詰める
+    } else if (targetIndex < originalGapIndex && i >= targetIndex && i < originalGapIndex) {
+      shift = 1; // ドラッグ項目がこの項目を追い越して上に移動する → この項目は下にずれる
+    }
+    o.s.style.transform = shift ? `translateY(${shift * _reorder.draggedHeight}px)` : '';
+  });
   _reorder.targetIndexAmongOthers = targetIndex;
 }
 
@@ -2838,7 +2847,8 @@ function onReorderEnd(e) {
   r.el.style.transform = '';
   r.el.style.zIndex = '';
   r.el.style.touchAction = '';
-  r.siblings.forEach(s => s.classList.remove('drop-before', 'drop-after'));
+  r.container.classList.remove('reorder-active');
+  r.siblings.forEach(s => { s.style.transform = ''; });
 
   const rule = getRule(editingId);
   if (rule) {
