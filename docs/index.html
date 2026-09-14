@@ -274,11 +274,25 @@
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent; 
     overflow-x: hidden;
-    /* iOSの長押しで出る「コピー」ポップアップメニューそのものを無効化する。
-       user-select:none とは別のプロパティで、これ単体では長押しドラッグの
-       ジェスチャー認識に影響しないため、bodyに常時指定している。
-       選択ハイライト自体は selectionchange 側の解除処理と合わせて防ぐ */
+    /* サイト全体でテキスト選択・コピー・長押しコピーメニューを禁止する。
+       ただし .swipe-item (長押しドラッグで並び替える項目行)だけは、
+       user-select:noneを指定すると長押しドラッグのジェスチャー認識が
+       壊れてしまうため対象から除外し、通常通りの選択可否のままにしている
+       （その行の青いハイライト自体は下の::selectionの透明化とJSでの
+       選択解除で別途抑えている）。入力欄(プレイヤーが入力する欄)も
+       通常通りコピー&ペーストできるよう除外する */
+    -webkit-user-select: none;
+    user-select: none;
     -webkit-touch-callout: none;
+  }
+  .swipe-item, .swipe-item * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
   }
   /* 選択が一瞬でも発生した際に「青いハイライト」自体が見えないよう、選択部分の
      配色を透明化する。selectionchangeでの解除がJSの都合で一瞬遅れても、
@@ -296,10 +310,6 @@
   input::selection, textarea::selection {
     background: revert;
     color: revert;
-  }
-  /* 入力欄は長押しでの貼り付け操作等に影響しないよう通常通りにする */
-  input, textarea {
-    -webkit-touch-callout: default;
   }
 
   .swipe-item {
@@ -2113,6 +2123,9 @@ function renderEdit() {
 
   // 閲覧専用判定: 表示画面 or 共有モード
   const isReadonlyView = isViewMode || isSharedMode;
+  // 項目の並び替え(ドラッグ)は、編集画面だけでなくルール表示画面でも行えるようにする。
+  // ただし自分で編集できないルール(プリセット・共有されたルール)では並び替えも不可とする
+  const canReorder = !rule.readonly && !isSharedMode;
 
   const titleEl = document.getElementById('edit-mode-label');
   if (isSharedMode) {
@@ -2338,8 +2351,8 @@ function renderEdit() {
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${!isReadonlyView ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
-                ${!isReadonlyView ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
+                ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
                     <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showEditOptionsDialog('${k}')">
