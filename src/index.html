@@ -2170,7 +2170,7 @@ function renderEdit() {
   
   let html = '';
 
-  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai','penalty_misehai','penalty_koshihai'];
   // 各ペナルティキーの現在値に基づいて所属カテゴリを決定
   const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   const penaltyKeyTargetCat = {}; // key -> 現在値に基づく所属カテゴリ名
@@ -2911,7 +2911,7 @@ async function exportImage() {
   const appCats = getCategories(rule.mode);
 
   // ペナルティ移動ロジック（画像出力用）
-  const imgPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  const imgPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai','penalty_misehai','penalty_koshihai'];
   const IMG_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   const imgPenaltyKeyTargetCat = {};
   for (const pk of imgPenaltyKeys) {
@@ -3098,7 +3098,7 @@ async function exportPDF() {
   const appCats = getCategories(rule.mode);
 
   // ペナルティ移動ロジック（PDF出力用）
-  const pdfPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
+  const pdfPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai','penalty_misehai','penalty_koshihai'];
   const PDF_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   const pdfPenaltyKeyTargetCat = {};
   for (const pk of pdfPenaltyKeys) {
