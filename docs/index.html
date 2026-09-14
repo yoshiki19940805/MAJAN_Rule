@@ -2172,7 +2172,7 @@ function renderEdit() {
 
   const penaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
   // 各ペナルティキーの現在値に基づいて所属カテゴリを決定
-  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   const penaltyKeyTargetCat = {}; // key -> 現在値に基づく所属カテゴリ名
   for (const pk of penaltyKeys) {
     const val = rule.settings[pk] ?? '';
@@ -2193,28 +2193,6 @@ function renderEdit() {
 
     const catDivContent = [];
 
-    if (catNameLong.includes('特殊牌')) {
-      const tiles = rule.settings.custom_tiles || [];
-      for (let i = 0; i < tiles.length; i++) {
-        catDivContent.push(`<div class="relative bg-theme-surface border border-theme-border/30 rounded-xl p-4 shadow-sm mb-3">
-          <div class="flex justify-between items-center mb-3">
-            <strong class="text-[14px] text-theme-text">特殊牌 #${i+1}</strong>
-            ${!isReadonlyView ? `<button onclick="removeCustomTile(${i})" class="bg-theme-danger/10 text-theme-danger px-3 py-1 rounded-full border border-theme-danger/20 text-[11px] font-bold">削除</button>` : ''}
-          </div>
-          <div class="mb-3">
-            <label class="block text-[11px] font-bold text-theme-textMuted mb-1">牌の名称</label>
-            <input type="text" value="${esc(tiles[i].name||'')}" oninput="updateCustomTile(${i},'name',this.value)" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text outline-none focus:border-theme-primary/50 transition-colors" placeholder="例: 金牌" ${isReadonlyView ? 'disabled' : ''}>
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold text-theme-textMuted mb-1">効果・説明</label>
-            <textarea oninput="updateCustomTile(${i},'effect',this.value)" class="w-full bg-theme-bg border border-theme-border/50 rounded-lg px-3 py-2 text-[14px] text-theme-text min-h-[60px] outline-none focus:border-theme-primary/50 transition-colors" placeholder="例: ドラ+チップ3枚" ${isReadonlyView ? 'disabled' : ''}>${esc(tiles[i].effect||'')}</textarea>
-          </div>
-        </div>`);
-      }
-      if (!isReadonlyView) {
-        catDivContent.push(`<button onclick="addCustomTile()" class="w-full bg-theme-surface border border-dashed border-theme-primary/50 text-theme-primary rounded-xl py-3 text-[14px] font-bold flex items-center justify-center gap-1 active:bg-theme-primary/5 transition-colors"><span class="material-symbols-outlined text-[20px]">add</span>特殊牌を追加</button>`);
-      }
-    } else {
       let renderKeys = [...keys];
       // ペナルティカテゴリの場合：値に基づいてキーを移動
       const thisPenaltyCat = PENALTY_CATS.find(pc => catNameLong.includes(pc));
@@ -2385,7 +2363,6 @@ function renderEdit() {
           ` : ''}
         </div>`);
       }
-    }
 
     const catMemo = rule.settings['memo_' + catKey] || '';
     const memoRows = Math.max(2, (catMemo.match(/\n/g) || []).length + 2);
@@ -2571,29 +2548,6 @@ function onMemoDiffToggle(catKey, checked) {
             overlay.classList.add('hidden');
         }, 300);
     }
-
-// --- 特殊牌 CRUD ---
-function addCustomTile() {
-  const rule = getRule(editingId);
-  if (!rule) return;
-  if (!rule.settings.custom_tiles) rule.settings.custom_tiles = [];
-  rule.settings.custom_tiles.push({name:'', effect:''});
-  saveData();
-  renderEdit();
-}
-function removeCustomTile(idx) {
-  const rule = getRule(editingId);
-  if (!rule || !rule.settings.custom_tiles) return;
-  rule.settings.custom_tiles.splice(idx, 1);
-  saveData();
-  renderEdit();
-}
-function updateCustomTile(idx, field, val) {
-  const rule = getRule(editingId);
-  if (!rule || !rule.settings.custom_tiles || !rule.settings.custom_tiles[idx]) return;
-  rule.settings.custom_tiles[idx][field] = val;
-  saveData();
-}
 
 // --- カスタム罰則項目 CRUD ---
 function addCustomPenalty(catKey) {
@@ -2958,7 +2912,7 @@ async function exportImage() {
 
   // ペナルティ移動ロジック（画像出力用）
   const imgPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
-  const IMG_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const IMG_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   const imgPenaltyKeyTargetCat = {};
   for (const pk of imgPenaltyKeys) {
     const val = rule.settings[pk] ?? '';
@@ -2992,20 +2946,6 @@ async function exportImage() {
       let rowIndex = 0;
       let rowsHtml = '';
       
-      if (catName.includes('特殊牌')) {
-          const tiles = rule.settings.custom_tiles || [];
-          for (const t of tiles) {
-              if (t.name || t.effect) {
-                  const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                  rowsHtml += `
-                      <tr style="background-color: ${bgColor};">
-                          <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">🀄 ${esc(t.name||'(未設定)')}</td>
-                          <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.5;">${esc(t.effect||'')}</td>
-                      </tr>`;
-                  rowIndex++;
-              }
-          }
-      } else {
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
               const val = rule.settings[k] ?? '';
@@ -3062,7 +3002,6 @@ async function exportImage() {
                   rowIndex++;
               }
           }
-      }
 
       // メモ
       const catMemo = rule.settings['memo_' + catKey] || '';
@@ -3160,7 +3099,7 @@ async function exportPDF() {
 
   // ペナルティ移動ロジック（PDF出力用）
   const pdfPenaltyKeys = ['pen_goron_taopai','pen_noten_reach','pen_reach_bad_ankan','pen_hakai','pen_goron_no_taopai','pen_gonaki_sarashi','pen_kuikae_ihan','pen_tahai','pen_gonaki_hassei','pen_shouhai'];
-  const PDF_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符'];
+  const PDF_PENALTY_CATS = ['チョンボ', '上がり放棄', '軽罰符', 'ノーペナルティ'];
   const pdfPenaltyKeyTargetCat = {};
   for (const pk of pdfPenaltyKeys) {
     const val = rule.settings[pk] ?? '';
@@ -3194,21 +3133,6 @@ async function exportPDF() {
       let rowIndex = 0;
       let rowsHtml = '';
       
-      // 特殊牌カテゴリは例外処理
-      if (catName.includes('特殊牌')) {
-          const tiles = rule.settings.custom_tiles || [];
-          for (const t of tiles) {
-              if (t.name || t.effect) {
-                  const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                  rowsHtml += `
-                      <tr style="background-color: ${bgColor};">
-                          <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">🀄 ${esc(t.name||'(未設定)')}</td>
-                          <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; color: #007AFF; font-weight: bold; line-height: 1.4;">${esc(t.effect||'')}</td>
-                      </tr>`;
-                  rowIndex++;
-              }
-          }
-      } else {
           for (const k of keys) {
               if (k.endsWith('_custom')) continue;
               const val = rule.settings[k] ?? '';
@@ -3265,7 +3189,6 @@ async function exportPDF() {
                   rowIndex++;
               }
           }
-      }
 
       // メモ
       const catMemo = rule.settings['memo_' + catKey] || '';
