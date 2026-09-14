@@ -274,6 +274,19 @@
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent; 
     overflow-x: hidden;
+    /* ページ全体でテキスト選択（コピー用の青いハイライト）・コールアウトメニューを
+       常時無効化する。.swipe-item など特定の操作要素にだけ指定すると、iOSの
+       長押しジェスチャー認識が変化して長押しドラッグが反応しなくなる不具合が
+       起きたため、ページ全体(body)側で指定するようにしている */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /* 入力欄は通常通りテキスト選択・コピー・カーソル操作ができるようにする */
+  input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
   }
 
   .swipe-item {
