@@ -310,6 +310,22 @@
   }
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
 
+  /* 項目の並び替え（長押しドラッグ） */
+  .swipe-item.reordering {
+      z-index: 30;
+      overflow: visible;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+  }
+  .swipe-item.reordering .swipe-content {
+      transition: none;
+  }
+  .swipe-item.drop-before {
+      box-shadow: inset 0 2px 0 0 var(--color-primary);
+  }
+  .swipe-item.drop-after {
+      box-shadow: inset 0 -2px 0 0 var(--color-primary);
+  }
+
   /* iOS風トグルスイッチ（特記事項ごとの差分表示ON/OFF切り替えに使用） */
   .ios-switch {
       position: relative;
@@ -2221,6 +2237,15 @@ function renderEdit() {
         });
       }
 
+      // ユーザーが並び替えた順番があれば適用する（ルール・カテゴリごとに保存）
+      const savedOrder = rule.settings['item_order_' + catKey];
+      if (Array.isArray(savedOrder) && savedOrder.length > 0) {
+        const orderIndex = new Map(savedOrder.map((k, i) => [k, i]));
+        const known = renderKeys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
+        const unknown = renderKeys.filter(k => !orderIndex.has(k));
+        renderKeys = [...known, ...unknown];
+      }
+
       const deletedKeys = new Set(rule.settings.deleted_keys || []);
       
       let itemHtmls = [];
@@ -2272,7 +2297,8 @@ function renderEdit() {
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         itemHtmls.push(`
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}">
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
+                ${!isReadonlyView ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
                     <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showEditOptionsDialog('${k}')">
@@ -2286,7 +2312,10 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isReadonlyView ? 'ontouchstart="handleTouchStart(event)" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
+                        <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0">
+                            ${!isReadonlyView ? `<span class="material-symbols-outlined text-[16px] text-theme-textMuted/60 shrink-0" style="pointer-events:none;">drag_indicator</span>` : ''}
+                            <span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
+                        </span>
                         
                         <div class="relative flex-1 flex justify-end items-center min-w-0 h-full">
                             <span class="${valSizeClass} text-right w-full block pointer-events-none display-value-span whitespace-normal break-words ${!isReadonlyView ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
@@ -2655,6 +2684,137 @@ function handleTouchEnd(e) {
     _activeSwipe = null;
     _swipeMoved = false;
 }
+
+// --- 項目の並び替え（長押しドラッグ） ---
+// カテゴリごとの並び順は、ルールごとに rule.settings['item_order_' + catKey] として保存する
+let _reorderPress = null; // 長押し判定中の状態
+let _reorder = null;      // 実際にドラッグ中の状態
+
+function handleReorderPointerDown(e, key, catKey) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  // カスタム入力欄やスワイプの編集・削除ボタン上では並び替えを開始しない
+  if (e.target.closest('.custom-input-area') || e.target.closest('.swipe-actions')) return;
+  if (_reorderPress || _reorder) return;
+
+  const el = e.currentTarget;
+  const startX = e.clientX, startY = e.clientY;
+  const pointerId = e.pointerId;
+
+  const timer = setTimeout(() => {
+    _reorderPress = null;
+    startReorderDrag(el, key, catKey, pointerId, startY);
+  }, 450);
+
+  _reorderPress = { timer, startX, startY, el, pointerId };
+
+  el.addEventListener('pointermove', onReorderPressMove);
+  el.addEventListener('pointerup', onReorderPressCancel);
+  el.addEventListener('pointercancel', onReorderPressCancel);
+}
+
+function onReorderPressMove(e) {
+  if (_reorder) { onReorderMove(e); return; }
+  if (!_reorderPress || e.pointerId !== _reorderPress.pointerId) return;
+  const dx = e.clientX - _reorderPress.startX, dy = e.clientY - _reorderPress.startY;
+  // 長押し判定前に一定以上動いたら、通常のタップ・スワイプ操作として並び替えを諦める
+  if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    onReorderPressCancel(e);
+  }
+}
+
+function onReorderPressCancel(e) {
+  if (_reorder) { onReorderEnd(e); return; }
+  if (!_reorderPress) return;
+  clearTimeout(_reorderPress.timer);
+  _reorderPress.el.removeEventListener('pointermove', onReorderPressMove);
+  _reorderPress.el.removeEventListener('pointerup', onReorderPressCancel);
+  _reorderPress.el.removeEventListener('pointercancel', onReorderPressCancel);
+  _reorderPress = null;
+}
+
+function startReorderDrag(el, key, catKey, pointerId, startClientY) {
+  try { el.setPointerCapture(pointerId); } catch(e) {}
+  try { if (navigator.vibrate) navigator.vibrate(15); } catch(e) {}
+
+  const container = el.parentElement;
+  const siblings = Array.from(container.children).filter(c =>
+    c.classList && c.classList.contains('swipe-item') && c.dataset.catKey === catKey && c.dataset.id
+  );
+  const rects = siblings.map(s => s.getBoundingClientRect());
+  const draggedIndex = siblings.indexOf(el);
+  if (draggedIndex === -1) return;
+  const draggedRect = rects[draggedIndex];
+
+  _reorder = {
+    key, catKey, el, container, siblings, rects, draggedIndex,
+    startClientY,
+    startCenterY: draggedRect.top + draggedRect.height / 2,
+    targetIndexAmongOthers: draggedIndex,
+    pointerId,
+  };
+
+  el.classList.add('reordering');
+  el.style.zIndex = '30';
+  el.style.touchAction = 'none';
+}
+
+function onReorderMove(e) {
+  if (!_reorder || e.pointerId !== _reorder.pointerId) return;
+  if (e.cancelable) e.preventDefault();
+  const deltaY = e.clientY - _reorder.startClientY;
+  _reorder.el.style.transform = `translateY(${deltaY}px)`;
+
+  const draggedCenterY = _reorder.startCenterY + deltaY;
+  const others = _reorder.siblings
+    .map((s, i) => ({ s, rect: _reorder.rects[i] }))
+    .filter((o, i) => i !== _reorder.draggedIndex);
+
+  let targetIndex = others.length;
+  for (let idx = 0; idx < others.length; idx++) {
+    const centerY = others[idx].rect.top + others[idx].rect.height / 2;
+    if (draggedCenterY < centerY) { targetIndex = idx; break; }
+  }
+
+  others.forEach(o => o.s.classList.remove('drop-before', 'drop-after'));
+  if (targetIndex < others.length) {
+    others[targetIndex].s.classList.add('drop-before');
+  } else if (others.length > 0) {
+    others[others.length - 1].s.classList.add('drop-after');
+  }
+  _reorder.targetIndexAmongOthers = targetIndex;
+}
+
+function onReorderEnd(e) {
+  if (!_reorder) return;
+  const r = _reorder;
+  _reorder = null;
+
+  try { r.el.releasePointerCapture(r.pointerId); } catch(err) {}
+  r.el.removeEventListener('pointermove', onReorderPressMove);
+  r.el.removeEventListener('pointerup', onReorderPressCancel);
+  r.el.removeEventListener('pointercancel', onReorderPressCancel);
+  r.el.classList.remove('reordering');
+  r.el.style.transform = '';
+  r.el.style.zIndex = '';
+  r.el.style.touchAction = '';
+  r.siblings.forEach(s => s.classList.remove('drop-before', 'drop-after'));
+
+  const rule = getRule(editingId);
+  if (rule) {
+    const others = r.siblings.filter((s, i) => i !== r.draggedIndex).map(s => s.dataset.id);
+    const insertAt = r.targetIndexAmongOthers;
+    const newOrder = [...others.slice(0, insertAt), r.key, ...others.slice(insertAt)];
+    const orderKey = 'item_order_' + r.catKey;
+    const oldOrder = rule.settings[orderKey] || [];
+    const changed = JSON.stringify(oldOrder) !== JSON.stringify(newOrder);
+    if (changed) {
+      rule.settings[orderKey] = newOrder;
+      if (!isSharedMode) saveData();
+      renderEdit();
+    }
+  }
+}
+
 // --- 既存項目の削除 ---
 function removeSettingKey(key) {
   const rule = getRule(editingId);
@@ -2955,6 +3115,15 @@ async function exportImage() {
           return imgPenaltyKeyTargetCat[k] === imgThisPenaltyCat;
         });
       }
+
+      // ユーザーが編集画面で並び替えた順番があれば適用する
+      const imgSavedOrder = rule.settings['item_order_' + catKey];
+      if (Array.isArray(imgSavedOrder) && imgSavedOrder.length > 0) {
+        const orderIndex = new Map(imgSavedOrder.map((k, i) => [k, i]));
+        const known = keys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
+        const unknown = keys.filter(k => !orderIndex.has(k));
+        keys = [...known, ...unknown];
+      }
       
       let rowIndex = 0;
       let rowsHtml = '';
@@ -3142,6 +3311,15 @@ async function exportPDF() {
           if (!(k in pdfPenaltyKeyTargetCat)) return true;
           return pdfPenaltyKeyTargetCat[k] === pdfThisPenaltyCat;
         });
+      }
+
+      // ユーザーが編集画面で並び替えた順番があれば適用する
+      const pdfSavedOrder = rule.settings['item_order_' + catKey];
+      if (Array.isArray(pdfSavedOrder) && pdfSavedOrder.length > 0) {
+        const orderIndex = new Map(pdfSavedOrder.map((k, i) => [k, i]));
+        const known = keys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
+        const unknown = keys.filter(k => !orderIndex.has(k));
+        keys = [...known, ...unknown];
       }
       
       let rowIndex = 0;
