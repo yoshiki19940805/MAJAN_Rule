@@ -279,17 +279,6 @@
   .swipe-item {
       position: relative;
       overflow: hidden;
-      /* iOSで長押し時にテキスト選択（コピー用の青いハイライト）やコールアウトメニューが
-         出てしまい、長押しドラッグの操作性を損なうため無効化する */
-      -webkit-user-select: none;
-      user-select: none;
-      -webkit-touch-callout: none;
-  }
-  /* カスタム入力欄は通常通りテキスト選択・コピーができるようにする */
-  .swipe-item .custom-input-area input {
-      -webkit-user-select: text;
-      user-select: text;
-      -webkit-touch-callout: default;
   }
   
   .swipe-content {
@@ -330,6 +319,13 @@
       overflow: visible;
       box-shadow: 0 8px 20px rgba(0,0,0,0.18);
       cursor: grabbing;
+      /* 長押しドラッグが確定した後にのみ、iOSのテキスト選択（コピー用の青いハイライト）や
+         コールアウトメニューを無効化する。常時無効化すると長押し判定前のジェスチャー
+         （ページスクロール等）の挙動に影響が出て、ドラッグ自体が反応しなくなる不具合が
+         あったため、ドラッグ確定後だけに絞っている */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
   }
   .swipe-item.reordering .swipe-content {
       transition: none;
@@ -2785,6 +2781,9 @@ function onReorderPressCancel(e) {
 function startReorderDrag(el, key, catKey, pointerId, startClientY) {
   try { el.setPointerCapture(pointerId); } catch(e) {}
   try { if (navigator.vibrate) navigator.vibrate(15); } catch(e) {}
+  // iOSでこのタイミングと前後してテキスト選択（コピー用の青いハイライト）が
+  // 始まってしまっている場合に備えて、選択状態を明示的に解除しておく
+  try { const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges(); } catch(e) {}
 
   const container = el.parentElement;
   const siblings = Array.from(container.children).filter(c =>
