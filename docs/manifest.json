@@ -1,6 +1,6 @@
 {
-  "name": "麻雀ルール共有",
-  "short_name": "麻雀ルール",
+  "name": "JanRule",
+  "short_name": "JanRule",
   "description": "麻雀のルールを作成・共有できるWebアプリ",
   "start_url": "./",
   "display": "standalone",
