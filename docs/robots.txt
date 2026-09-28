@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://yoshiki19940805.github.io/MAJAN_Rule/sitemap.xml
