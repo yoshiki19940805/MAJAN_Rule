@@ -1,11 +1,11 @@
-const CACHE_NAME = 'mahjong-rule-book-v69';
+const CACHE_NAME = 'mahjong-rule-book-v70';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png',
+  './icon-192-v2.png',
+  './icon-512-v2.png',
   'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
