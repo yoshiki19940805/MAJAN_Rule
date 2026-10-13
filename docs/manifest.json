@@ -1,7 +1,7 @@
 {
-  "name": "JanRule",
-  "short_name": "JanRule",
-  "description": "麻雀のルールを作成・共有できるWebアプリ",
+  "name": "雀カルテ",
+  "short_name": "雀カルテ",
+  "description": "雀カルテ - 麻雀のルールを作成・共有できる無料Webアプリ",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#F0F2F5",
