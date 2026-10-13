@@ -3,34 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="麻雀のオリジナルルールを簡単に作成・共有できる無料Webアプリ「JanRule」。三人麻雀・四人麻雀に対応し、作成したルールはリンクひとつで友達と共有できます。">
+<meta name="description" content="雀カルテ（ジャンカルテ）は、麻雀のオリジナルルール（ハウスルール・ローカルルール）を簡単に作成・管理・共有できる無料Webアプリです。三人麻雀（サンマ）・四人麻雀に対応し、作成したルールはリンクひとつで友達と共有できます。">
+<meta name="keywords" content="雀カルテ,ジャンカルテ,じゃんかるて,麻雀,ルール,麻雀ルール,ハウスルール,ローカルルール,三人麻雀,サンマ,四人麻雀,ルール作成,ルール共有">
+<meta name="robots" content="index, follow">
+<meta name="google-site-verification" content="9OYAZTk2cGatfCQ560aT3OyqhK1XyVgzJbHu6gBxePM">
 <meta name="theme-color" content="#F0F2F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="JanRule">
-<title>JanRule - 麻雀のルールを作成・共有できるアプリ</title>
+<meta name="apple-mobile-web-app-title" content="雀カルテ">
+<title>雀カルテ - 麻雀のルールを作成・共有できる無料アプリ</title>
 <link rel="canonical" href="https://yoshiki19940805.github.io/MAJAN_Rule/">
 <!-- SNS共有・検索エンジン向け(Open Graph / Twitter Card) -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="JanRule">
-<meta property="og:title" content="JanRule - 麻雀のルールを作成・共有できるアプリ">
-<meta property="og:description" content="麻雀のオリジナルルールを簡単に作成・共有できる無料Webアプリ「JanRule」。三人麻雀・四人麻雀に対応し、作成したルールはリンクひとつで友達と共有できます。">
+<meta property="og:site_name" content="雀カルテ">
+<meta property="og:title" content="雀カルテ - 麻雀のルールを作成・共有できる無料アプリ">
+<meta property="og:description" content="雀カルテ（ジャンカルテ）は、麻雀のオリジナルルール（ハウスルール・ローカルルール）を簡単に作成・管理・共有できる無料Webアプリです。三人麻雀（サンマ）・四人麻雀に対応し、作成したルールはリンクひとつで友達と共有できます。">
 <meta property="og:url" content="https://yoshiki19940805.github.io/MAJAN_Rule/">
 <meta property="og:image" content="https://yoshiki19940805.github.io/MAJAN_Rule/icon-512-v4.png">
+<meta property="og:image:alt" content="雀カルテのアイコン">
 <meta property="og:locale" content="ja_JP">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="JanRule - 麻雀のルールを作成・共有できるアプリ">
-<meta name="twitter:description" content="麻雀のオリジナルルールを簡単に作成・共有できる無料Webアプリ。三人麻雀・四人麻雀に対応。">
+<meta name="twitter:title" content="雀カルテ - 麻雀のルールを作成・共有できる無料アプリ">
+<meta name="twitter:description" content="雀カルテは麻雀のオリジナルルールを簡単に作成・共有できる無料Webアプリ。三人麻雀・四人麻雀に対応。">
 <meta name="twitter:image" content="https://yoshiki19940805.github.io/MAJAN_Rule/icon-512-v4.png">
 <!-- 検索エンジン向け構造化データ -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "JanRule",
-  "alternateName": "麻雀ルール共有",
+  "name": "雀カルテ",
+  "alternateName": ["ジャンカルテ", "麻雀ルール共有", "JanRule"],
   "url": "https://yoshiki19940805.github.io/MAJAN_Rule/",
-  "description": "麻雀のオリジナルルールを簡単に作成・共有できる無料Webアプリ。三人麻雀・四人麻雀に対応し、作成したルールはリンクひとつで友達と共有できます。",
+  "description": "雀カルテ（ジャンカルテ）は、麻雀のオリジナルルール（ハウスルール・ローカルルール）を簡単に作成・管理・共有できる無料Webアプリです。三人麻雀（サンマ）・四人麻雀に対応し、作成したルールはリンクひとつで友達と共有できます。",
+  "featureList": ["麻雀のオリジナルルール作成", "三人麻雀・四人麻雀に対応", "リンクでルールを共有", "ルールのPDF出力"],
   "applicationCategory": "LifestyleApplication",
   "operatingSystem": "Any",
   "offers": {
@@ -50,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.03";
+    const currentVersion = "v5.04";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -481,8 +486,15 @@
 <body>
 <noscript>
   <div style="max-width:600px;margin:40px auto;padding:0 20px;font-family:sans-serif;line-height:1.7;">
-    <h1>JanRule - 麻雀のルールを作成・共有できるアプリ</h1>
-    <p>JanRuleは、麻雀のオリジナルルールを簡単に作成・共有できる無料のWebアプリです。三人麻雀・四人麻雀のどちらにも対応しており、作成したルールはリンクひとつで友達と共有できます。このアプリを利用するにはJavaScriptを有効にしてください。</p>
+    <h1>雀カルテ - 麻雀のルールを作成・共有できる無料アプリ</h1>
+    <p>雀カルテ（ジャンカルテ）は、麻雀のオリジナルルール（ハウスルール・ローカルルール）を簡単に作成・管理・共有できる無料のWebアプリです。</p>
+    <ul>
+      <li>三人麻雀（サンマ）・四人麻雀のどちらにも対応</li>
+      <li>よく使われるルールのプリセットから選んで作成</li>
+      <li>作成したルールはリンクひとつで友達と共有</li>
+      <li>ルールをPDFで出力</li>
+    </ul>
+    <p>このアプリを利用するにはJavaScriptを有効にしてください。</p>
   </div>
 </noscript>
 <div class="app" id="app" style="background-color: transparent;"> <!-- style.cssの背景を上書きさせない -->
@@ -3703,7 +3715,7 @@ loadData();
   // ==========================================
   const CONFIG = {
     strings: {
-      appTitle: "JanRule",
+      appTitle: "雀カルテ",
       tab4p: "四人麻雀",
       tab3p: "三人麻雀",
       create4pRule: "新しいルールを作成する",
@@ -3713,8 +3725,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.03", 
-    deployDate: "2026-09-28 14:05",
+    appVersion: "v5.04", 
+    deployDate: "2026-10-13 21:02",
   };
 
   // ==========================================
