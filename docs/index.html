@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.08";
+    const currentVersion = "v5.09";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -303,6 +303,7 @@
     --color-highlight-bg: #EAF4FF;
     --color-segmented-bg: #E3E3E8;
     --color-readonly-bg: #F9F9FA;
+    --color-hidden-bg: #E9E9ED;
     
     --app-max-width: 100%;
     --app-padding: 5vw;
@@ -385,6 +386,11 @@
       background-color: var(--color-highlight-bg);
   }
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
+  /* 編集画面で「非表示」（値が空欄）の項目は灰色の背景で表示する（青の背景より優先する）。
+     文字は、比較対象と同じなら灰色、比較対象と違う場合はほかの差分と同じく項目名・設定とも青文字にする */
+  .is-hidden-item .swipe-content { background-color: var(--color-hidden-bg); }
+  .is-hidden-item:not(.is-changed) .item-label { color: var(--color-text-muted); }
+  .is-hidden-item.is-changed .display-value-span span { color: var(--color-primary); }
 
   /* 項目の並び替え（長押しドラッグ） */
   .reorder-handle-area {
@@ -2600,7 +2606,7 @@ function renderEdit() {
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         pushItem(k, `
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${val === '' ? 'is-hidden-item' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
                 ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
@@ -3166,10 +3172,12 @@ function onSettingChange(key, val) {
     if (swipeRow) {
       const isDiff = applyHighlightOverride(rule, key, isItemDiff(rule.settings, base, key, val));
       swipeRow.classList.toggle('is-changed', isDiff);
+      swipeRow.classList.toggle('is-hidden-item', val === '');
       
       const valSpan = swipeRow.querySelector('.display-value-span');
       if (valSpan) {
-          valSpan.textContent = val;
+          if (val === '') valSpan.innerHTML = '<span class="text-theme-textMuted italic">非表示</span>';
+          else valSpan.textContent = val;
           if (isDiff) {
               valSpan.classList.add('text-theme-primary', 'font-bold');
               valSpan.classList.remove('text-theme-textMuted');
@@ -4335,8 +4343,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.08", 
-    deployDate: "2026-10-15 14:48",
+    appVersion: "v5.09", 
+    deployDate: "2026-10-15 15:45",
   };
 
   // ==========================================
