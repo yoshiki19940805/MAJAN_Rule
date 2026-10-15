@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.07";
+    const currentVersion = "v5.08";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1938,7 +1938,10 @@ function saveAndGoView() {
     _editSnapshot = JSON.stringify(rule.settings);
     _editNameSnapshot = rule.name;
   }
+  // 編集画面で見ていた場所を、保存して表示画面に切り替えた後もそのまま表示し続ける
+  const anchor = captureEditScrollAnchor();
   goViewMode();
+  restoreEditScrollAnchor(anchor);
 }
 
 function goEdit() {
@@ -1973,26 +1976,46 @@ function editVisibleTop() {
   const nav = document.querySelector('#screen-edit nav');
   return nav ? nav.getBoundingClientRect().bottom : 0;
 }
+// 上端に見えているものから順に目印の候補を集めておく（切り替え先で非表示になる項目もあるため、
+// 切り替え後は残っている最初の候補で位置を合わせる）
 function captureEditScrollAnchor() {
   if (window.scrollY <= 0) return null;
   const top = editVisibleTop();
   const candidates = document.querySelectorAll('#edit-fields [data-cat-section] > h2, #edit-fields .swipe-item[data-id], #edit-fields [data-memo-key]');
+  const anchors = [];
   for (const el of candidates) {
     const rect = el.getBoundingClientRect();
-    if (rect.bottom > top) return { selector: anchorSelector(el), offset: rect.top - top };
+    if (rect.bottom > top) anchors.push({ selector: anchorSelector(el), offset: rect.top - top });
   }
-  return null;
+  return anchors.length ? anchors : null;
 }
 function anchorSelector(el) {
   if (el.dataset.id) return `#edit-fields .swipe-item[data-id="${el.dataset.id}"]`;
   if (el.dataset.memoKey) return `#edit-fields [data-memo-key="${el.dataset.memoKey}"]`;
   return `#edit-fields [data-cat-section="${el.parentElement.dataset.catSection}"] > h2`;
 }
-function restoreEditScrollAnchor(anchor) {
-  if (!anchor) return;
-  const el = document.querySelector(anchor.selector);
-  if (!el) return;
-  window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - editVisibleTop() - anchor.offset);
+function restoreEditScrollAnchor(anchors) {
+  if (!anchors) return;
+  const apply = () => {
+    for (let i = 0; i < anchors.length; i++) {
+      const el = document.querySelector(anchors[i].selector);
+      if (!el) continue;
+      // 上端に見えていたものが切り替え先で非表示になった場合は、次に残っているものを画面の上端に出す
+      const offset = i === 0 ? anchors[i].offset : Math.min(anchors[i].offset, Math.max(anchors[0].offset, 0));
+      window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - editVisibleTop() - offset);
+      return;
+    }
+  };
+  apply();
+  // Tailwind（CDN版）は新しく出てきたクラスのスタイルを少し遅れて作るため、切り替え直後はレイアウトが変わる。
+  // 落ち着くまで何度か位置を合わせ直す（その間にユーザーが自分でスクロールしたら、そこでやめる）
+  let expectedY = window.scrollY;
+  [16, 60, 150, 300, 600].forEach(ms => setTimeout(() => {
+    if (expectedY === null) return;
+    if (Math.abs(window.scrollY - expectedY) > 2) { expectedY = null; return; }
+    apply();
+    expectedY = window.scrollY;
+  }, ms));
 }
 
 function goPreview() {
@@ -4312,8 +4335,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.07", 
-    deployDate: "2026-10-15 14:35",
+    appVersion: "v5.08", 
+    deployDate: "2026-10-15 14:48",
   };
 
   // ==========================================
