@@ -2597,7 +2597,9 @@ function renderEdit() {
       // カスタム追加項目（全カテゴリ共通）
       for (let i = 0; i < customItems.length; i++) {
         const cVal = customItems[i].value || '';
-        const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
+        // 選択肢は既存の項目と同じく編集画面で編集できる（未編集なら今の値だけ）
+        const cBase = Array.isArray(customItems[i].options) ? customItems[i].options : (cVal ? [cVal] : []);
+        const cOpts = [...(cVal && !cBase.includes(cVal) ? [cVal] : []), ...cBase, 'カスタム'];
         const itemName = customItems[i].name || ('項目'+(i+1));
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
@@ -2616,7 +2618,7 @@ function renderEdit() {
                     <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleCustomHighlight('${esc(catKey)}',${i})">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">${isDiff ? 'format_color_reset' : 'ink_highlighter'}</span>${isDiff ? '強調解除' : '強調'}
                     </button>
-                    <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">
+                    <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showCustomItemDialog('${esc(catKey)}',${i})">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
                     </button>
                     <button class="bg-theme-danger text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="removeCustomPenalty('${esc(catKey)}',${i})">
@@ -3192,13 +3194,26 @@ function onCustomPenaltySelect(catKey, idx, val) {
     const itemName = items[idx] ? items[idx].name : '項目';
     const newVal = prompt('"' + itemName + '"の値を入力してください:');
     if (newVal && newVal.trim()) {
-      items[idx].value = newVal.trim();
+      const item = items[idx];
+      // 入力した値は選択肢にも加える（既存の項目の「カスタム」と同じ動き）
+      const list = Array.isArray(item.options) ? [...item.options] : (item.value ? [item.value] : []);
+      if (!list.includes(newVal.trim())) list.push(newVal.trim());
+      item.options = list;
+      item.value = newVal.trim();
+      _editDirty = true;
       saveData();
     }
     renderEdit();
     return;
   }
-  // 通常選択した場合はそのまま
+  // 通常の選択肢を選んだ場合は、その値を保存する
+  const rule = getRule(editingId);
+  const item = rule && (rule.settings['custom_' + catKey] || [])[idx];
+  if (!item) return;
+  item.value = val;
+  _editDirty = true;
+  saveData();
+  renderEdit();
 }
 
 // --- スワイプ削除（Pointer Eventsでタッチ・マウス両対応） ---
@@ -3557,12 +3572,57 @@ function showAddOptionDialog(key) {
 }
 
 // --- 選択肢編集ダイアログ ---
-function showEditOptionsDialog(key) {
+// 既存の項目と追加した項目を同じ画面で編集するため、項目ごとの読み書きをまとめる。
+// ref は既存の項目ならキー、追加した項目なら 'c:' + ID + ':' + 大項目名
+function getItemAccessor(rule, ref) {
+  const m = ref.match(/^c:([^:]+):(.*)$/);
+  if (m) {
+    const item = (rule.settings['custom_' + m[2]] || []).find(x => x.id === m[1]);
+    if (!item) return null;
+    return {
+      label: () => item.name || '',
+      defaultLabel: null,
+      setLabel: v => { item.name = v; },
+      options: () => Array.isArray(item.options) ? [...item.options] : (item.value ? [item.value] : []),
+      setOptions: list => { item.options = list.filter((o, i) => o && list.indexOf(o) === i); },
+      value: () => item.value || '',
+      setValue: v => { item.value = v; },
+      isCustomized: () => false,
+      resetOptions: () => {},
+    };
+  }
+  return {
+    label: () => itemLabel(rule.settings, ref),
+    defaultLabel: LABELS[ref] || ref,
+    setLabel: v => {
+      const labels = { ...(rule.settings.item_labels || {}) };
+      if (!v || v === (LABELS[ref] || ref)) delete labels[ref]; else labels[ref] = v;
+      rule.settings.item_labels = labels;
+    },
+    options: () => getItemOptions(rule, ref),
+    setOptions: list => setItemOptions(rule, ref, list),
+    value: () => rule.settings[ref] ?? '',
+    setValue: v => { rule.settings[ref] = v; },
+    isCustomized: () => Array.isArray(rule.settings['options_' + ref]),
+    resetOptions: () => { delete rule.settings['options_' + ref]; delete rule.settings['user_options_' + ref]; },
+  };
+}
+
+// 追加した項目の編集画面を開く（既存の項目と同じ画面）
+function showCustomItemDialog(catKey, idx) {
+  const rule = getRule(editingId);
+  const item = rule && customItemsWithIds(rule, catKey)[idx];
+  if (item) showEditOptionsDialog('c:' + item.id + ':' + catKey);
+}
+
+function showEditOptionsDialog(ref) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const label = itemLabel(rule.settings, key);
-  const itemOpts = getItemOptions(rule, key);
-  const isCustomized = Array.isArray(rule.settings['options_' + key]);
+  const acc = getItemAccessor(rule, ref);
+  if (!acc) return;
+  const label = acc.label();
+  const itemOpts = acc.options();
+  const r = esc(ref);
 
   // モーダル要素を作成（開いていれば作り直す）
   closeEditOptionsDialog();
@@ -3570,14 +3630,17 @@ function showEditOptionsDialog(key) {
   overlay.id = 'edit-options-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
+  const labelNote = acc.defaultLabel
+    ? `※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(acc.defaultLabel)}」に戻ります。`
+    : '※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。';
   let html = `<div style="background:#fff;border-radius:12px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto;padding:20px;">
     <h3 style="margin:0 0 12px;font-size:1rem;">📝 ${esc(label)} を編集</h3>
     <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">項目名</div>
     <div style="display:flex;gap:8px;margin-bottom:4px;">
-      <input type="text" id="item-label-input" value="${esc(label)}" placeholder="${esc(LABELS[key] || key)}" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
-      <button onclick="renameItemFromDialog('${esc(key)}')" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">変更</button>
+      <input type="text" id="item-label-input" value="${esc(label)}" placeholder="${esc(acc.defaultLabel || '項目名')}" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+      <button onclick="renameItemFromDialog('${r}')" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">変更</button>
     </div>
-    <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(LABELS[key] || key)}」に戻ります。</div>
+    <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">${labelNote}</div>
     <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">選択肢</div>
     <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ 内容を書き換えて「保存」、「削除」で選択肢から外せます</div>`;
 
@@ -3585,20 +3648,19 @@ function showEditOptionsDialog(key) {
   for (let i = 0; i < itemOpts.length; i++) {
     html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #eee;gap:8px;">
       <input type="text" value="${esc(itemOpts[i])}" style="flex:1;min-width:0;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
-      <button onclick="removeOptionAt('${esc(key)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
+      <button onclick="editUserOption('${r}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
+      <button onclick="removeOptionAt('${r}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
     </div>`;
   }
   if (itemOpts.length === 0) {
     html += `<div style="font-size:0.8rem;color:#aaa;padding:8px 0;">選択肢はありません</div>`;
   }
 
-  // カスタム（追加ボタン）
   html += `<div style="margin-top:12px;">
-    <button onclick="addOptionFromDialog('${esc(key)}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
+    <button onclick="addOptionFromDialog('${r}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
   </div>
-  ${isCustomized ? `<div style="margin-top:12px;">
-    <button onclick="resetItemOptions('${esc(key)}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
+  ${acc.isCustomized() ? `<div style="margin-top:12px;">
+    <button onclick="resetItemOptions('${r}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
   </div>` : ''}
   <div style="margin-top:12px;">
     <button onclick="closeEditOptionsDialog()" style="width:100%;padding:10px;background:#eee;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">閉じる</button>
@@ -3610,15 +3672,23 @@ function showEditOptionsDialog(key) {
   document.body.appendChild(overlay);
 }
 
-// 項目名の変更（rule.settings.item_labels[key] に保存。空欄なら元の名前に戻す）
-function renameItemFromDialog(key) {
+// ダイアログでの変更を保存し、編集画面とダイアログを描き直す（ダイアログは開いたまま）
+function commitItemDialogChange(ref) {
+  _editDirty = true;
+  saveData();
+  renderEdit();
+  showEditOptionsDialog(ref);
+}
+
+// 項目名の変更（既存の項目は空欄なら元の名前に戻す。追加した項目は空欄にはできない）
+function renameItemFromDialog(ref) {
   const rule = getRule(editingId);
   const input = document.getElementById('item-label-input');
-  if (!rule || !input) return;
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc || !input) return;
   const name = input.value.trim();
-  const labels = { ...(rule.settings.item_labels || {}) };
-  if (!name || name === (LABELS[key] || key)) delete labels[key]; else labels[key] = name;
-  rule.settings.item_labels = labels;
+  if (!name && !acc.defaultLabel) return;
+  acc.setLabel(name);
   _editDirty = true;
   saveData();
   closeEditOptionsDialog();
@@ -3630,66 +3700,57 @@ function closeEditOptionsDialog() {
   if (overlay) overlay.remove();
 }
 
-function editUserOption(key, idx, btn) {
+function editUserOption(ref, idx, btn) {
   const rule = getRule(editingId);
-  if (!rule) return;
-  const list = getItemOptions(rule, key);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  const list = acc.options();
   if (idx >= list.length) return;
   const newVal = btn.parentElement.querySelector('input').value.trim();
   if (!newVal) return;
   const oldVal = list[idx];
   if (newVal !== oldVal && list.includes(newVal)) { alert('「' + newVal + '」はすでにあります。'); return; }
   list[idx] = newVal;
-  setItemOptions(rule, key, list);
+  acc.setOptions(list);
   // 現在選択中の値も更新
-  if (rule.settings[key] === oldVal) rule.settings[key] = newVal;
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  if (acc.value() === oldVal) acc.setValue(newVal);
+  commitItemDialogChange(ref);
 }
 
-function removeOptionAt(key, idx) {
+function removeOptionAt(ref, idx) {
   const rule = getRule(editingId);
-  if (!rule) return;
-  const list = getItemOptions(rule, key);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  const list = acc.options();
   if (idx >= list.length) return;
   const [removed] = list.splice(idx, 1);
-  setItemOptions(rule, key, list);
-  // 現在選択中の値が削除された場合は、残っている先頭の選択肢（なければ非表示）にする
-  if (rule.settings[key] === removed) rule.settings[key] = list[0] || '';
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  acc.setOptions(list);
+  // 現在選択中の値が削除された場合は、残っている先頭の選択肢（なければ空欄）にする
+  if (acc.value() === removed) acc.setValue(list[0] || '');
+  commitItemDialogChange(ref);
 }
 
-function resetItemOptions(key) {
+function resetItemOptions(ref) {
   const rule = getRule(editingId);
-  if (!rule) return;
-  delete rule.settings['options_' + key];
-  delete rule.settings['user_options_' + key];
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  acc.resetOptions();
+  commitItemDialogChange(ref);
 }
 
-function addOptionFromDialog(key) {
-  const label = itemLabel((getRule(editingId) || {}).settings, key);
-  const val = prompt('"' + label + '"に追加する値を入力:');
+function addOptionFromDialog(ref) {
+  const rule = getRule(editingId);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  const val = prompt('"' + acc.label() + '"に追加する値を入力:');
   if (!val || !val.trim()) return;
-  const rule = getRule(editingId);
-  if (!rule) return;
-  addItemOption(rule, key, val.trim());
-  rule.settings[key] = val.trim();
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  const list = acc.options();
+  if (!list.includes(val.trim())) list.push(val.trim());
+  acc.setOptions(list);
+  acc.setValue(val.trim());
+  commitItemDialogChange(ref);
 }
 
-// 選択肢を追加する（選択肢を編集済みなら編集後の一覧に、未編集なら追加分(user_options_)に足す）
 function addItemOption(rule, key, val) {
   if (Array.isArray(rule.settings['options_' + key])) {
     setItemOptions(rule, key, [...rule.settings['options_' + key], val]);
