@@ -2877,9 +2877,14 @@ function deleteCategory(key) {
   const cat = getRuleCategories(rule, true).find(c => catKeyOf(c) === key);
   if (!cat || isUndeletableCategory(cat)) return;
   const isUserCat = (rule.settings.user_cats || []).includes(key);
+  // 削除する前に必ず確認する（内容に応じて、元に戻せるかどうかを伝える）
+  const name = catDisplayName(rule, cat);
+  const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
+  const message = '「' + name + '」を削除しますか？\n' + (isUserCat
+    ? (hasContent ? '中の項目と特記事項も削除され、元に戻せません。' : '削除すると元に戻せません。')
+    : '設定内容は残るので、「削除した大項目」からいつでも元に戻せます。');
+  if (!confirm(message)) return;
   if (isUserCat) {
-    const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
-    if (hasContent && !confirm('「' + catDisplayName(rule, cat) + '」を削除しますか？\n中の項目と特記事項も削除されます。')) return;
     rule.settings.user_cats = rule.settings.user_cats.filter(k => k !== key);
     delete rule.settings['custom_' + key];
     delete rule.settings['memo_' + key];
