@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.06";
+    const currentVersion = "v5.07";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1956,12 +1956,43 @@ function goViewMode() {
 function goEditMode() {
   const rule = getRule(editingId);
   if (!rule || rule.readonly) return;
+  // 表示画面で見ていた場所を、編集画面に切り替えた後もそのまま表示し続ける
+  const anchor = captureEditScrollAnchor();
   isViewMode = false;
   _editSnapshot = JSON.stringify(rule.settings);
   _editNameSnapshot = rule.name;
   _editDirty = false;
   renderEdit();
   showScreen('edit');
+  restoreEditScrollAnchor(anchor);
+}
+
+// 表示画面と編集画面では表示される項目が違う（表示画面は空の項目を隠す・編集画面は追加ボタンがある）ため、
+// スクロール量ではなく「画面の上端に見えている項目（または大項目の見出し）」を目印にして位置を合わせる
+function editVisibleTop() {
+  const nav = document.querySelector('#screen-edit nav');
+  return nav ? nav.getBoundingClientRect().bottom : 0;
+}
+function captureEditScrollAnchor() {
+  if (window.scrollY <= 0) return null;
+  const top = editVisibleTop();
+  const candidates = document.querySelectorAll('#edit-fields [data-cat-section] > h2, #edit-fields .swipe-item[data-id], #edit-fields [data-memo-key]');
+  for (const el of candidates) {
+    const rect = el.getBoundingClientRect();
+    if (rect.bottom > top) return { selector: anchorSelector(el), offset: rect.top - top };
+  }
+  return null;
+}
+function anchorSelector(el) {
+  if (el.dataset.id) return `#edit-fields .swipe-item[data-id="${el.dataset.id}"]`;
+  if (el.dataset.memoKey) return `#edit-fields [data-memo-key="${el.dataset.memoKey}"]`;
+  return `#edit-fields [data-cat-section="${el.parentElement.dataset.catSection}"] > h2`;
+}
+function restoreEditScrollAnchor(anchor) {
+  if (!anchor) return;
+  const el = document.querySelector(anchor.selector);
+  if (!el) return;
+  window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - editVisibleTop() - anchor.offset);
 }
 
 function goPreview() {
@@ -2631,14 +2662,16 @@ function renderEdit() {
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
                         
-                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full">
+                        <!-- 既存の項目と同じく、選択肢(select)は右端だけに置き、値の部分はタップで選択肢を開く。
+                             値の部分全体をselectで覆うと、そこを長押ししても並べ替えが始まらないため -->
+                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full" ${!isReadonlyView ? `onclick="openValueSelect(event, this)"` : ''}>
                             <span class="${cValSizeClass} text-right w-full block pointer-events-none whitespace-normal break-words ${!isReadonlyView ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
                             ${!isReadonlyView ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
                                 unfold_more
                             </span>
-                            <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
+                            <select class="absolute right-0 top-0 w-9 h-full opacity-0 cursor-pointer" onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
                                 ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
                             </select>` : ''}
                         </div>
@@ -2709,7 +2742,7 @@ function renderEdit() {
     if (!isReadonlyView && prevCatKey !== null) html += insertCatButton(prevCatKey);
     prevCatKey = catKey;
 
-    html += `<div class="flex flex-col w-full">
+    html += `<div class="flex flex-col w-full" data-cat-section="${esc(catKey)}">
         <h2 class="text-[13px] font-semibold text-theme-textMuted tracking-wider ml-4 mb-1.5">${esc(displayCatName)}</h2>
         ${catDivContent.join('')}
     </div>`;
@@ -4279,8 +4312,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.06", 
-    deployDate: "2026-10-15 14:13",
+    appVersion: "v5.07", 
+    deployDate: "2026-10-15 14:35",
   };
 
   // ==========================================
