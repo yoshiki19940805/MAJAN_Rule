@@ -1660,9 +1660,44 @@ function saveData() {
       editingRule.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
     }
   }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+  let saved = true;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) { saved = false; }
   // ログイン済みならクラウドにも同期（バックグラウンド）
   if (typeof syncRulesToCloud === 'function' && window._fbUser && !window._fbUser.isAnonymous) syncRulesToCloud();
+  return saved;
+}
+
+// 保存ボタンを押した時の確認。保存できない場合は理由をポップアップで伝えて false を返す
+function confirmSaveEditingRule() {
+  const rule = getRule(editingId);
+  if (!rule) return false;
+  const name = (rule.name || '').trim();
+  if (!name) {
+    alert('ルール名を入力してください。');
+    return false;
+  }
+  // 同じモード（四麻／三麻）のほかのルールと同じ名前では保存できない（共有で一時的に表示しているルールは除く）
+  const dup = appData.rules.find(r => r.id !== rule.id && r.mode === rule.mode && !isTemporarySharedRule(r) && (r.name || '').trim() === name);
+  if (dup) {
+    alert('「' + name + '」という名前のルールがすでにあります。\n別の名前にしてから保存してください。');
+    return false;
+  }
+  return true;
+}
+// 端末の保存容量がいっぱいなどで保存できなかった時の警告
+function alertSaveFailed() {
+  alert('端末の保存容量がいっぱいのため、保存できませんでした。\n不要なルールを削除するか、ブラウザのデータを整理してから、もう一度保存してください。');
+}
+// 共有リンクから一時的に表示しているルール（共有ルール・比較用の仮ルール）
+function isTemporarySharedRule(r) {
+  return !!(r.isSharedPhantom || String(r.id).startsWith('shared_'));
+}
+// コピーしたルールの名前。ほかのルールと重ならないよう「（コピー2）」「（コピー3）」…と番号を付ける
+function uniqueCopyName(baseName, mode) {
+  const used = new Set(appData.rules.filter(r => r.mode === mode && !isTemporarySharedRule(r)).map(r => (r.name || '').trim()));
+  let name = baseName + '（コピー）', n = 2;
+  while (used.has(name)) name = baseName + '（コピー' + (n++) + '）';
+  return name;
 }
 
 function getBaseRuleName(k) {
@@ -1929,15 +1964,17 @@ function goHomeWithConfirm() {
 }
 
 function saveAndGoHome() {
+  if (!confirmSaveEditingRule()) return;
+  if (!saveData()) { alertSaveFailed(); return; }
   _isNewlyCreated = false;
-  saveData();
   goHome();
 }
 
 function saveAndGoView() {
+  if (!confirmSaveEditingRule()) return;
+  if (!saveData()) { alertSaveFailed(); return; }
   _isNewlyCreated = false;
   _editDirty = false;
-  saveData();
   // スナップショットを更新
   const rule = getRule(editingId);
   if (rule) {
@@ -2036,7 +2073,7 @@ function copySharedRule() {
   const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const copy = JSON.parse(JSON.stringify(rule));
   copy.id = newId;
-  copy.name = rule.name + '（コピー）';
+  copy.name = uniqueCopyName(rule.name, rule.mode);
   delete copy.readonly;
   // 比較対象のルールのデフォルトを、コピー元のルールにしておく
   copy.base_rule = rule.id;
@@ -2325,6 +2362,9 @@ function editRule(id) {
 }
 
 function askDelete(id) {
+  // プリセット（編集不可のルール）は削除できない
+  const target = getRule(id);
+  if (!target || target.readonly) return;
   deleteTargetId = id;
   document.getElementById('modal-delete').classList.add('show');
 }
@@ -2333,7 +2373,8 @@ function closeModal() {
   deleteTargetId = null;
 }
 function confirmDelete() {
-  if (deleteTargetId) {
+  const target = deleteTargetId && getRule(deleteTargetId);
+  if (target && !target.readonly) {
     // クラウドからも削除
     if (typeof deleteRuleFromCloud === 'function') deleteRuleFromCloud(deleteTargetId);
     appData.rules = appData.rules.filter(r => r.id !== deleteTargetId);
@@ -2344,13 +2385,18 @@ function confirmDelete() {
   showSnack('ルールを削除しました');
 }
 
+let _lastDuplicateAt = 0;
 function duplicateRule(id) {
+  // コピーボタンを素早く2回押しても、2つ複製されないようにする（1秒以内の連続は無視）
+  const pressedAt = Date.now();
+  if (pressedAt - _lastDuplicateAt < 1000) return;
+  _lastDuplicateAt = pressedAt;
   const src = getRule(id);
   if (!src) return;
   const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = newId;
-  copy.name = src.name + '（コピー）';
+  copy.name = uniqueCopyName(src.name, src.mode);
   delete copy.readonly;
   const now = new Date();
   const y = now.getFullYear();
@@ -4510,13 +4556,18 @@ loadData();
                     >
                       <span className="material-symbols-outlined text-[20px]">content_copy</span>
                     </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
-                      className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
-                      aria-label="削除"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
+                    {/* プリセット（編集不可のルール）は削除できないため、削除ボタンを出さない */}
+                    {!isReadOnly ? (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
+                        className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
+                        aria-label="削除"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                      </button>
+                    ) : (
+                      <span className="w-5" aria-hidden="true"></span>
+                    )}
                   </div>
                 </div>
               );
