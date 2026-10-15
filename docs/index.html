@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.05";
+    const currentVersion = "v5.06";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1739,6 +1739,23 @@ function toggleCustomHighlight(catKey, idx) {
   if (item) toggleHighlight(customItemId(catKey, item));
 }
 
+// 追加した項目（custom_）に並べ替え用のIDを付けて返す（以前のデータにはIDがないので、無ければ付ける）
+function customItemsWithIds(rule, catKey) {
+  const items = rule.settings['custom_' + catKey] || [];
+  items.forEach(it => { if (!it.id) it.id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); });
+  return items;
+}
+// 大項目内の項目（既存の項目キーと、追加した項目 'c:' + id）を、
+// ユーザーが並べ替えた順番（rule.settings['item_order_' + catKey]）に並べる。並び順にないものは後ろに付ける
+function sortByItemOrder(rule, catKey, tokens) {
+  const savedOrder = rule.settings['item_order_' + catKey];
+  if (!Array.isArray(savedOrder) || savedOrder.length === 0) return tokens;
+  const orderIndex = new Map(savedOrder.map((k, i) => [k, i]));
+  const known = tokens.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
+  const unknown = tokens.filter(k => !orderIndex.has(k));
+  return [...known, ...unknown];
+}
+
 // 大項目名から番号("1. "など)を除いたもの。項目の値・特記事項などはこの名前(catKey)で保存されている
 function catKeyOf(cat) { return cat[0].replace(/^\d+\.\s*/, ''); }
 
@@ -2476,18 +2493,15 @@ function renderEdit() {
         });
       }
 
-      // ユーザーが並び替えた順番があれば適用する（ルール・カテゴリごとに保存）
-      const savedOrder = rule.settings['item_order_' + catKey];
-      if (Array.isArray(savedOrder) && savedOrder.length > 0) {
-        const orderIndex = new Map(savedOrder.map((k, i) => [k, i]));
-        const known = renderKeys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
-        const unknown = renderKeys.filter(k => !orderIndex.has(k));
-        renderKeys = [...known, ...unknown];
-      }
+      // 既存の項目と追加した項目を、ユーザーが並び替えた順番で並べる（ルール・カテゴリごとに保存）
+      const customItems = customItemsWithIds(rule, catKey);
+      const orderedTokens = sortByItemOrder(rule, catKey, [...renderKeys, ...customItems.map(it => 'c:' + it.id)]);
 
       const deletedKeys = new Set(rule.settings.deleted_keys || []);
       
-      let itemHtmls = [];
+      // 項目ごとのHTMLをいったん溜めておき、最後に並び順どおりにつなげる
+      const htmlByToken = {};
+      const pushItem = (token, h) => { htmlByToken[token] = (htmlByToken[token] || '') + h; };
       for (const k of renderKeys) {
         if (deletedKeys.has(k)) continue;
         const val = rule.settings[k] ?? '';
@@ -2496,7 +2510,7 @@ function renderEdit() {
         if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
           if (rule.settings[parentKey] === 'カスタム') {
-            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
+            pushItem(k, `<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
               <label class="text-[11px] font-bold text-theme-primary">📝 ${esc(itemLabel(rule.settings, k))}</label>
               <input type="text" data-key="${k}" value="${esc(val)}" oninput="onSettingChange('${k}',this.value)" placeholder="自由入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" ${isReadonlyView ? 'disabled' : ''}>
             </div>`);
@@ -2531,7 +2545,7 @@ function renderEdit() {
         if (val && val.length > 15) valSizeClass = "text-[13px]";
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
-        itemHtmls.push(`
+        pushItem(k, `
             <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
                 ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
@@ -2581,10 +2595,11 @@ function renderEdit() {
       }
 
       // カスタム追加項目（全カテゴリ共通）
-      const customItems = rule.settings['custom_' + catKey] || [];
       for (let i = 0; i < customItems.length; i++) {
         const cVal = customItems[i].value || '';
-        const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
+        // 選択肢は既存の項目と同じく編集画面で編集できる（未編集なら今の値だけ）
+        const cBase = Array.isArray(customItems[i].options) ? customItems[i].options : (cVal ? [cVal] : []);
+        const cOpts = [...(cVal && !cBase.includes(cVal) ? [cVal] : []), ...cBase, 'カスタム'];
         const itemName = customItems[i].name || ('項目'+(i+1));
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
@@ -2594,14 +2609,16 @@ function renderEdit() {
         if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
         if (cVal && cVal.length > 18) cValSizeClass = "text-[11px] leading-tight";
 
-        itemHtmls.push(`
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
+        const cToken = 'c:' + customItems[i].id;
+        pushItem(cToken, `
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${cToken}" data-cat-key="${esc(catKey)}"
+                ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${cToken}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
                     <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleCustomHighlight('${esc(catKey)}',${i})">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">${isDiff ? 'format_color_reset' : 'ink_highlighter'}</span>${isDiff ? '強調解除' : '強調'}
                     </button>
-                    <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">
+                    <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showCustomItemDialog('${esc(catKey)}',${i})">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
                     </button>
                     <button class="bg-theme-danger text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="removeCustomPenalty('${esc(catKey)}',${i})">
@@ -2630,6 +2647,8 @@ function renderEdit() {
             </div>
         `);
       }
+
+      const itemHtmls = orderedTokens.map(t => htmlByToken[t]).filter(Boolean);
 
       if (itemHtmls.length > 0 || !isReadonlyView) {
         catDivContent.push(`<div class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 flex flex-col w-full overflow-hidden">
@@ -2877,9 +2896,14 @@ function deleteCategory(key) {
   const cat = getRuleCategories(rule, true).find(c => catKeyOf(c) === key);
   if (!cat || isUndeletableCategory(cat)) return;
   const isUserCat = (rule.settings.user_cats || []).includes(key);
+  // 削除する前に必ず確認する（内容に応じて、元に戻せるかどうかを伝える）
+  const name = catDisplayName(rule, cat);
+  const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
+  const message = '「' + name + '」を削除しますか？\n' + (isUserCat
+    ? (hasContent ? '中の項目と特記事項も削除され、元に戻せません。' : '削除すると元に戻せません。')
+    : '設定内容は残るので、「削除した大項目」からいつでも元に戻せます。');
+  if (!confirm(message)) return;
   if (isUserCat) {
-    const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
-    if (hasContent && !confirm('「' + catDisplayName(rule, cat) + '」を削除しますか？\n中の項目と特記事項も削除されます。')) return;
     rule.settings.user_cats = rule.settings.user_cats.filter(k => k !== key);
     delete rule.settings['custom_' + key];
     delete rule.settings['memo_' + key];
@@ -3170,13 +3194,26 @@ function onCustomPenaltySelect(catKey, idx, val) {
     const itemName = items[idx] ? items[idx].name : '項目';
     const newVal = prompt('"' + itemName + '"の値を入力してください:');
     if (newVal && newVal.trim()) {
-      items[idx].value = newVal.trim();
+      const item = items[idx];
+      // 入力した値は選択肢にも加える（既存の項目の「カスタム」と同じ動き）
+      const list = Array.isArray(item.options) ? [...item.options] : (item.value ? [item.value] : []);
+      if (!list.includes(newVal.trim())) list.push(newVal.trim());
+      item.options = list;
+      item.value = newVal.trim();
+      _editDirty = true;
       saveData();
     }
     renderEdit();
     return;
   }
-  // 通常選択した場合はそのまま
+  // 通常の選択肢を選んだ場合は、その値を保存する
+  const rule = getRule(editingId);
+  const item = rule && (rule.settings['custom_' + catKey] || [])[idx];
+  if (!item) return;
+  item.value = val;
+  _editDirty = true;
+  saveData();
+  renderEdit();
 }
 
 // --- スワイプ削除（Pointer Eventsでタッチ・マウス両対応） ---
@@ -3535,12 +3572,57 @@ function showAddOptionDialog(key) {
 }
 
 // --- 選択肢編集ダイアログ ---
-function showEditOptionsDialog(key) {
+// 既存の項目と追加した項目を同じ画面で編集するため、項目ごとの読み書きをまとめる。
+// ref は既存の項目ならキー、追加した項目なら 'c:' + ID + ':' + 大項目名
+function getItemAccessor(rule, ref) {
+  const m = ref.match(/^c:([^:]+):(.*)$/);
+  if (m) {
+    const item = (rule.settings['custom_' + m[2]] || []).find(x => x.id === m[1]);
+    if (!item) return null;
+    return {
+      label: () => item.name || '',
+      defaultLabel: null,
+      setLabel: v => { item.name = v; },
+      options: () => Array.isArray(item.options) ? [...item.options] : (item.value ? [item.value] : []),
+      setOptions: list => { item.options = list.filter((o, i) => o && list.indexOf(o) === i); },
+      value: () => item.value || '',
+      setValue: v => { item.value = v; },
+      isCustomized: () => false,
+      resetOptions: () => {},
+    };
+  }
+  return {
+    label: () => itemLabel(rule.settings, ref),
+    defaultLabel: LABELS[ref] || ref,
+    setLabel: v => {
+      const labels = { ...(rule.settings.item_labels || {}) };
+      if (!v || v === (LABELS[ref] || ref)) delete labels[ref]; else labels[ref] = v;
+      rule.settings.item_labels = labels;
+    },
+    options: () => getItemOptions(rule, ref),
+    setOptions: list => setItemOptions(rule, ref, list),
+    value: () => rule.settings[ref] ?? '',
+    setValue: v => { rule.settings[ref] = v; },
+    isCustomized: () => Array.isArray(rule.settings['options_' + ref]),
+    resetOptions: () => { delete rule.settings['options_' + ref]; delete rule.settings['user_options_' + ref]; },
+  };
+}
+
+// 追加した項目の編集画面を開く（既存の項目と同じ画面）
+function showCustomItemDialog(catKey, idx) {
+  const rule = getRule(editingId);
+  const item = rule && customItemsWithIds(rule, catKey)[idx];
+  if (item) showEditOptionsDialog('c:' + item.id + ':' + catKey);
+}
+
+function showEditOptionsDialog(ref) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const label = itemLabel(rule.settings, key);
-  const itemOpts = getItemOptions(rule, key);
-  const isCustomized = Array.isArray(rule.settings['options_' + key]);
+  const acc = getItemAccessor(rule, ref);
+  if (!acc) return;
+  const label = acc.label();
+  const itemOpts = acc.options();
+  const r = esc(ref);
 
   // モーダル要素を作成（開いていれば作り直す）
   closeEditOptionsDialog();
@@ -3548,14 +3630,17 @@ function showEditOptionsDialog(key) {
   overlay.id = 'edit-options-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
+  const labelNote = acc.defaultLabel
+    ? `※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(acc.defaultLabel)}」に戻ります。`
+    : '※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。';
   let html = `<div style="background:#fff;border-radius:12px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto;padding:20px;">
     <h3 style="margin:0 0 12px;font-size:1rem;">📝 ${esc(label)} を編集</h3>
     <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">項目名</div>
     <div style="display:flex;gap:8px;margin-bottom:4px;">
-      <input type="text" id="item-label-input" value="${esc(label)}" placeholder="${esc(LABELS[key] || key)}" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
-      <button onclick="renameItemFromDialog('${esc(key)}')" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">変更</button>
+      <input type="text" id="item-label-input" value="${esc(label)}" placeholder="${esc(acc.defaultLabel || '項目名')}" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+      <button onclick="renameItemFromDialog('${r}')" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">変更</button>
     </div>
-    <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(LABELS[key] || key)}」に戻ります。</div>
+    <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">${labelNote}</div>
     <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">選択肢</div>
     <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ 内容を書き換えて「保存」、「削除」で選択肢から外せます</div>`;
 
@@ -3563,20 +3648,19 @@ function showEditOptionsDialog(key) {
   for (let i = 0; i < itemOpts.length; i++) {
     html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #eee;gap:8px;">
       <input type="text" value="${esc(itemOpts[i])}" style="flex:1;min-width:0;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
-      <button onclick="removeOptionAt('${esc(key)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
+      <button onclick="editUserOption('${r}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
+      <button onclick="removeOptionAt('${r}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
     </div>`;
   }
   if (itemOpts.length === 0) {
     html += `<div style="font-size:0.8rem;color:#aaa;padding:8px 0;">選択肢はありません</div>`;
   }
 
-  // カスタム（追加ボタン）
   html += `<div style="margin-top:12px;">
-    <button onclick="addOptionFromDialog('${esc(key)}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
+    <button onclick="addOptionFromDialog('${r}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
   </div>
-  ${isCustomized ? `<div style="margin-top:12px;">
-    <button onclick="resetItemOptions('${esc(key)}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
+  ${acc.isCustomized() ? `<div style="margin-top:12px;">
+    <button onclick="resetItemOptions('${r}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
   </div>` : ''}
   <div style="margin-top:12px;">
     <button onclick="closeEditOptionsDialog()" style="width:100%;padding:10px;background:#eee;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">閉じる</button>
@@ -3588,15 +3672,23 @@ function showEditOptionsDialog(key) {
   document.body.appendChild(overlay);
 }
 
-// 項目名の変更（rule.settings.item_labels[key] に保存。空欄なら元の名前に戻す）
-function renameItemFromDialog(key) {
+// ダイアログでの変更を保存し、編集画面とダイアログを描き直す（ダイアログは開いたまま）
+function commitItemDialogChange(ref) {
+  _editDirty = true;
+  saveData();
+  renderEdit();
+  showEditOptionsDialog(ref);
+}
+
+// 項目名の変更（既存の項目は空欄なら元の名前に戻す。追加した項目は空欄にはできない）
+function renameItemFromDialog(ref) {
   const rule = getRule(editingId);
   const input = document.getElementById('item-label-input');
-  if (!rule || !input) return;
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc || !input) return;
   const name = input.value.trim();
-  const labels = { ...(rule.settings.item_labels || {}) };
-  if (!name || name === (LABELS[key] || key)) delete labels[key]; else labels[key] = name;
-  rule.settings.item_labels = labels;
+  if (!name && !acc.defaultLabel) return;
+  acc.setLabel(name);
   _editDirty = true;
   saveData();
   closeEditOptionsDialog();
@@ -3608,66 +3700,57 @@ function closeEditOptionsDialog() {
   if (overlay) overlay.remove();
 }
 
-function editUserOption(key, idx, btn) {
+function editUserOption(ref, idx, btn) {
   const rule = getRule(editingId);
-  if (!rule) return;
-  const list = getItemOptions(rule, key);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  const list = acc.options();
   if (idx >= list.length) return;
   const newVal = btn.parentElement.querySelector('input').value.trim();
   if (!newVal) return;
   const oldVal = list[idx];
   if (newVal !== oldVal && list.includes(newVal)) { alert('「' + newVal + '」はすでにあります。'); return; }
   list[idx] = newVal;
-  setItemOptions(rule, key, list);
+  acc.setOptions(list);
   // 現在選択中の値も更新
-  if (rule.settings[key] === oldVal) rule.settings[key] = newVal;
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  if (acc.value() === oldVal) acc.setValue(newVal);
+  commitItemDialogChange(ref);
 }
 
-function removeOptionAt(key, idx) {
+function removeOptionAt(ref, idx) {
   const rule = getRule(editingId);
-  if (!rule) return;
-  const list = getItemOptions(rule, key);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  const list = acc.options();
   if (idx >= list.length) return;
   const [removed] = list.splice(idx, 1);
-  setItemOptions(rule, key, list);
-  // 現在選択中の値が削除された場合は、残っている先頭の選択肢（なければ非表示）にする
-  if (rule.settings[key] === removed) rule.settings[key] = list[0] || '';
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  acc.setOptions(list);
+  // 現在選択中の値が削除された場合は、残っている先頭の選択肢（なければ空欄）にする
+  if (acc.value() === removed) acc.setValue(list[0] || '');
+  commitItemDialogChange(ref);
 }
 
-function resetItemOptions(key) {
+function resetItemOptions(ref) {
   const rule = getRule(editingId);
-  if (!rule) return;
-  delete rule.settings['options_' + key];
-  delete rule.settings['user_options_' + key];
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  acc.resetOptions();
+  commitItemDialogChange(ref);
 }
 
-function addOptionFromDialog(key) {
-  const label = itemLabel((getRule(editingId) || {}).settings, key);
-  const val = prompt('"' + label + '"に追加する値を入力:');
+function addOptionFromDialog(ref) {
+  const rule = getRule(editingId);
+  const acc = rule && getItemAccessor(rule, ref);
+  if (!acc) return;
+  const val = prompt('"' + acc.label() + '"に追加する値を入力:');
   if (!val || !val.trim()) return;
-  const rule = getRule(editingId);
-  if (!rule) return;
-  addItemOption(rule, key, val.trim());
-  rule.settings[key] = val.trim();
-  _editDirty = true;
-  saveData();
-  renderEdit();
-  showEditOptionsDialog(key);
+  const list = acc.options();
+  if (!list.includes(val.trim())) list.push(val.trim());
+  acc.setOptions(list);
+  acc.setValue(val.trim());
+  commitItemDialogChange(ref);
 }
 
-// 選択肢を追加する（選択肢を編集済みなら編集後の一覧に、未編集なら追加分(user_options_)に足す）
 function addItemOption(rule, key, val) {
   if (Array.isArray(rule.settings['options_' + key])) {
     setItemOptions(rule, key, [...rule.settings['options_' + key], val]);
@@ -3762,19 +3845,35 @@ async function exportImage() {
         });
       }
 
-      // ユーザーが編集画面で並び替えた順番があれば適用する
-      const imgSavedOrder = rule.settings['item_order_' + catKey];
-      if (Array.isArray(imgSavedOrder) && imgSavedOrder.length > 0) {
-        const orderIndex = new Map(imgSavedOrder.map((k, i) => [k, i]));
-        const known = keys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
-        const unknown = keys.filter(k => !orderIndex.has(k));
-        keys = [...known, ...unknown];
-      }
+      // 既存の項目と追加した項目を、ユーザーが編集画面で並び替えた順番で並べる
+      const customItems = customItemsWithIds(rule, catKey);
+      const customByToken = Object.fromEntries(customItems.map(it => ['c:' + it.id, it]));
+      const orderedTokens = sortByItemOrder(rule, catKey, [...keys, ...customItems.map(it => 'c:' + it.id)]);
       
       let rowIndex = 0;
       let rowsHtml = '';
       
-          for (const k of keys) {
+          for (const t of orderedTokens) {
+              // 追加した項目
+              if (t.startsWith('c:')) {
+                  const item = customByToken[t];
+                  if (item.name || item.value) {
+                      const itemName = item.name || '(未設定)';
+                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
+                      const bItem = bItems.find(x => x.name === itemName);
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
+                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                      rowsHtml += `
+                          <tr style="background-color: ${bgColor};">
+                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemName)}</td>
+                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(item.value||'')}</td>
+                          </tr>`;
+                      rowIndex++;
+                  }
+                  continue;
+              }
+              const k = t;
               if (k.endsWith('_custom')) continue;
               const val = rule.settings[k] ?? '';
               if (val === '') continue; // 非表示項目をスキップ
@@ -3792,26 +3891,6 @@ async function exportImage() {
                       <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(displayValue)}</td>
                   </tr>`;
               rowIndex++;
-          }
-          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
-          {
-              const customItems = rule.settings['custom_' + catKey] || [];
-              for (const item of customItems) {
-                  if (item.name || item.value) {
-                      const itemName = item.name || '(未設定)';
-                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
-                      const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
-                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
-                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      rowsHtml += `
-                          <tr style="background-color: ${bgColor};">
-                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemName)}</td>
-                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(item.value||'')}</td>
-                          </tr>`;
-                      rowIndex++;
-                  }
-              }
           }
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
@@ -3959,19 +4038,35 @@ async function exportPDF() {
         });
       }
 
-      // ユーザーが編集画面で並び替えた順番があれば適用する
-      const pdfSavedOrder = rule.settings['item_order_' + catKey];
-      if (Array.isArray(pdfSavedOrder) && pdfSavedOrder.length > 0) {
-        const orderIndex = new Map(pdfSavedOrder.map((k, i) => [k, i]));
-        const known = keys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
-        const unknown = keys.filter(k => !orderIndex.has(k));
-        keys = [...known, ...unknown];
-      }
+      // 既存の項目と追加した項目を、ユーザーが編集画面で並び替えた順番で並べる
+      const customItems = customItemsWithIds(rule, catKey);
+      const customByToken = Object.fromEntries(customItems.map(it => ['c:' + it.id, it]));
+      const orderedTokens = sortByItemOrder(rule, catKey, [...keys, ...customItems.map(it => 'c:' + it.id)]);
       
       let rowIndex = 0;
       let rowsHtml = '';
       
-          for (const k of keys) {
+          for (const t of orderedTokens) {
+              // 追加した項目
+              if (t.startsWith('c:')) {
+                  const item = customByToken[t];
+                  if (item.name || item.value) {
+                      const itemName = item.name || '(未設定)';
+                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
+                      const bItem = bItems.find(x => x.name === itemName);
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
+                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                      rowsHtml += `
+                          <tr style="background-color: ${bgColor};">
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
+                          </tr>`;
+                      rowIndex++;
+                  }
+                  continue;
+              }
+              const k = t;
               if (k.endsWith('_custom')) continue;
               const val = rule.settings[k] ?? '';
               if (val === '') continue; // 非表示項目をスキップ
@@ -3989,26 +4084,6 @@ async function exportPDF() {
                       <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(displayValue)}</td>
                   </tr>`;
               rowIndex++;
-          }
-          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
-          {
-              const customItems = rule.settings['custom_' + catKey] || [];
-              for (const item of customItems) {
-                  if (item.name || item.value) {
-                      const itemName = item.name || '(未設定)';
-                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
-                      const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
-                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
-                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      rowsHtml += `
-                          <tr style="background-color: ${bgColor};">
-                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
-                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
-                          </tr>`;
-                      rowIndex++;
-                  }
-              }
           }
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
@@ -4204,8 +4279,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.05", 
-    deployDate: "2026-10-15 13:58",
+    appVersion: "v5.06", 
+    deployDate: "2026-10-15 14:13",
   };
 
   // ==========================================
