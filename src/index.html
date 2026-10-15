@@ -1739,6 +1739,23 @@ function toggleCustomHighlight(catKey, idx) {
   if (item) toggleHighlight(customItemId(catKey, item));
 }
 
+// 追加した項目（custom_）に並べ替え用のIDを付けて返す（以前のデータにはIDがないので、無ければ付ける）
+function customItemsWithIds(rule, catKey) {
+  const items = rule.settings['custom_' + catKey] || [];
+  items.forEach(it => { if (!it.id) it.id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); });
+  return items;
+}
+// 大項目内の項目（既存の項目キーと、追加した項目 'c:' + id）を、
+// ユーザーが並べ替えた順番（rule.settings['item_order_' + catKey]）に並べる。並び順にないものは後ろに付ける
+function sortByItemOrder(rule, catKey, tokens) {
+  const savedOrder = rule.settings['item_order_' + catKey];
+  if (!Array.isArray(savedOrder) || savedOrder.length === 0) return tokens;
+  const orderIndex = new Map(savedOrder.map((k, i) => [k, i]));
+  const known = tokens.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
+  const unknown = tokens.filter(k => !orderIndex.has(k));
+  return [...known, ...unknown];
+}
+
 // 大項目名から番号("1. "など)を除いたもの。項目の値・特記事項などはこの名前(catKey)で保存されている
 function catKeyOf(cat) { return cat[0].replace(/^\d+\.\s*/, ''); }
 
@@ -2476,18 +2493,15 @@ function renderEdit() {
         });
       }
 
-      // ユーザーが並び替えた順番があれば適用する（ルール・カテゴリごとに保存）
-      const savedOrder = rule.settings['item_order_' + catKey];
-      if (Array.isArray(savedOrder) && savedOrder.length > 0) {
-        const orderIndex = new Map(savedOrder.map((k, i) => [k, i]));
-        const known = renderKeys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
-        const unknown = renderKeys.filter(k => !orderIndex.has(k));
-        renderKeys = [...known, ...unknown];
-      }
+      // 既存の項目と追加した項目を、ユーザーが並び替えた順番で並べる（ルール・カテゴリごとに保存）
+      const customItems = customItemsWithIds(rule, catKey);
+      const orderedTokens = sortByItemOrder(rule, catKey, [...renderKeys, ...customItems.map(it => 'c:' + it.id)]);
 
       const deletedKeys = new Set(rule.settings.deleted_keys || []);
       
-      let itemHtmls = [];
+      // 項目ごとのHTMLをいったん溜めておき、最後に並び順どおりにつなげる
+      const htmlByToken = {};
+      const pushItem = (token, h) => { htmlByToken[token] = (htmlByToken[token] || '') + h; };
       for (const k of renderKeys) {
         if (deletedKeys.has(k)) continue;
         const val = rule.settings[k] ?? '';
@@ -2496,7 +2510,7 @@ function renderEdit() {
         if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
           if (rule.settings[parentKey] === 'カスタム') {
-            itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
+            pushItem(k, `<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
               <label class="text-[11px] font-bold text-theme-primary">📝 ${esc(itemLabel(rule.settings, k))}</label>
               <input type="text" data-key="${k}" value="${esc(val)}" oninput="onSettingChange('${k}',this.value)" placeholder="自由入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" ${isReadonlyView ? 'disabled' : ''}>
             </div>`);
@@ -2531,7 +2545,7 @@ function renderEdit() {
         if (val && val.length > 15) valSizeClass = "text-[13px]";
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
-        itemHtmls.push(`
+        pushItem(k, `
             <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
                 ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
@@ -2581,7 +2595,6 @@ function renderEdit() {
       }
 
       // カスタム追加項目（全カテゴリ共通）
-      const customItems = rule.settings['custom_' + catKey] || [];
       for (let i = 0; i < customItems.length; i++) {
         const cVal = customItems[i].value || '';
         const cOpts = cVal ? [cVal, 'カスタム'] : ['カスタム'];
@@ -2594,8 +2607,10 @@ function renderEdit() {
         if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
         if (cVal && cVal.length > 18) cValSizeClass = "text-[11px] leading-tight";
 
-        itemHtmls.push(`
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
+        const cToken = 'c:' + customItems[i].id;
+        pushItem(cToken, `
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${cToken}" data-cat-key="${esc(catKey)}"
+                ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${cToken}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
                     <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleCustomHighlight('${esc(catKey)}',${i})">
@@ -2630,6 +2645,8 @@ function renderEdit() {
             </div>
         `);
       }
+
+      const itemHtmls = orderedTokens.map(t => htmlByToken[t]).filter(Boolean);
 
       if (itemHtmls.length > 0 || !isReadonlyView) {
         catDivContent.push(`<div class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 flex flex-col w-full overflow-hidden">
@@ -3767,19 +3784,35 @@ async function exportImage() {
         });
       }
 
-      // ユーザーが編集画面で並び替えた順番があれば適用する
-      const imgSavedOrder = rule.settings['item_order_' + catKey];
-      if (Array.isArray(imgSavedOrder) && imgSavedOrder.length > 0) {
-        const orderIndex = new Map(imgSavedOrder.map((k, i) => [k, i]));
-        const known = keys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
-        const unknown = keys.filter(k => !orderIndex.has(k));
-        keys = [...known, ...unknown];
-      }
+      // 既存の項目と追加した項目を、ユーザーが編集画面で並び替えた順番で並べる
+      const customItems = customItemsWithIds(rule, catKey);
+      const customByToken = Object.fromEntries(customItems.map(it => ['c:' + it.id, it]));
+      const orderedTokens = sortByItemOrder(rule, catKey, [...keys, ...customItems.map(it => 'c:' + it.id)]);
       
       let rowIndex = 0;
       let rowsHtml = '';
       
-          for (const k of keys) {
+          for (const t of orderedTokens) {
+              // 追加した項目
+              if (t.startsWith('c:')) {
+                  const item = customByToken[t];
+                  if (item.name || item.value) {
+                      const itemName = item.name || '(未設定)';
+                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
+                      const bItem = bItems.find(x => x.name === itemName);
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
+                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                      rowsHtml += `
+                          <tr style="background-color: ${bgColor};">
+                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemName)}</td>
+                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(item.value||'')}</td>
+                          </tr>`;
+                      rowIndex++;
+                  }
+                  continue;
+              }
+              const k = t;
               if (k.endsWith('_custom')) continue;
               const val = rule.settings[k] ?? '';
               if (val === '') continue; // 非表示項目をスキップ
@@ -3797,26 +3830,6 @@ async function exportImage() {
                       <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(displayValue)}</td>
                   </tr>`;
               rowIndex++;
-          }
-          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
-          {
-              const customItems = rule.settings['custom_' + catKey] || [];
-              for (const item of customItems) {
-                  if (item.name || item.value) {
-                      const itemName = item.name || '(未設定)';
-                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
-                      const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
-                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
-                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      rowsHtml += `
-                          <tr style="background-color: ${bgColor};">
-                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemName)}</td>
-                              <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(item.value||'')}</td>
-                          </tr>`;
-                      rowIndex++;
-                  }
-              }
           }
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
@@ -3964,19 +3977,35 @@ async function exportPDF() {
         });
       }
 
-      // ユーザーが編集画面で並び替えた順番があれば適用する
-      const pdfSavedOrder = rule.settings['item_order_' + catKey];
-      if (Array.isArray(pdfSavedOrder) && pdfSavedOrder.length > 0) {
-        const orderIndex = new Map(pdfSavedOrder.map((k, i) => [k, i]));
-        const known = keys.filter(k => orderIndex.has(k)).sort((a, b) => orderIndex.get(a) - orderIndex.get(b));
-        const unknown = keys.filter(k => !orderIndex.has(k));
-        keys = [...known, ...unknown];
-      }
+      // 既存の項目と追加した項目を、ユーザーが編集画面で並び替えた順番で並べる
+      const customItems = customItemsWithIds(rule, catKey);
+      const customByToken = Object.fromEntries(customItems.map(it => ['c:' + it.id, it]));
+      const orderedTokens = sortByItemOrder(rule, catKey, [...keys, ...customItems.map(it => 'c:' + it.id)]);
       
       let rowIndex = 0;
       let rowsHtml = '';
       
-          for (const k of keys) {
+          for (const t of orderedTokens) {
+              // 追加した項目
+              if (t.startsWith('c:')) {
+                  const item = customByToken[t];
+                  if (item.name || item.value) {
+                      const itemName = item.name || '(未設定)';
+                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
+                      const bItem = bItems.find(x => x.name === itemName);
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
+                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
+                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
+                      rowsHtml += `
+                          <tr style="background-color: ${bgColor};">
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
+                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
+                          </tr>`;
+                      rowIndex++;
+                  }
+                  continue;
+              }
+              const k = t;
               if (k.endsWith('_custom')) continue;
               const val = rule.settings[k] ?? '';
               if (val === '') continue; // 非表示項目をスキップ
@@ -3994,26 +4023,6 @@ async function exportPDF() {
                       <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(displayValue)}</td>
                   </tr>`;
               rowIndex++;
-          }
-          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
-          {
-              const customItems = rule.settings['custom_' + catKey] || [];
-              for (const item of customItems) {
-                  if (item.name || item.value) {
-                      const itemName = item.name || '(未設定)';
-                      const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
-                      const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
-                      const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
-                      const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
-                      rowsHtml += `
-                          <tr style="background-color: ${bgColor};">
-                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemName)}</td>
-                              <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(item.value||'')}</td>
-                          </tr>`;
-                      rowIndex++;
-                  }
-              }
           }
           const userItems = rule.settings['user_items_' + catKey] || [];
           for (const item of userItems) {
