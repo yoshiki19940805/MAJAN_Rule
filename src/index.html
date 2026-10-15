@@ -386,11 +386,11 @@
       background-color: var(--color-highlight-bg);
   }
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
-  /* 編集画面で「非表示」（値が空欄）の項目は、比較対象との違いに関係なく灰色の背景・灰色の文字で表示する
-     （青の差分ハイライトより優先する） */
+  /* 編集画面で「非表示」（値が空欄）の項目は灰色の背景で表示する（青の背景より優先する）。
+     文字は、比較対象と同じなら灰色、比較対象と違う場合はほかの差分と同じく項目名・設定とも青文字にする */
   .is-hidden-item .swipe-content { background-color: var(--color-hidden-bg); }
-  .is-hidden-item .item-label { color: var(--color-text-muted); font-weight: normal; }
-  .is-hidden-item .display-value-span { font-weight: normal; }
+  .is-hidden-item:not(.is-changed) .item-label { color: var(--color-text-muted); }
+  .is-hidden-item.is-changed .display-value-span span { color: var(--color-primary); }
 
   /* 項目の並び替え（長押しドラッグ） */
   .reorder-handle-area {
