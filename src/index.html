@@ -1670,6 +1670,32 @@ function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
 
+// 大項目名から番号("1. "など)を除いたもの。項目の値・特記事項などはこの名前(catKey)で保存されている
+function catKeyOf(cat) { return cat[0].replace(/^\d+\.\s*/, ''); }
+
+// ルールごとの大項目一覧（追加・削除・並べ替えを反映したもの）を返す。
+//   rule.settings.user_cats    : ユーザーが追加した大項目名の配列（4番目の要素=trueで区別する）
+//   rule.settings.deleted_cats : 削除した既存の大項目名の配列（値は残るので、戻すと元通りになる）
+//   rule.settings.cat_order    : 大項目名の並び順
+// includeDeleted=true のときは削除済みの既存大項目も含めて返す（大項目の編集ポップアップ用）
+function getRuleCategories(rule, includeDeleted) {
+  const s = rule.settings || {};
+  const deleted = new Set(s.deleted_cats || []);
+  let cats = [
+    ...getCategories(rule.mode),
+    ...(s.user_cats || []).map(name => [name, [], false, true]),
+  ];
+  if (!includeDeleted) cats = cats.filter(c => !deleted.has(catKeyOf(c)));
+  const order = s.cat_order;
+  if (Array.isArray(order) && order.length > 0) {
+    const orderIndex = new Map(order.map((k, i) => [k, i]));
+    const known = cats.filter(c => orderIndex.has(catKeyOf(c))).sort((a, b) => orderIndex.get(catKeyOf(a)) - orderIndex.get(catKeyOf(b)));
+    const unknown = cats.filter(c => !orderIndex.has(catKeyOf(c)));
+    cats = [...known, ...unknown];
+  }
+  return cats;
+}
+
 // チョンボ/上がり放棄/軽罰符/ノーペナルティの4大項目に属するキーのうち、
 // 「その項目自体がどの大項目に該当するかを選ぶ」タイプの項目（選択肢が
 // チョンボ/上がり放棄/軽罰符/ノーペナルティそのものだけで構成されている項目）
@@ -2293,7 +2319,7 @@ function renderEdit() {
     brSection.classList.add('hidden');
   }
 
-  const cats = getCategories(rule.mode);
+  const cats = getRuleCategories(rule);
   const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
   const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
 
@@ -2318,8 +2344,8 @@ function renderEdit() {
   let catDisplayNum = 0;
   for (const cat of cats) {
     const catNameLong = cat[0], keys = cat[1], customizable = cat[2] || false;
-    const catName = catNameLong.includes('.') ? catNameLong.split('.')[1].trim() : catNameLong;
-    const catKey = catNameLong.replace(/^\d+\.\s*/, '');
+    const catKey = catKeyOf(cat);
+    const catName = catKey;
 
     // 途中流局が「なし」の場合、途中流局カテゴリをスキップ
     if (catNameLong.includes('途中流局') && (rule.settings['tochu_ryukyoku'] === 'なし')) continue;
@@ -2328,7 +2354,8 @@ function renderEdit() {
 
       let renderKeys = [...keys];
       // ペナルティカテゴリの場合：値に基づいてキーを移動
-      const thisPenaltyCat = PENALTY_CATS.find(pc => catNameLong.includes(pc));
+      // ユーザーが追加した大項目(cat[3])は、名前に「チョンボ」等を含んでもペナルティカテゴリとして扱わない
+      const thisPenaltyCat = !cat[3] && PENALTY_CATS.find(pc => catNameLong.includes(pc));
       if (thisPenaltyCat) {
         // このカテゴリに元々属さない但し値がこのカテゴリ名のキーを追加
         for (const pk of penaltyKeys) {
@@ -2523,7 +2550,7 @@ function renderEdit() {
                     <div class="memo-header flex items-center justify-between gap-1.5 mb-2 ${isMemoDiff ? 'text-theme-primary' : 'text-theme-textMuted'}">
                         <div class="flex items-center gap-1.5 min-w-0">
                             <span class="material-symbols-outlined text-[16px] shrink-0">edit_note</span>
-                            <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide truncate">${catName} の特記事項</span>
+                            <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide truncate">${esc(catName)} の特記事項</span>
                         </div>
                         ${!isReadonlyView ? `
                         <div class="flex items-center gap-1.5 shrink-0">
@@ -2560,8 +2587,219 @@ function renderEdit() {
         ${catDivContent.join('')}
     </div>`;
   }
-  
+
+  // 編集画面では、先頭に大項目の追加・削除・並べ替えを行うポップアップを開くボタンを置く
+  if (!isReadonlyView) {
+    html = `<div class="flex justify-end -mb-3">
+        <button class="text-theme-primary text-[14px] font-medium flex items-center gap-1 px-2 py-1 rounded-lg active:bg-gray-100" onclick="openCategoryManager()">
+            <span class="material-symbols-outlined text-[18px]">reorder</span>大項目の編集
+        </button>
+    </div>` + html;
+  }
+
   fields.innerHTML = html;
+}
+
+// =====================================================================
+// 大項目の追加・削除・並べ替え（大項目だけを並べたポップアップ）
+// =====================================================================
+function openCategoryManager() {
+  closeCategoryManager();
+  const overlay = document.createElement('div');
+  overlay.id = 'cat-manager-overlay';
+  overlay.className = 'fixed inset-0 bg-black/40 z-[80] flex items-end sm:items-center justify-center';
+  overlay.innerHTML = `
+    <div class="bg-theme-bg w-full max-w-[40rem] sm:max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-xl">
+        <div class="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+            <div>
+                <h3 class="font-bold text-[17px] text-theme-text">大項目の編集</h3>
+                <p class="text-[11px] text-theme-textMuted mt-0.5">右の <span class="material-symbols-outlined text-[13px] align-[-2px]">drag_handle</span> をドラッグして並べ替えできます</p>
+            </div>
+            <button class="text-theme-primary font-semibold text-[16px] px-2 py-1" onclick="closeCategoryManager()">完了</button>
+        </div>
+        <div id="cat-manager-body" class="overflow-y-auto px-4 pb-8 flex-1"></div>
+    </div>`;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCategoryManager(); });
+  document.body.appendChild(overlay);
+  renderCategoryManager();
+}
+
+function closeCategoryManager() {
+  const overlay = document.getElementById('cat-manager-overlay');
+  if (!overlay) return;
+  overlay.remove();
+  renderEdit();
+}
+
+function renderCategoryManager() {
+  const body = document.getElementById('cat-manager-body');
+  const rule = getRule(editingId);
+  if (!body || !rule) return;
+  const deleted = new Set(rule.settings.deleted_cats || []);
+  const all = getRuleCategories(rule, true);
+  const active = all.filter(c => !deleted.has(catKeyOf(c)));
+  const removed = all.filter(c => deleted.has(catKeyOf(c)));
+
+  let html = `<div id="cat-manager-list" class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 overflow-hidden">`;
+  active.forEach((c, i) => {
+    const key = catKeyOf(c);
+    html += `<div class="cat-manager-row flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 bg-theme-surface" data-cat-key="${esc(key)}">
+        <button class="text-theme-danger flex items-center shrink-0" onclick="deleteCategory('${esc(key)}')" aria-label="削除">
+            <span class="material-symbols-outlined text-[22px]">remove_circle</span>
+        </button>
+        <span class="text-[13px] text-theme-textMuted w-6 text-right shrink-0">${i + 1}.</span>
+        <span class="flex-1 text-[15px] text-theme-text min-w-0 break-words">${esc(key)}</span>
+        ${c[3] ? '<span class="text-[10px] text-theme-primary border border-theme-primary/40 rounded px-1.5 py-0.5 shrink-0">追加</span>' : ''}
+        <span class="material-symbols-outlined text-theme-textMuted text-[22px] shrink-0 cursor-grab px-1" style="touch-action:none;" onpointerdown="startCategoryDrag(event)">drag_handle</span>
+    </div>`;
+  });
+  html += `<button class="w-full text-left px-4 py-3.5 text-[15px] text-theme-primary font-medium active:bg-gray-50 flex items-center gap-1" onclick="addCategory()">
+        <span class="material-symbols-outlined text-[20px]">add_circle</span>大項目を追加
+    </button></div>`;
+
+  if (removed.length > 0) {
+    html += `<h4 class="text-[13px] font-semibold text-theme-textMuted ml-4 mt-6 mb-1.5">削除した大項目</h4>
+      <div class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 overflow-hidden">`;
+    removed.forEach(c => {
+      const key = catKeyOf(c);
+      html += `<div class="flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 last:border-b-0">
+          <span class="flex-1 text-[15px] text-theme-textMuted min-w-0 break-words">${esc(key)}</span>
+          <button class="text-theme-primary text-[14px] font-medium flex items-center gap-0.5 shrink-0" onclick="restoreCategory('${esc(key)}')">
+              <span class="material-symbols-outlined text-[18px]">undo</span>元に戻す
+          </button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  body.innerHTML = html;
+}
+
+// 大項目の変更を保存し、ポップアップを描き直す
+function commitCategoryChange() {
+  _editDirty = true;
+  if (!isSharedMode) saveData();
+  renderCategoryManager();
+}
+
+function addCategory() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const input = prompt('追加する大項目の名前を入力してください:');
+  if (input === null) return;
+  // 先頭の「1. 」のような番号は表示時に自動で付くため取り除く
+  const name = input.trim().replace(/^\d+\.\s*/, '');
+  if (!name) return;
+  // 名前はHTML属性やonclick内の文字列に埋め込むため、壊れる原因になる記号は使えないようにする
+  if (/['"`\\<>&]/.test(name)) {
+    alert('大項目の名前に次の記号は使えません:  \' " ` \\ < > &');
+    return;
+  }
+  const existing = getRuleCategories(rule, true).map(catKeyOf);
+  if (existing.includes(name)) {
+    if ((rule.settings.deleted_cats || []).includes(name)) {
+      restoreCategory(name);
+      showSnack('削除していた「' + name + '」を元に戻しました');
+    } else {
+      alert('「' + name + '」はすでにあります。別の名前を入力してください。');
+    }
+    return;
+  }
+  rule.settings.user_cats = [...(rule.settings.user_cats || []), name];
+  commitCategoryChange();
+}
+
+function deleteCategory(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const isUserCat = (rule.settings.user_cats || []).includes(key);
+  if (isUserCat) {
+    const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
+    if (hasContent && !confirm('「' + key + '」を削除しますか？\n中の項目と特記事項も削除されます。')) return;
+    rule.settings.user_cats = rule.settings.user_cats.filter(k => k !== key);
+    delete rule.settings['custom_' + key];
+    delete rule.settings['memo_' + key];
+    delete rule.settings['item_order_' + key];
+    if (Array.isArray(rule.settings.cat_order)) rule.settings.cat_order = rule.settings.cat_order.filter(k => k !== key);
+  } else {
+    // 既存の大項目は設定値を残したまま非表示にし、「削除した大項目」からいつでも戻せるようにする
+    rule.settings.deleted_cats = [...new Set([...(rule.settings.deleted_cats || []), key])];
+  }
+  commitCategoryChange();
+}
+
+function restoreCategory(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  rule.settings.deleted_cats = (rule.settings.deleted_cats || []).filter(k => k !== key);
+  commitCategoryChange();
+}
+
+// --- 大項目のドラッグ並べ替え（右端のハンドルをつかんで動かす） ---
+let _catDrag = null;
+function startCategoryDrag(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  const handle = e.currentTarget;
+  const row = handle.closest('.cat-manager-row');
+  const list = document.getElementById('cat-manager-list');
+  const rows = Array.from(list.querySelectorAll('.cat-manager-row'));
+  const rects = rows.map(r => r.getBoundingClientRect());
+  const index = rows.indexOf(row);
+  try { handle.setPointerCapture(e.pointerId); } catch(err) {}
+  try { if (navigator.vibrate) navigator.vibrate(10); } catch(err) {}
+  _catDrag = { handle, row, rows, rects, index, target: index, startY: e.clientY, pointerId: e.pointerId };
+  row.style.position = 'relative';
+  row.style.zIndex = '10';
+  row.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
+  rows.forEach(r => { if (r !== row) r.style.transition = 'transform 0.2s ease'; });
+  handle.addEventListener('pointermove', onCategoryDragMove);
+  handle.addEventListener('pointerup', onCategoryDragEnd);
+  handle.addEventListener('pointercancel', onCategoryDragEnd);
+}
+
+function onCategoryDragMove(e) {
+  const d = _catDrag;
+  if (!d || e.pointerId !== d.pointerId) return;
+  if (e.cancelable) e.preventDefault();
+  const deltaY = e.clientY - d.startY;
+  d.row.style.transform = `translateY(${deltaY}px)`;
+  const r0 = d.rects[d.index];
+  const centerY = r0.top + r0.height / 2 + deltaY;
+  // ドラッグ中の大項目の中心がどの位置にあるかで移動先を決める
+  let target = 0;
+  d.rects.forEach((r, i) => {
+    if (i !== d.index && centerY > r.top + r.height / 2) target++;
+  });
+  d.target = target;
+  // 追い越された大項目を実際にずらして、移動先が分かるようにする
+  d.rows.forEach((r, i) => {
+    if (i === d.index) return;
+    let shift = 0;
+    if (target > d.index && i > d.index && i <= target) shift = -r0.height;
+    else if (target < d.index && i >= target && i < d.index) shift = r0.height;
+    r.style.transform = shift ? `translateY(${shift}px)` : '';
+  });
+}
+
+function onCategoryDragEnd(e) {
+  const d = _catDrag;
+  if (!d) return;
+  _catDrag = null;
+  d.handle.removeEventListener('pointermove', onCategoryDragMove);
+  d.handle.removeEventListener('pointerup', onCategoryDragEnd);
+  d.handle.removeEventListener('pointercancel', onCategoryDragEnd);
+  try { d.handle.releasePointerCapture(d.pointerId); } catch(err) {}
+  const rule = getRule(editingId);
+  if (!rule || d.target === d.index) { renderCategoryManager(); return; }
+  const keys = d.rows.map(r => r.dataset.catKey);
+  const [moved] = keys.splice(d.index, 1);
+  keys.splice(d.target, 0, moved);
+  // 削除済みの大項目は今の位置のまま残し、表示中の大項目の枠だけを新しい順に入れ替えて保存する
+  // （戻したときに元の位置に表示されるように）
+  let j = 0;
+  rule.settings.cat_order = getRuleCategories(rule, true).map(catKeyOf)
+    .map(k => keys.includes(k) ? keys[j++] : k);
+  commitCategoryChange();
 }
 
 function onNameChange(val) {
@@ -3246,8 +3484,8 @@ async function exportImage() {
       </div>
   `;
 
-  // カテゴリデータの生成
-  const appCats = getCategories(rule.mode);
+  // カテゴリデータの生成（ルールごとの大項目の追加・削除・並べ替えを反映）
+  const appCats = getRuleCategories(rule);
 
   // ペナルティ移動ロジック（画像出力用）
   const IMG_PENALTY_CATS = PENALTY_MOVE_CATS;
@@ -3271,7 +3509,7 @@ async function exportImage() {
 
       // ペナルティカテゴリのキー移動
       let keys = [...origKeys];
-      const imgThisPenaltyCat = IMG_PENALTY_CATS.find(pc => catName.includes(pc));
+      const imgThisPenaltyCat = !cat[3] && IMG_PENALTY_CATS.find(pc => catName.includes(pc));
       if (imgThisPenaltyCat) {
         for (const pk of imgPenaltyKeys) {
           if (!keys.includes(pk) && imgPenaltyKeyTargetCat[pk] === imgThisPenaltyCat) keys.push(pk);
@@ -3443,8 +3681,8 @@ async function exportPDF() {
       </div>
   `;
 
-  // カテゴリデータの生成
-  const appCats = getCategories(rule.mode);
+  // カテゴリデータの生成（ルールごとの大項目の追加・削除・並べ替えを反映）
+  const appCats = getRuleCategories(rule);
 
   // ペナルティ移動ロジック（PDF出力用）
   const PDF_PENALTY_CATS = PENALTY_MOVE_CATS;
@@ -3468,7 +3706,7 @@ async function exportPDF() {
 
       // ペナルティカテゴリのキー移動
       let keys = [...origKeys];
-      const pdfThisPenaltyCat = PDF_PENALTY_CATS.find(pc => catName.includes(pc));
+      const pdfThisPenaltyCat = !cat[3] && PDF_PENALTY_CATS.find(pc => catName.includes(pc));
       if (pdfThisPenaltyCat) {
         for (const pk of pdfPenaltyKeys) {
           if (!keys.includes(pk) && pdfPenaltyKeyTargetCat[pk] === pdfThisPenaltyCat) keys.push(pk);
