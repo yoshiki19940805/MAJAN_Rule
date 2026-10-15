@@ -303,6 +303,7 @@
     --color-highlight-bg: #EAF4FF;
     --color-segmented-bg: #E3E3E8;
     --color-readonly-bg: #F9F9FA;
+    --color-hidden-bg: #E9E9ED;
     
     --app-max-width: 100%;
     --app-padding: 5vw;
@@ -385,6 +386,10 @@
       background-color: var(--color-highlight-bg);
   }
   .is-changed .item-label { color: var(--color-primary); font-weight: 600; }
+  /* 編集画面で「非表示」（値が空欄）の項目は灰色で表示する。青の差分ハイライトより背景を優先し、
+     差分がある場合は項目名だけ青のままにして分かるようにする */
+  .is-hidden-item .swipe-content { background-color: var(--color-hidden-bg); }
+  .is-hidden-item:not(.is-changed) .item-label { color: var(--color-text-muted); }
 
   /* 項目の並び替え（長押しドラッグ） */
   .reorder-handle-area {
@@ -2600,7 +2605,7 @@ function renderEdit() {
         if (val && val.length > 18) valSizeClass = "text-[11px] leading-tight";
 
         pushItem(k, `
-            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
+            <div class="swipe-item ${isDiff ? 'is-changed' : ''} ${val === '' ? 'is-hidden-item' : ''} ${canReorder ? 'reorder-handle-area' : ''}" data-id="${k}" data-cat-key="${esc(catKey)}"
                 ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
@@ -3166,10 +3171,12 @@ function onSettingChange(key, val) {
     if (swipeRow) {
       const isDiff = applyHighlightOverride(rule, key, isItemDiff(rule.settings, base, key, val));
       swipeRow.classList.toggle('is-changed', isDiff);
+      swipeRow.classList.toggle('is-hidden-item', val === '');
       
       const valSpan = swipeRow.querySelector('.display-value-span');
       if (valSpan) {
-          valSpan.textContent = val;
+          if (val === '') valSpan.innerHTML = '<span class="text-theme-textMuted italic">非表示</span>';
+          else valSpan.textContent = val;
           if (isDiff) {
               valSpan.classList.add('text-theme-primary', 'font-bold');
               valSpan.classList.remove('text-theme-textMuted');
