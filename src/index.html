@@ -2620,7 +2620,7 @@ function openCategoryManager() {
         <div class="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
             <div>
                 <h3 class="font-bold text-[17px] text-theme-text">大項目の編集</h3>
-                <p class="text-[11px] text-theme-textMuted mt-0.5">右の <span class="material-symbols-outlined text-[13px] align-[-2px]">drag_handle</span> をドラッグして並べ替えできます</p>
+                <p class="text-[11px] text-theme-textMuted mt-0.5">長押ししてドラッグすると並べ替えできます</p>
                 <p class="text-[11px] text-theme-textMuted"><span class="material-symbols-outlined text-[13px] align-[-2px]">lock</span> の大項目は削除できません</p>
             </div>
             <button class="text-theme-primary font-semibold text-[16px] px-2 py-1 shrink-0 whitespace-nowrap" onclick="closeCategoryManager()">完了</button>
@@ -2652,7 +2652,7 @@ function renderCategoryManager() {
   let html = `<div id="cat-manager-list" class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 overflow-hidden">`;
   active.forEach((c, i) => {
     const key = catKeyOf(c);
-    html += `<div class="cat-manager-row flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 bg-theme-surface" data-cat-key="${esc(key)}">
+    html += `<div class="cat-manager-row reorder-handle-area flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 bg-theme-surface" data-cat-key="${esc(key)}" onpointerdown="handleCategoryPointerDown(event)">
         ${isUndeletableCategory(c) ? `
         <span class="flex items-center shrink-0 text-theme-textMuted opacity-40" title="この大項目は削除できません">
             <span class="material-symbols-outlined text-[22px]">lock</span>
@@ -2663,7 +2663,6 @@ function renderCategoryManager() {
         <span class="text-[13px] text-theme-textMuted w-6 text-right shrink-0">${i + 1}.</span>
         <span class="flex-1 text-[15px] text-theme-text min-w-0 break-words">${esc(key)}</span>
         ${c[3] ? '<span class="text-[10px] text-theme-primary border border-theme-primary/40 rounded px-1.5 py-0.5 shrink-0">追加</span>' : ''}
-        <span class="material-symbols-outlined text-theme-textMuted text-[22px] shrink-0 cursor-grab px-1" style="touch-action:none;" onpointerdown="startCategoryDrag(event)">drag_handle</span>
     </div>`;
   });
   html += `<button class="w-full text-left px-4 py-3.5 text-[15px] text-theme-primary font-medium active:bg-gray-50 flex items-center gap-1" onclick="addCategory()">
@@ -2749,36 +2748,60 @@ function restoreCategory(key) {
   commitCategoryChange();
 }
 
-// --- 大項目のドラッグ並べ替え（右端のハンドルをつかんで動かす） ---
-let _catDrag = null;
-function startCategoryDrag(e) {
+// --- 大項目のドラッグ並べ替え（小項目と同じく、行を長押ししてからドラッグする） ---
+let _catPress = null; // 長押し判定中の状態
+let _catDrag = null;  // 実際にドラッグ中の状態
+function handleCategoryPointerDown(e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  e.preventDefault();
-  const handle = e.currentTarget;
-  const row = handle.closest('.cat-manager-row');
+  // 削除ボタンの上では並べ替えを開始しない
+  if (e.target.closest('button')) return;
+  if (_catPress || _catDrag) return;
+  const row = e.currentTarget;
+  const pointerId = e.pointerId;
+  const startX = e.clientX, startY = e.clientY;
+  const timer = setTimeout(() => {
+    _catPress = null;
+    startCategoryDrag(row, pointerId, startY);
+  }, 450);
+  _catPress = { timer, row, pointerId, startX, startY };
+  row.addEventListener('pointermove', onCategoryDragMove);
+  row.addEventListener('pointerup', onCategoryDragEnd);
+  row.addEventListener('pointercancel', onCategoryDragEnd);
+}
+
+function startCategoryDrag(row, pointerId, startY) {
+  try { row.setPointerCapture(pointerId); } catch(err) {}
+  try { if (navigator.vibrate) navigator.vibrate(15); } catch(err) {}
+  try { const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges(); } catch(err) {}
   const list = document.getElementById('cat-manager-list');
   const rows = Array.from(list.querySelectorAll('.cat-manager-row'));
   const rects = rows.map(r => r.getBoundingClientRect());
   const index = rows.indexOf(row);
-  try { handle.setPointerCapture(e.pointerId); } catch(err) {}
-  try { if (navigator.vibrate) navigator.vibrate(10); } catch(err) {}
-  _catDrag = { handle, row, rows, rects, index, target: index, startY: e.clientY, pointerId: e.pointerId };
+  if (index === -1) return;
+  _catDrag = { row, rows, rects, index, target: index, startY, pointerId };
   row.style.position = 'relative';
-  row.style.zIndex = '10';
+  row.style.zIndex = '30';
   row.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
+  row.style.cursor = 'grabbing';
   rows.forEach(r => { if (r !== row) r.style.transition = 'transform 0.2s ease'; });
-  handle.addEventListener('pointermove', onCategoryDragMove);
-  handle.addEventListener('pointerup', onCategoryDragEnd);
-  handle.addEventListener('pointercancel', onCategoryDragEnd);
 }
 
 function onCategoryDragMove(e) {
+  // 長押し判定前に一定以上動いたら、通常のスクロール操作として並べ替えを諦める
+  if (_catPress) {
+    if (e.pointerId !== _catPress.pointerId) return;
+    if (Math.abs(e.clientX - _catPress.startX) > 10 || Math.abs(e.clientY - _catPress.startY) > 10) onCategoryDragEnd(e);
+    return;
+  }
   const d = _catDrag;
   if (!d || e.pointerId !== d.pointerId) return;
   if (e.cancelable) e.preventDefault();
-  const deltaY = e.clientY - d.startY;
-  d.row.style.transform = `translateY(${deltaY}px)`;
   const r0 = d.rects[d.index];
+  // 一覧の外まで引っ張っても見えなくならないよう、先頭〜末尾の範囲内に留める
+  const minDelta = d.rects[0].top - r0.top;
+  const maxDelta = d.rects[d.rects.length - 1].top - r0.top;
+  const deltaY = Math.min(maxDelta, Math.max(minDelta, e.clientY - d.startY));
+  d.row.style.transform = `translateY(${deltaY}px)`;
   const centerY = r0.top + r0.height / 2 + deltaY;
   // ドラッグ中の大項目の中心がどの位置にあるかで移動先を決める
   let target = 0;
@@ -2796,14 +2819,24 @@ function onCategoryDragMove(e) {
   });
 }
 
+function removeCategoryDragListeners(row) {
+  row.removeEventListener('pointermove', onCategoryDragMove);
+  row.removeEventListener('pointerup', onCategoryDragEnd);
+  row.removeEventListener('pointercancel', onCategoryDragEnd);
+}
+
 function onCategoryDragEnd(e) {
+  if (_catPress) {
+    clearTimeout(_catPress.timer);
+    removeCategoryDragListeners(_catPress.row);
+    _catPress = null;
+    return;
+  }
   const d = _catDrag;
   if (!d) return;
   _catDrag = null;
-  d.handle.removeEventListener('pointermove', onCategoryDragMove);
-  d.handle.removeEventListener('pointerup', onCategoryDragEnd);
-  d.handle.removeEventListener('pointercancel', onCategoryDragEnd);
-  try { d.handle.releasePointerCapture(d.pointerId); } catch(err) {}
+  removeCategoryDragListeners(d.row);
+  try { d.row.releasePointerCapture(d.pointerId); } catch(err) {}
   const rule = getRule(editingId);
   if (!rule || d.target === d.index) { renderCategoryManager(); return; }
   const keys = d.rows.map(r => r.dataset.catKey);
@@ -3065,7 +3098,7 @@ let _lastReorderEndAt = 0; // 直後の誤クリック(選択肢の意図しな�
 // しまった場合にselectionchangeで検知して即座に選択解除する方式にしている
 // （カスタム入力欄・input/textareaは対象外とし、通常通り選択・コピーできる）
 document.addEventListener('selectstart', function(e) {
-  if (e.target && e.target.closest && e.target.closest('.swipe-item') && !e.target.closest('.custom-input-area')) {
+  if (e.target && e.target.closest && (e.target.closest('.swipe-item') || e.target.closest('.cat-manager-row')) && !e.target.closest('.custom-input-area')) {
     e.preventDefault();
   }
 });
@@ -3074,7 +3107,7 @@ document.addEventListener('selectionchange', function() {
   if (!sel || sel.isCollapsed || !sel.anchorNode) return;
   const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
   if (!anchorEl || !anchorEl.closest) return;
-  if (anchorEl.closest('.swipe-item') && !anchorEl.closest('.custom-input-area') && !anchorEl.closest('input, textarea')) {
+  if ((anchorEl.closest('.swipe-item') || anchorEl.closest('.cat-manager-row')) && !anchorEl.closest('.custom-input-area') && !anchorEl.closest('input, textarea')) {
     sel.removeAllRanges();
   }
 });
