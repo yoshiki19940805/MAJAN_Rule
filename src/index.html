@@ -528,7 +528,7 @@
             
             <div class="mt-3 flex items-start gap-1.5 text-[11px] text-theme-textMuted px-1">
                 <span class="material-symbols-outlined text-[14px] text-theme-primary">info</span>
-                <p>比較対象のルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
+                <p>比較対象のルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。項目を左にスワイプして「強調」「強調解除」で、比較対象のルールごとに手動で切り替えられます。</p>
             </div>
         </div>
 
@@ -1683,6 +1683,62 @@ function isItemDiff(settings, base, key, val) {
   return !(key in base) || String(val) !== String(base[key] || '');
 }
 
+// 項目の選択肢（「カスタム」を除く）。選択肢を編集・削除した場合は settings['options_' + key] に
+// 一覧ごと保存し、以後はそれを使う。未編集なら初期の選択肢＋追加した選択肢(user_options_)
+function getItemOptions(rule, key) {
+  const saved = rule.settings['options_' + key];
+  if (Array.isArray(saved)) return [...saved];
+  const defaults = (getOptions(rule.mode)[key] || []).filter(o => o !== 'カスタム');
+  const added = rule.settings['user_options_' + key] || [];
+  return [...defaults, ...added.filter(o => !defaults.includes(o))];
+}
+function setItemOptions(rule, key, list) {
+  rule.settings['options_' + key] = list.filter((o, i) => o && list.indexOf(o) === i);
+  delete rule.settings['user_options_' + key];
+}
+
+// 青色ハイライトの手動設定。比較対象のルールごとに
+// rule.settings.highlight_overrides[比較対象のルールID][項目ID] = true(強調)/false(強調しない) として保存する。
+// 項目IDは、既存の項目はキー、追加した項目は 'custom:' + 大項目名 + ':' + 項目名
+function highlightBaseId(rule) { return rule.base_rule || '_none_'; }
+function applyHighlightOverride(rule, itemId, autoDiff) {
+  const o = ((rule.settings.highlight_overrides || {})[highlightBaseId(rule)] || {})[itemId];
+  return typeof o === 'boolean' ? o : !!autoDiff;
+}
+function customItemId(catKey, item) { return 'custom:' + catKey + ':' + (item.name || ''); }
+// 手動設定を除いた、比較対象のルールとの自動の差分判定
+function autoItemDiff(rule, itemId) {
+  const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
+  if (!base) return false;
+  const m = itemId.match(/^custom:(.*?):(.*)$/);
+  if (m) {
+    const item = (rule.settings['custom_' + m[1]] || []).find(x => (x.name || '') === m[2]);
+    const bItem = (base['custom_' + m[1]] || []).find(x => (x.name || '') === m[2]);
+    return !bItem || String((item || {}).value || '') !== String(bItem.value || '');
+  }
+  return isItemDiff(rule.settings, base, itemId, rule.settings[itemId] ?? '');
+}
+// ハイライトのON/OFFを切り替える。自動の判定と同じ状態に戻した場合は手動設定を消す
+function toggleHighlight(itemId) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const auto = autoItemDiff(rule, itemId);
+  const next = !applyHighlightOverride(rule, itemId, auto);
+  const all = { ...(rule.settings.highlight_overrides || {}) };
+  const forBase = { ...(all[highlightBaseId(rule)] || {}) };
+  if (next === auto) delete forBase[itemId]; else forBase[itemId] = next;
+  all[highlightBaseId(rule)] = forBase;
+  rule.settings.highlight_overrides = all;
+  _editDirty = true;
+  saveData();
+  renderEdit();
+}
+function toggleCustomHighlight(catKey, idx) {
+  const rule = getRule(editingId);
+  const item = rule && (rule.settings['custom_' + catKey] || [])[idx];
+  if (item) toggleHighlight(customItemId(catKey, item));
+}
+
 // 大項目名から番号("1. "など)を除いたもの。項目の値・特記事項などはこの名前(catKey)で保存されている
 function catKeyOf(cat) { return cat[0].replace(/^\d+\.\s*/, ''); }
 
@@ -2435,7 +2491,7 @@ function renderEdit() {
       for (const k of renderKeys) {
         if (deletedKeys.has(k)) continue;
         const val = rule.settings[k] ?? '';
-        const isDiff = isItemDiff(rule.settings, base, k, val);
+        const isDiff = applyHighlightOverride(rule, k, isItemDiff(rule.settings, base, k, val));
 
         if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
@@ -2450,11 +2506,7 @@ function renderEdit() {
 
 
 
-        let options = opts[k] || [val];
-        const userOptions = rule.settings['user_options_' + k] || [];
-        if (userOptions.length > 0) {
-          options = [...options.filter(o => o !== 'カスタム'), ...userOptions, ...(options.includes('カスタム') ? ['カスタム'] : [])];
-        }
+        let options = getItemOptions(rule, k);
         if (val && !options.includes(val)) options = [val, ...options];
 
         // 表示画面では空欄（未設定）の項目を非表示にする
@@ -2484,6 +2536,9 @@ function renderEdit() {
                 ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
+                    <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleHighlight('${k}')">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">${isDiff ? 'format_color_reset' : 'ink_highlighter'}</span>${isDiff ? '強調解除' : '強調'}
+                    </button>
                     <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showEditOptionsDialog('${k}')">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
                     </button>
@@ -2533,7 +2588,7 @@ function renderEdit() {
         const itemName = customItems[i].name || ('項目'+(i+1));
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
-        const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
+        const isDiff = applyHighlightOverride(rule, customItemId(catKey, customItems[i]), base && (!bItem || cVal !== String(bItem.value || "")));
         
         let cValSizeClass = "text-[15px]";
         if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
@@ -2543,6 +2598,9 @@ function renderEdit() {
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
+                    <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleCustomHighlight('${esc(catKey)}',${i})">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">${isDiff ? 'format_color_reset' : 'ink_highlighter'}</span>${isDiff ? '強調解除' : '強調'}
+                    </button>
                     <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
                     </button>
@@ -3022,7 +3080,7 @@ function onSettingChange(key, val) {
     // 新UIでは swipe-item クラスを持った親要素に is-changed クラスを付与する
     const swipeRow = document.querySelector(`[data-id="${key}"]`);
     if (swipeRow) {
-      const isDiff = isItemDiff(rule.settings, base, key, val);
+      const isDiff = applyHighlightOverride(rule, key, isItemDiff(rule.settings, base, key, val));
       swipeRow.classList.toggle('is-changed', isDiff);
       
       const valSpan = swipeRow.querySelector('.display-value-span');
@@ -3121,7 +3179,7 @@ function onCustomPenaltySelect(catKey, idx, val) {
 let _swipeStartX = 0, _swipeStartY = 0, _swipeCurrentX = 0, _activeSwipe = null;
 let _swipeMoved = false;
 let _swipePointerId = null;
-const SWIPE_WIDTH = -120; 
+const SWIPE_WIDTH = -180; // 強調・編集・削除の3ボタン分
 
 function handleTouchStart(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // マウスは左クリックのみ
@@ -3375,6 +3433,7 @@ function removeSettingKey(key) {
   if (rule.settings[key + '_custom'] !== undefined) delete rule.settings[key + '_custom'];
   // user_optionsも削除
   if (rule.settings['user_options_' + key]) delete rule.settings['user_options_' + key];
+  delete rule.settings['options_' + key];
   // 変更した項目名も削除
   if (rule.settings.item_labels) delete rule.settings.item_labels[key];
   saveData();
@@ -3465,11 +3524,7 @@ function showAddOptionDialog(key) {
   if (!val || !val.trim()) return;
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k]) rule.settings[k] = [];
-  if (!rule.settings[k].includes(val.trim())) {
-    rule.settings[k].push(val.trim());
-  }
+  addItemOption(rule, key, val.trim());
   rule.settings[key] = val.trim();
   saveData();
   renderEdit();
@@ -3480,11 +3535,11 @@ function showEditOptionsDialog(key) {
   const rule = getRule(editingId);
   if (!rule) return;
   const label = itemLabel(rule.settings, key);
-  const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-  const defaultOpts = opts[key] || [];
-  const userOpts = rule.settings['user_options_' + key] || [];
+  const itemOpts = getItemOptions(rule, key);
+  const isCustomized = Array.isArray(rule.settings['options_' + key]);
 
-  // モーダル要素を作成
+  // モーダル要素を作成（開いていれば作り直す）
+  closeEditOptionsDialog();
   const overlay = document.createElement('div');
   overlay.id = 'edit-options-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
@@ -3498,30 +3553,27 @@ function showEditOptionsDialog(key) {
     </div>
     <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(LABELS[key] || key)}」に戻ります。</div>
     <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">選択肢</div>
-    <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ デフォルト項目は編集できません</div>`;
+    <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ 内容を書き換えて「保存」、「削除」で選択肢から外せます</div>`;
 
-  // デフォルト選択肢（編集不可）
-  for (const o of defaultOpts) {
-    if (o === 'カスタム') continue;
-    html += `<div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #eee;">
-      <span style="flex:1;font-size:0.85rem;color:#666;">${esc(o)}</span>
-      <span style="font-size:0.7rem;color:#aaa;">デフォルト</span>
+  // 選択肢（初期の選択肢も含め、すべて編集・削除可能）
+  for (let i = 0; i < itemOpts.length; i++) {
+    html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #eee;gap:8px;">
+      <input type="text" value="${esc(itemOpts[i])}" style="flex:1;min-width:0;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
+      <button onclick="removeOptionAt('${esc(key)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
     </div>`;
   }
-
-  // ユーザー追加選択肢（編集・削除可能）
-  for (let i = 0; i < userOpts.length; i++) {
-    html += `<div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #eee;gap:8px;">
-      <input type="text" value="${esc(userOpts[i])}" data-user-opt-idx="${i}" style="flex:1;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
-      <button onclick="removeUserOptionAndClose('${esc(key)}','${esc(userOpts[i])}')" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
-    </div>`;
+  if (itemOpts.length === 0) {
+    html += `<div style="font-size:0.8rem;color:#aaa;padding:8px 0;">選択肢はありません</div>`;
   }
 
   // カスタム（追加ボタン）
   html += `<div style="margin-top:12px;">
     <button onclick="addOptionFromDialog('${esc(key)}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
   </div>
+  ${isCustomized ? `<div style="margin-top:12px;">
+    <button onclick="resetItemOptions('${esc(key)}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
+  </div>` : ''}
   <div style="margin-top:12px;">
     <button onclick="closeEditOptionsDialog()" style="width:100%;padding:10px;background:#eee;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">閉じる</button>
   </div>
@@ -3555,35 +3607,46 @@ function closeEditOptionsDialog() {
 function editUserOption(key, idx, btn) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k] || !rule.settings[k][idx]) return;
-  const input = btn.parentElement.querySelector('input');
-  const newVal = input.value.trim();
+  const list = getItemOptions(rule, key);
+  if (idx >= list.length) return;
+  const newVal = btn.parentElement.querySelector('input').value.trim();
   if (!newVal) return;
-  const oldVal = rule.settings[k][idx];
-  rule.settings[k][idx] = newVal;
+  const oldVal = list[idx];
+  if (newVal !== oldVal && list.includes(newVal)) { alert('「' + newVal + '」はすでにあります。'); return; }
+  list[idx] = newVal;
+  setItemOptions(rule, key, list);
   // 現在選択中の値も更新
-  if (rule.settings[key] === oldVal) {
-    rule.settings[key] = newVal;
-  }
+  if (rule.settings[key] === oldVal) rule.settings[key] = newVal;
+  _editDirty = true;
   saveData();
-  closeEditOptionsDialog();
   renderEdit();
+  showEditOptionsDialog(key);
 }
 
-function removeUserOptionAndClose(key, optVal) {
+function removeOptionAt(key, idx) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k]) return;
-  rule.settings[k] = rule.settings[k].filter(o => o !== optVal);
-  if (rule.settings[key] === optVal) {
-    const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-    rule.settings[key] = (opts[key] || [''])[0];
-  }
+  const list = getItemOptions(rule, key);
+  if (idx >= list.length) return;
+  const [removed] = list.splice(idx, 1);
+  setItemOptions(rule, key, list);
+  // 現在選択中の値が削除された場合は、残っている先頭の選択肢（なければ非表示）にする
+  if (rule.settings[key] === removed) rule.settings[key] = list[0] || '';
+  _editDirty = true;
   saveData();
-  closeEditOptionsDialog();
   renderEdit();
+  showEditOptionsDialog(key);
+}
+
+function resetItemOptions(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  delete rule.settings['options_' + key];
+  delete rule.settings['user_options_' + key];
+  _editDirty = true;
+  saveData();
+  renderEdit();
+  showEditOptionsDialog(key);
 }
 
 function addOptionFromDialog(key) {
@@ -3592,15 +3655,23 @@ function addOptionFromDialog(key) {
   if (!val || !val.trim()) return;
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k]) rule.settings[k] = [];
-  if (!rule.settings[k].includes(val.trim())) {
-    rule.settings[k].push(val.trim());
-  }
+  addItemOption(rule, key, val.trim());
   rule.settings[key] = val.trim();
+  _editDirty = true;
   saveData();
-  closeEditOptionsDialog();
   renderEdit();
+  showEditOptionsDialog(key);
+}
+
+// 選択肢を追加する（選択肢を編集済みなら編集後の一覧に、未編集なら追加分(user_options_)に足す）
+function addItemOption(rule, key, val) {
+  if (Array.isArray(rule.settings['options_' + key])) {
+    setItemOptions(rule, key, [...rule.settings['options_' + key], val]);
+  } else {
+    const k = 'user_options_' + key;
+    if (!rule.settings[k]) rule.settings[k] = [];
+    if (!rule.settings[k].includes(val)) rule.settings[k].push(val);
+  }
 }
 
 function removeUserOption(key, optVal) {
@@ -3631,8 +3702,8 @@ async function exportImage() {
   showSnack('画像を生成しています...');
 
   const ruleName = rule.name || '麻雀ルール';
-  const baseRules = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  const standardObj = baseRules[rule.base_rule] || null;
+  // 比較対象のルールは、編集画面と同じく初期プリセット・自分のルールの両方から探す（IDで保存されているため）
+  const standardObj = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
 
   // 1. 画像用のクリーンなHTML要素をメモリ上で生成
   const container = document.createElement('div');
@@ -3708,7 +3779,7 @@ async function exportImage() {
                   const customVal = rule.settings[k + '_custom'] || '';
                   displayValue = customVal || '未入力';
               }
-              const isChanged = isItemDiff(rule.settings, standardObj, k, val);
+              const isChanged = applyHighlightOverride(rule, k, isItemDiff(rule.settings, standardObj, k, val));
               const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
               const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
               rowsHtml += `
@@ -3718,14 +3789,15 @@ async function exportImage() {
                   </tr>`;
               rowIndex++;
           }
-          if (customizable) {
+          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
+          {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
                   if (item.name || item.value) {
                       const itemName = item.name || '(未設定)';
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
                       rowsHtml += `
@@ -3830,8 +3902,8 @@ async function exportPDF() {
   if (!rule) { showSnack('ルールが選択されていません'); return; }
 
   const ruleName = rule.name || '麻雀ルール';
-  const baseRules = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  const standardObj = baseRules[rule.base_rule] || null;
+  // 比較対象のルールは、編集画面と同じく初期プリセット・自分のルールの両方から探す（IDで保存されているため）
+  const standardObj = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
   const standardRule = standardObj ? rule.base_rule : (rule.mode === '四麻' ? '四人麻雀ルール' : '三人麻雀ルール');
 
   // 1. PDF用のクリーンなHTML要素を裏側（メモリ上）で生成する
@@ -3904,7 +3976,7 @@ async function exportPDF() {
                   const customVal = rule.settings[k + '_custom'] || '';
                   displayValue = customVal || '未入力';
               }
-              const isChanged = isItemDiff(rule.settings, standardObj, k, val);
+              const isChanged = applyHighlightOverride(rule, k, isItemDiff(rule.settings, standardObj, k, val));
               const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
               const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
               rowsHtml += `
@@ -3914,14 +3986,15 @@ async function exportPDF() {
                   </tr>`;
               rowIndex++;
           }
-          if (customizable) {
+          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
+          {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
                   if (item.name || item.value) {
                       const itemName = item.name || '(未設定)';
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
                       rowsHtml += `
