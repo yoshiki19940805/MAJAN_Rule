@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.04";
+    const currentVersion = "v5.05";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -528,7 +528,7 @@
             
             <div class="mt-3 flex items-start gap-1.5 text-[11px] text-theme-textMuted px-1">
                 <span class="material-symbols-outlined text-[14px] text-theme-primary">info</span>
-                <p>比較対象のルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。</p>
+                <p>比較対象のルールと異なっている項目は、<span class="text-theme-primary font-semibold">青色でハイライト</span>されます。項目を左にスワイプして「強調」「強調解除」で、比較対象のルールごとに手動で切り替えられます。</p>
             </div>
         </div>
 
@@ -1670,6 +1670,128 @@ function getRule(id) { return appData.rules.find(r => r.id === id); }
 function getOptions(mode) { return mode === '四麻' ? OPTIONS_4 : OPTIONS_3; }
 function getCategories(mode) { return mode === '四麻' ? CATEGORIES_4 : CATEGORIES_3; }
 
+// 項目名。名前を変更した場合は settings.item_labels[key] に保存する
+function itemLabel(settings, key) {
+  return ((settings || {}).item_labels || {})[key] || LABELS[key] || key;
+}
+
+// 比較対象のルールと差分があるか。項目名を変更した項目は、変更前の項目とは別の項目として扱い、
+// 比較対象のルールで同じ名前になっていない限り、値が同じでも常に差分として表示する
+function isItemDiff(settings, base, key, val) {
+  if (!base) return false;
+  if (itemLabel(settings, key) !== itemLabel(base, key)) return true;
+  return !(key in base) || String(val) !== String(base[key] || '');
+}
+
+// 項目の選択肢（「カスタム」を除く）。選択肢を編集・削除した場合は settings['options_' + key] に
+// 一覧ごと保存し、以後はそれを使う。未編集なら初期の選択肢＋追加した選択肢(user_options_)
+function getItemOptions(rule, key) {
+  const saved = rule.settings['options_' + key];
+  if (Array.isArray(saved)) return [...saved];
+  const defaults = (getOptions(rule.mode)[key] || []).filter(o => o !== 'カスタム');
+  const added = rule.settings['user_options_' + key] || [];
+  return [...defaults, ...added.filter(o => !defaults.includes(o))];
+}
+function setItemOptions(rule, key, list) {
+  rule.settings['options_' + key] = list.filter((o, i) => o && list.indexOf(o) === i);
+  delete rule.settings['user_options_' + key];
+}
+
+// 青色ハイライトの手動設定。比較対象のルールごとに
+// rule.settings.highlight_overrides[比較対象のルールID][項目ID] = true(強調)/false(強調しない) として保存する。
+// 項目IDは、既存の項目はキー、追加した項目は 'custom:' + 大項目名 + ':' + 項目名
+function highlightBaseId(rule) { return rule.base_rule || '_none_'; }
+function applyHighlightOverride(rule, itemId, autoDiff) {
+  const o = ((rule.settings.highlight_overrides || {})[highlightBaseId(rule)] || {})[itemId];
+  return typeof o === 'boolean' ? o : !!autoDiff;
+}
+function customItemId(catKey, item) { return 'custom:' + catKey + ':' + (item.name || ''); }
+// 手動設定を除いた、比較対象のルールとの自動の差分判定
+function autoItemDiff(rule, itemId) {
+  const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
+  if (!base) return false;
+  const m = itemId.match(/^custom:(.*?):(.*)$/);
+  if (m) {
+    const item = (rule.settings['custom_' + m[1]] || []).find(x => (x.name || '') === m[2]);
+    const bItem = (base['custom_' + m[1]] || []).find(x => (x.name || '') === m[2]);
+    return !bItem || String((item || {}).value || '') !== String(bItem.value || '');
+  }
+  return isItemDiff(rule.settings, base, itemId, rule.settings[itemId] ?? '');
+}
+// ハイライトのON/OFFを切り替える。自動の判定と同じ状態に戻した場合は手動設定を消す
+function toggleHighlight(itemId) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const auto = autoItemDiff(rule, itemId);
+  const next = !applyHighlightOverride(rule, itemId, auto);
+  const all = { ...(rule.settings.highlight_overrides || {}) };
+  const forBase = { ...(all[highlightBaseId(rule)] || {}) };
+  if (next === auto) delete forBase[itemId]; else forBase[itemId] = next;
+  all[highlightBaseId(rule)] = forBase;
+  rule.settings.highlight_overrides = all;
+  _editDirty = true;
+  saveData();
+  renderEdit();
+}
+function toggleCustomHighlight(catKey, idx) {
+  const rule = getRule(editingId);
+  const item = rule && (rule.settings['custom_' + catKey] || [])[idx];
+  if (item) toggleHighlight(customItemId(catKey, item));
+}
+
+// 大項目名から番号("1. "など)を除いたもの。項目の値・特記事項などはこの名前(catKey)で保存されている
+function catKeyOf(cat) { return cat[0].replace(/^\d+\.\s*/, ''); }
+
+// ルールごとの大項目一覧（追加・削除・並べ替えを反映したもの）を返す。
+//   rule.settings.user_cats    : ユーザーが追加した大項目名の配列（4番目の要素=trueで区別する）
+//   rule.settings.deleted_cats : 削除した既存の大項目名の配列（値は残るので、戻すと元通りになる）
+//   rule.settings.cat_order    : 大項目名の並び順
+// includeDeleted=true のときは削除済みの既存大項目も含めて返す（大項目の編集ポップアップ用）
+// チョンボ/上がり放棄/軽罰符/ノーペナルティの大項目は、値に応じて項目が相互に移動し合うため削除できない
+// （中の項目がなければ表示画面では自動で非表示になる）
+function isUndeletableCategory(cat) {
+  return !cat[3] && PENALTY_MOVE_CATS.some(pc => catKeyOf(cat) === pc);
+}
+
+// 大項目の表示名。名前を変更した場合は rule.settings.cat_names[catKey] に保存する
+// （値・特記事項・並び順などは元の名前(catKey)で保存されたままなので、名前を変えても壊れない）
+function catDisplayName(rule, cat) {
+  const key = catKeyOf(cat);
+  return ((rule.settings || {}).cat_names || {})[key] || key;
+}
+
+// 大項目の名前として使えるかを確認し、使えない場合は理由を表示して null を返す
+function normalizeCategoryName(input) {
+  // 先頭の「1. 」のような番号は表示時に自動で付くため取り除く
+  const name = input.trim().replace(/^\d+\.\s*/, '');
+  if (!name) return null;
+  // 名前はHTML属性やonclick内の文字列に埋め込むため、壊れる原因になる記号は使えないようにする
+  if (/['"`\\<>&]/.test(name)) {
+    alert('大項目の名前に次の記号は使えません:  \' " ` \\ < > &');
+    return null;
+  }
+  return name;
+}
+
+function getRuleCategories(rule, includeDeleted) {
+  const s = rule.settings || {};
+  const deleted = new Set(s.deleted_cats || []);
+  PENALTY_MOVE_CATS.forEach(pc => deleted.delete(pc));
+  let cats = [
+    ...getCategories(rule.mode),
+    ...(s.user_cats || []).map(name => [name, [], false, true]),
+  ];
+  if (!includeDeleted) cats = cats.filter(c => !deleted.has(catKeyOf(c)));
+  const order = s.cat_order;
+  if (Array.isArray(order) && order.length > 0) {
+    const orderIndex = new Map(order.map((k, i) => [k, i]));
+    const known = cats.filter(c => orderIndex.has(catKeyOf(c))).sort((a, b) => orderIndex.get(catKeyOf(a)) - orderIndex.get(catKeyOf(b)));
+    const unknown = cats.filter(c => !orderIndex.has(catKeyOf(c)));
+    cats = [...known, ...unknown];
+  }
+  return cats;
+}
+
 // チョンボ/上がり放棄/軽罰符/ノーペナルティの4大項目に属するキーのうち、
 // 「その項目自体がどの大項目に該当するかを選ぶ」タイプの項目（選択肢が
 // チョンボ/上がり放棄/軽罰符/ノーペナルティそのものだけで構成されている項目）
@@ -2293,7 +2415,7 @@ function renderEdit() {
     brSection.classList.add('hidden');
   }
 
-  const cats = getCategories(rule.mode);
+  const cats = getRuleCategories(rule);
   const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
   const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
 
@@ -2316,10 +2438,19 @@ function renderEdit() {
   }
 
   let catDisplayNum = 0;
+  let prevCatKey = null; // 直前に表示した大項目（大項目の間に置く追加ボタン用）
+  // 大項目と大項目の間（および最後）に置く「大項目を追加」ボタン。押すとその位置に追加される
+  const insertCatButton = (afterKey) => `<div class="flex items-center gap-2 -my-3 px-2">
+        <div class="flex-1 border-t border-dashed border-theme-border"></div>
+        <button class="text-theme-primary text-[12px] font-medium flex items-center gap-0.5 px-2 py-1 rounded-lg active:bg-gray-100 shrink-0" onclick="addCategory('${esc(afterKey)}')">
+            <span class="material-symbols-outlined text-[16px]">add</span>大項目を追加
+        </button>
+        <div class="flex-1 border-t border-dashed border-theme-border"></div>
+    </div>`;
   for (const cat of cats) {
     const catNameLong = cat[0], keys = cat[1], customizable = cat[2] || false;
-    const catName = catNameLong.includes('.') ? catNameLong.split('.')[1].trim() : catNameLong;
-    const catKey = catNameLong.replace(/^\d+\.\s*/, '');
+    const catKey = catKeyOf(cat);
+    const catName = catDisplayName(rule, cat);
 
     // 途中流局が「なし」の場合、途中流局カテゴリをスキップ
     if (catNameLong.includes('途中流局') && (rule.settings['tochu_ryukyoku'] === 'なし')) continue;
@@ -2328,7 +2459,8 @@ function renderEdit() {
 
       let renderKeys = [...keys];
       // ペナルティカテゴリの場合：値に基づいてキーを移動
-      const thisPenaltyCat = PENALTY_CATS.find(pc => catNameLong.includes(pc));
+      // ユーザーが追加した大項目(cat[3])は、名前に「チョンボ」等を含んでもペナルティカテゴリとして扱わない
+      const thisPenaltyCat = !cat[3] && PENALTY_CATS.find(pc => catNameLong.includes(pc));
       if (thisPenaltyCat) {
         // このカテゴリに元々属さない但し値がこのカテゴリ名のキーを追加
         for (const pk of penaltyKeys) {
@@ -2359,13 +2491,13 @@ function renderEdit() {
       for (const k of renderKeys) {
         if (deletedKeys.has(k)) continue;
         const val = rule.settings[k] ?? '';
-        const isDiff = base && (!(k in base) || val !== String(base[k] || ""));
+        const isDiff = applyHighlightOverride(rule, k, isItemDiff(rule.settings, base, k, val));
 
         if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
           if (rule.settings[parentKey] === 'カスタム') {
             itemHtmls.push(`<div class="bg-theme-highlightBg p-3 rounded-lg mt-2 mb-2 flex flex-col gap-1 mx-4">
-              <label class="text-[11px] font-bold text-theme-primary">📝 ${esc(LABELS[k] || k)}</label>
+              <label class="text-[11px] font-bold text-theme-primary">📝 ${esc(itemLabel(rule.settings, k))}</label>
               <input type="text" data-key="${k}" value="${esc(val)}" oninput="onSettingChange('${k}',this.value)" placeholder="自由入力..." class="w-full bg-theme-surface border border-theme-primary/30 rounded px-2 py-1 text-sm outline-none" ${isReadonlyView ? 'disabled' : ''}>
             </div>`);
           }
@@ -2374,11 +2506,7 @@ function renderEdit() {
 
 
 
-        let options = opts[k] || [val];
-        const userOptions = rule.settings['user_options_' + k] || [];
-        if (userOptions.length > 0) {
-          options = [...options.filter(o => o !== 'カスタム'), ...userOptions, ...(options.includes('カスタム') ? ['カスタム'] : [])];
-        }
+        let options = getItemOptions(rule, k);
         if (val && !options.includes(val)) options = [val, ...options];
 
         // 表示画面では空欄（未設定）の項目を非表示にする
@@ -2408,6 +2536,9 @@ function renderEdit() {
                 ${canReorder ? `onpointerdown="handleReorderPointerDown(event, '${k}', '${esc(catKey)}')"` : ''}>
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
+                    <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleHighlight('${k}')">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">${isDiff ? 'format_color_reset' : 'ink_highlighter'}</span>${isDiff ? '強調解除' : '強調'}
+                    </button>
                     <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="showEditOptionsDialog('${k}')">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
                     </button>
@@ -2420,7 +2551,7 @@ function renderEdit() {
                 <div class="swipe-content" ${!isReadonlyView ? 'onpointerdown="handleTouchStart(event)" onpointermove="handleTouchMove(event)" onpointerup="handleTouchEnd(event)" onpointercancel="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0">
-                            <span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(LABELS[k] || k)}</span>
+                            <span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(itemLabel(rule.settings, k))}</span>
                         </span>
                         
                         <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full" ${!isReadonlyView ? `onclick="openValueSelect(event, this)"` : ''}>
@@ -2457,7 +2588,7 @@ function renderEdit() {
         const itemName = customItems[i].name || ('項目'+(i+1));
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
-        const isDiff = base && (!bItem || cVal !== String(bItem.value || ""));
+        const isDiff = applyHighlightOverride(rule, customItemId(catKey, customItems[i]), base && (!bItem || cVal !== String(bItem.value || "")));
         
         let cValSizeClass = "text-[15px]";
         if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
@@ -2467,6 +2598,9 @@ function renderEdit() {
             <div class="swipe-item ${isDiff ? 'is-changed' : ''}">
                 ${!isReadonlyView ? `
                 <div class="swipe-actions">
+                    <button class="bg-theme-primary text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="toggleCustomHighlight('${esc(catKey)}',${i})">
+                        <span class="material-symbols-outlined text-[20px] mb-0.5">${isDiff ? 'format_color_reset' : 'ink_highlighter'}</span>${isDiff ? '強調解除' : '強調'}
+                    </button>
                     <button class="bg-gray-400 text-white w-[60px] font-medium flex flex-col items-center justify-center text-[10px]" onclick="editCustomPenaltyName('${esc(catKey)}',${i})">
                         <span class="material-symbols-outlined text-[20px] mb-0.5">edit</span>編集
                     </button>
@@ -2523,7 +2657,7 @@ function renderEdit() {
                     <div class="memo-header flex items-center justify-between gap-1.5 mb-2 ${isMemoDiff ? 'text-theme-primary' : 'text-theme-textMuted'}">
                         <div class="flex items-center gap-1.5 min-w-0">
                             <span class="material-symbols-outlined text-[16px] shrink-0">edit_note</span>
-                            <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide truncate">${catName} の特記事項</span>
+                            <span class="memo-label text-[12px] ${isMemoDiff ? 'font-semibold' : 'font-medium'} tracking-wide truncate">${esc(catName)} の特記事項</span>
                         </div>
                         ${!isReadonlyView ? `
                         <div class="flex items-center gap-1.5 shrink-0">
@@ -2552,16 +2686,324 @@ function renderEdit() {
 
     // 通し番号を動的に付与（元の番号を除去してから再付番）
     catDisplayNum++;
-    const catNameWithoutNum = catNameLong.replace(/^\d+\.\s*/, '');
-    const displayCatName = `${catDisplayNum}. ${catNameWithoutNum}`;
+    const displayCatName = `${catDisplayNum}. ${catName}`;
+    if (!isReadonlyView && prevCatKey !== null) html += insertCatButton(prevCatKey);
+    prevCatKey = catKey;
 
     html += `<div class="flex flex-col w-full">
         <h2 class="text-[13px] font-semibold text-theme-textMuted tracking-wider ml-4 mb-1.5">${esc(displayCatName)}</h2>
         ${catDivContent.join('')}
     </div>`;
   }
-  
+
+  // 編集画面では、最後の大項目の後ろにも追加ボタンを置き、
+  // 先頭に大項目の追加・削除・並べ替えを行うポップアップを開くボタンを置く
+  if (!isReadonlyView) {
+    if (prevCatKey !== null) html += insertCatButton(prevCatKey);
+    html = `<div class="flex justify-end -mb-3">
+        <button class="text-theme-primary text-[14px] font-medium flex items-center gap-1 px-2 py-1 rounded-lg active:bg-gray-100" onclick="openCategoryManager()">
+            <span class="material-symbols-outlined text-[18px]">reorder</span>大項目の編集
+        </button>
+    </div>` + html;
+  }
+
   fields.innerHTML = html;
+}
+
+// =====================================================================
+// 大項目の追加・削除・並べ替え（大項目だけを並べたポップアップ）
+// =====================================================================
+function openCategoryManager() {
+  closeCategoryManager();
+  const overlay = document.createElement('div');
+  overlay.id = 'cat-manager-overlay';
+  overlay.className = 'fixed inset-0 bg-black/40 z-[80] flex items-end sm:items-center justify-center';
+  overlay.innerHTML = `
+    <div class="bg-theme-bg w-full max-w-[40rem] sm:max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-xl">
+        <div class="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+            <div>
+                <h3 class="font-bold text-[17px] text-theme-text">大項目の編集</h3>
+                <p class="text-[11px] text-theme-textMuted mt-0.5">長押し＋ドラッグで並べ替え、<span class="material-symbols-outlined text-[13px] align-[-2px]">edit</span> で名前を変更できます</p>
+                <p class="text-[11px] text-theme-textMuted"><span class="material-symbols-outlined text-[13px] align-[-2px]">lock</span> の大項目は削除・名前の変更ができません</p>
+            </div>
+            <button class="text-theme-primary font-semibold text-[16px] px-2 py-1 shrink-0 whitespace-nowrap" onclick="closeCategoryManager()">完了</button>
+        </div>
+        <div id="cat-manager-body" class="overflow-y-auto px-4 pb-8 flex-1"></div>
+    </div>`;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCategoryManager(); });
+  document.body.appendChild(overlay);
+  renderCategoryManager();
+}
+
+function closeCategoryManager() {
+  const overlay = document.getElementById('cat-manager-overlay');
+  if (!overlay) return;
+  overlay.remove();
+  renderEdit();
+}
+
+function renderCategoryManager() {
+  const body = document.getElementById('cat-manager-body');
+  const rule = getRule(editingId);
+  if (!body || !rule) return;
+  // 削除できない大項目は、以前のバージョンで削除されていても常に表示中として扱う
+  const deleted = new Set((rule.settings.deleted_cats || []).filter(k => !PENALTY_MOVE_CATS.includes(k)));
+  const all = getRuleCategories(rule, true);
+  const active = all.filter(c => !deleted.has(catKeyOf(c)));
+  const removed = all.filter(c => deleted.has(catKeyOf(c)));
+
+  let html = `<div id="cat-manager-list" class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 overflow-hidden">`;
+  active.forEach((c, i) => {
+    const key = catKeyOf(c);
+    html += `<div class="cat-manager-row reorder-handle-area flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 bg-theme-surface" data-cat-key="${esc(key)}" onpointerdown="handleCategoryPointerDown(event)">
+        ${isUndeletableCategory(c) ? `
+        <span class="flex items-center shrink-0 text-theme-textMuted opacity-40" title="この大項目は削除できません">
+            <span class="material-symbols-outlined text-[22px]">lock</span>
+        </span>` : `
+        <button class="text-theme-danger flex items-center shrink-0" onclick="deleteCategory('${esc(key)}')" aria-label="削除">
+            <span class="material-symbols-outlined text-[22px]">remove_circle</span>
+        </button>`}
+        <span class="text-[13px] text-theme-textMuted w-6 text-right shrink-0">${i + 1}.</span>
+        <span class="flex-1 text-[15px] text-theme-text min-w-0 break-words">${esc(catDisplayName(rule, c))}</span>
+        ${c[3] ? '<span class="text-[10px] text-theme-primary border border-theme-primary/40 rounded px-1.5 py-0.5 shrink-0">追加</span>' : ''}
+        ${isUndeletableCategory(c) ? '' : `
+        <button class="text-theme-textMuted flex items-center shrink-0 px-1" onclick="renameCategory('${esc(key)}')" aria-label="名前を変更">
+            <span class="material-symbols-outlined text-[20px]">edit</span>
+        </button>`}
+    </div>`;
+  });
+  html += `<button class="w-full text-left px-4 py-3.5 text-[15px] text-theme-primary font-medium active:bg-gray-50 flex items-center gap-1" onclick="addCategory()">
+        <span class="material-symbols-outlined text-[20px]">add_circle</span>大項目を追加
+    </button></div>`;
+
+  if (removed.length > 0) {
+    html += `<h4 class="text-[13px] font-semibold text-theme-textMuted ml-4 mt-6 mb-1.5">削除した大項目</h4>
+      <div class="bg-theme-surface rounded-xl shadow-sm border border-theme-border/30 overflow-hidden">`;
+    removed.forEach(c => {
+      const key = catKeyOf(c);
+      html += `<div class="flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 last:border-b-0">
+          <span class="flex-1 text-[15px] text-theme-textMuted min-w-0 break-words">${esc(catDisplayName(rule, c))}</span>
+          <button class="text-theme-primary text-[14px] font-medium flex items-center gap-0.5 shrink-0" onclick="restoreCategory('${esc(key)}')">
+              <span class="material-symbols-outlined text-[18px]">undo</span>元に戻す
+          </button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  body.innerHTML = html;
+}
+
+// 大項目の変更を保存し、ポップアップを描き直す
+function commitCategoryChange() {
+  _editDirty = true;
+  if (!isSharedMode) saveData();
+  // ポップアップが開いていればポップアップを、編集画面から直接操作した場合は編集画面を描き直す
+  if (document.getElementById('cat-manager-overlay')) renderCategoryManager();
+  else renderEdit();
+}
+
+// afterKey を指定すると、その大項目のすぐ後ろに追加する（省略時は最後に追加）
+function addCategory(afterKey) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const input = prompt('追加する大項目の名前を入力してください:');
+  if (input === null) return;
+  const name = normalizeCategoryName(input);
+  if (!name) return;
+  const all = getRuleCategories(rule, true);
+  const same = all.find(c => catDisplayName(rule, c) === name);
+  if (same) {
+    const sameKey = catKeyOf(same);
+    if ((rule.settings.deleted_cats || []).includes(sameKey)) {
+      restoreCategory(sameKey);
+      showSnack('削除していた「' + name + '」を元に戻しました');
+    } else {
+      alert('「' + name + '」はすでにあります。別の名前を入力してください。');
+    }
+    return;
+  }
+  // 名前を変更した既存の大項目の元の名前と重なる場合は、内部の名前(catKey)だけ別のものにする
+  const keys = all.map(catKeyOf);
+  let key = name, n = 2;
+  while (keys.includes(key)) key = name + '#' + (n++);
+  rule.settings.user_cats = [...(rule.settings.user_cats || []), key];
+  if (key !== name) rule.settings.cat_names = { ...(rule.settings.cat_names || {}), [key]: name };
+  if (afterKey) {
+    // 今の並び順（削除済みも含む）の afterKey の直後に入れて、並び順として保存する
+    const order = getRuleCategories(rule, true).map(catKeyOf).filter(k => k !== key);
+    const at = order.indexOf(afterKey);
+    order.splice(at === -1 ? order.length : at + 1, 0, key);
+    rule.settings.cat_order = order;
+  }
+  commitCategoryChange();
+  if (afterKey && !document.getElementById('cat-manager-overlay')) {
+    // 追加した大項目が見えるようにスクロールする
+    const memo = document.querySelector(`[data-memo-key="${key}"]`);
+    if (memo) memo.closest('.flex.flex-col.w-full').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function renameCategory(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const all = getRuleCategories(rule, true);
+  const cat = all.find(c => catKeyOf(c) === key);
+  if (!cat || isUndeletableCategory(cat)) return;
+  const current = catDisplayName(rule, cat);
+  const input = prompt('「' + current + '」の新しい名前を入力してください:' + (cat[3] ? '' : '\n（空欄にすると元の名前「' + key + '」に戻ります）'), current);
+  if (input === null) return;
+  let name;
+  if (input.trim() === '') {
+    if (cat[3]) return;
+    name = key;
+  } else {
+    name = normalizeCategoryName(input);
+    if (!name) return;
+  }
+  if (name === current) return;
+  if (all.some(c => c !== cat && catDisplayName(rule, c) === name)) {
+    alert('「' + name + '」はすでにあります。別の名前を入力してください。');
+    return;
+  }
+  const names = { ...(rule.settings.cat_names || {}) };
+  if (name === key) delete names[key]; else names[key] = name;
+  rule.settings.cat_names = names;
+  commitCategoryChange();
+}
+
+function deleteCategory(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const cat = getRuleCategories(rule, true).find(c => catKeyOf(c) === key);
+  if (!cat || isUndeletableCategory(cat)) return;
+  const isUserCat = (rule.settings.user_cats || []).includes(key);
+  if (isUserCat) {
+    const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
+    if (hasContent && !confirm('「' + catDisplayName(rule, cat) + '」を削除しますか？\n中の項目と特記事項も削除されます。')) return;
+    rule.settings.user_cats = rule.settings.user_cats.filter(k => k !== key);
+    delete rule.settings['custom_' + key];
+    delete rule.settings['memo_' + key];
+    delete rule.settings['item_order_' + key];
+    if (rule.settings.cat_names) delete rule.settings.cat_names[key];
+    if (Array.isArray(rule.settings.cat_order)) rule.settings.cat_order = rule.settings.cat_order.filter(k => k !== key);
+  } else {
+    // 既存の大項目は設定値を残したまま非表示にし、「削除した大項目」からいつでも戻せるようにする
+    rule.settings.deleted_cats = [...new Set([...(rule.settings.deleted_cats || []), key])];
+  }
+  commitCategoryChange();
+}
+
+function restoreCategory(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  rule.settings.deleted_cats = (rule.settings.deleted_cats || []).filter(k => k !== key);
+  commitCategoryChange();
+}
+
+// --- 大項目のドラッグ並べ替え（小項目と同じく、行を長押ししてからドラッグする） ---
+let _catPress = null; // 長押し判定中の状態
+let _catDrag = null;  // 実際にドラッグ中の状態
+function handleCategoryPointerDown(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  // 削除ボタンの上では並べ替えを開始しない
+  if (e.target.closest('button')) return;
+  if (_catPress || _catDrag) return;
+  const row = e.currentTarget;
+  const pointerId = e.pointerId;
+  const startX = e.clientX, startY = e.clientY;
+  const timer = setTimeout(() => {
+    _catPress = null;
+    startCategoryDrag(row, pointerId, startY);
+  }, 450);
+  _catPress = { timer, row, pointerId, startX, startY };
+  row.addEventListener('pointermove', onCategoryDragMove);
+  row.addEventListener('pointerup', onCategoryDragEnd);
+  row.addEventListener('pointercancel', onCategoryDragEnd);
+}
+
+function startCategoryDrag(row, pointerId, startY) {
+  try { row.setPointerCapture(pointerId); } catch(err) {}
+  try { if (navigator.vibrate) navigator.vibrate(15); } catch(err) {}
+  try { const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges(); } catch(err) {}
+  const list = document.getElementById('cat-manager-list');
+  const rows = Array.from(list.querySelectorAll('.cat-manager-row'));
+  const rects = rows.map(r => r.getBoundingClientRect());
+  const index = rows.indexOf(row);
+  if (index === -1) return;
+  _catDrag = { row, rows, rects, index, target: index, startY, pointerId };
+  row.style.position = 'relative';
+  row.style.zIndex = '30';
+  row.style.boxShadow = '0 8px 20px rgba(0,0,0,0.18)';
+  row.style.cursor = 'grabbing';
+  rows.forEach(r => { if (r !== row) r.style.transition = 'transform 0.2s ease'; });
+}
+
+function onCategoryDragMove(e) {
+  // 長押し判定前に一定以上動いたら、通常のスクロール操作として並べ替えを諦める
+  if (_catPress) {
+    if (e.pointerId !== _catPress.pointerId) return;
+    if (Math.abs(e.clientX - _catPress.startX) > 10 || Math.abs(e.clientY - _catPress.startY) > 10) onCategoryDragEnd(e);
+    return;
+  }
+  const d = _catDrag;
+  if (!d || e.pointerId !== d.pointerId) return;
+  if (e.cancelable) e.preventDefault();
+  const r0 = d.rects[d.index];
+  // 一覧の外まで引っ張っても見えなくならないよう、先頭〜末尾の範囲内に留める
+  const minDelta = d.rects[0].top - r0.top;
+  const maxDelta = d.rects[d.rects.length - 1].top - r0.top;
+  const deltaY = Math.min(maxDelta, Math.max(minDelta, e.clientY - d.startY));
+  d.row.style.transform = `translateY(${deltaY}px)`;
+  const centerY = r0.top + r0.height / 2 + deltaY;
+  // ドラッグ中の大項目の中心が、ほかの大項目の中心に届いたら追い越したとみなして移動先を決める
+  // （一覧の範囲内に留めているため、先頭・最後の行の中心ちょうどでも先頭・最後に入れるよう、
+  //   上へ動かすときは上の行、下へ動かすときは下の行について「届いたか」で判定する）
+  let target = d.index;
+  d.rects.forEach((r, i) => {
+    const c = r.top + r.height / 2;
+    if (i < d.index && centerY <= c) target--;
+    if (i > d.index && centerY >= c) target++;
+  });
+  d.target = target;
+  // 追い越された大項目を実際にずらして、移動先が分かるようにする
+  d.rows.forEach((r, i) => {
+    if (i === d.index) return;
+    let shift = 0;
+    if (target > d.index && i > d.index && i <= target) shift = -r0.height;
+    else if (target < d.index && i >= target && i < d.index) shift = r0.height;
+    r.style.transform = shift ? `translateY(${shift}px)` : '';
+  });
+}
+
+function removeCategoryDragListeners(row) {
+  row.removeEventListener('pointermove', onCategoryDragMove);
+  row.removeEventListener('pointerup', onCategoryDragEnd);
+  row.removeEventListener('pointercancel', onCategoryDragEnd);
+}
+
+function onCategoryDragEnd(e) {
+  if (_catPress) {
+    clearTimeout(_catPress.timer);
+    removeCategoryDragListeners(_catPress.row);
+    _catPress = null;
+    return;
+  }
+  const d = _catDrag;
+  if (!d) return;
+  _catDrag = null;
+  removeCategoryDragListeners(d.row);
+  try { d.row.releasePointerCapture(d.pointerId); } catch(err) {}
+  const rule = getRule(editingId);
+  if (!rule || d.target === d.index) { renderCategoryManager(); return; }
+  const keys = d.rows.map(r => r.dataset.catKey);
+  const [moved] = keys.splice(d.index, 1);
+  keys.splice(d.target, 0, moved);
+  // 削除済みの大項目は今の位置のまま残し、表示中の大項目の枠だけを新しい順に入れ替えて保存する
+  // （戻したときに元の位置に表示されるように）
+  let j = 0;
+  rule.settings.cat_order = getRuleCategories(rule, true).map(catKeyOf)
+    .map(k => keys.includes(k) ? keys[j++] : k);
+  commitCategoryChange();
 }
 
 function onNameChange(val) {
@@ -2642,7 +3084,7 @@ function onSettingChange(key, val) {
     // 新UIでは swipe-item クラスを持った親要素に is-changed クラスを付与する
     const swipeRow = document.querySelector(`[data-id="${key}"]`);
     if (swipeRow) {
-      const isDiff = (!(key in base) || val !== String(base[key] || ""));
+      const isDiff = applyHighlightOverride(rule, key, isItemDiff(rule.settings, base, key, val));
       swipeRow.classList.toggle('is-changed', isDiff);
       
       const valSpan = swipeRow.querySelector('.display-value-span');
@@ -2741,7 +3183,7 @@ function onCustomPenaltySelect(catKey, idx, val) {
 let _swipeStartX = 0, _swipeStartY = 0, _swipeCurrentX = 0, _activeSwipe = null;
 let _swipeMoved = false;
 let _swipePointerId = null;
-const SWIPE_WIDTH = -120; 
+const SWIPE_WIDTH = -180; // 強調・編集・削除の3ボタン分
 
 function handleTouchStart(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return; // マウスは左クリックのみ
@@ -2812,7 +3254,7 @@ let _lastReorderEndAt = 0; // 直後の誤クリック(選択肢の意図しな�
 // しまった場合にselectionchangeで検知して即座に選択解除する方式にしている
 // （カスタム入力欄・input/textareaは対象外とし、通常通り選択・コピーできる）
 document.addEventListener('selectstart', function(e) {
-  if (e.target && e.target.closest && e.target.closest('.swipe-item') && !e.target.closest('.custom-input-area')) {
+  if (e.target && e.target.closest && (e.target.closest('.swipe-item') || e.target.closest('.cat-manager-row')) && !e.target.closest('.custom-input-area')) {
     e.preventDefault();
   }
 });
@@ -2821,7 +3263,7 @@ document.addEventListener('selectionchange', function() {
   if (!sel || sel.isCollapsed || !sel.anchorNode) return;
   const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
   if (!anchorEl || !anchorEl.closest) return;
-  if (anchorEl.closest('.swipe-item') && !anchorEl.closest('.custom-input-area') && !anchorEl.closest('input, textarea')) {
+  if ((anchorEl.closest('.swipe-item') || anchorEl.closest('.cat-manager-row')) && !anchorEl.closest('.custom-input-area') && !anchorEl.closest('input, textarea')) {
     sel.removeAllRanges();
   }
 });
@@ -2995,6 +3437,9 @@ function removeSettingKey(key) {
   if (rule.settings[key + '_custom'] !== undefined) delete rule.settings[key + '_custom'];
   // user_optionsも削除
   if (rule.settings['user_options_' + key]) delete rule.settings['user_options_' + key];
+  delete rule.settings['options_' + key];
+  // 変更した項目名も削除
+  if (rule.settings.item_labels) delete rule.settings.item_labels[key];
   saveData();
   renderEdit();
 }
@@ -3078,16 +3523,12 @@ function updateUserItem(catKey, idx, field, val) {
 
 // --- カスタムドロップダウン選択肢追加 ---
 function showAddOptionDialog(key) {
-  const label = LABELS[key] || key;
+  const label = itemLabel((getRule(editingId) || {}).settings, key);
   const val = prompt('"' + label + '"の値を入力してください:');
   if (!val || !val.trim()) return;
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k]) rule.settings[k] = [];
-  if (!rule.settings[k].includes(val.trim())) {
-    rule.settings[k].push(val.trim());
-  }
+  addItemOption(rule, key, val.trim());
   rule.settings[key] = val.trim();
   saveData();
   renderEdit();
@@ -3097,42 +3538,46 @@ function showAddOptionDialog(key) {
 function showEditOptionsDialog(key) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const label = LABELS[key] || key;
-  const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-  const defaultOpts = opts[key] || [];
-  const userOpts = rule.settings['user_options_' + key] || [];
+  const label = itemLabel(rule.settings, key);
+  const itemOpts = getItemOptions(rule, key);
+  const isCustomized = Array.isArray(rule.settings['options_' + key]);
 
-  // モーダル要素を作成
+  // モーダル要素を作成（開いていれば作り直す）
+  closeEditOptionsDialog();
   const overlay = document.createElement('div');
   overlay.id = 'edit-options-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
   let html = `<div style="background:#fff;border-radius:12px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto;padding:20px;">
-    <h3 style="margin:0 0 16px;font-size:1rem;">📝 ${esc(label)} の選択肢を編集</h3>
-    <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ デフォルト項目は編集できません</div>`;
+    <h3 style="margin:0 0 12px;font-size:1rem;">📝 ${esc(label)} を編集</h3>
+    <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">項目名</div>
+    <div style="display:flex;gap:8px;margin-bottom:4px;">
+      <input type="text" id="item-label-input" value="${esc(label)}" placeholder="${esc(LABELS[key] || key)}" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
+      <button onclick="renameItemFromDialog('${esc(key)}')" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">変更</button>
+    </div>
+    <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(LABELS[key] || key)}」に戻ります。</div>
+    <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">選択肢</div>
+    <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ 内容を書き換えて「保存」、「削除」で選択肢から外せます</div>`;
 
-  // デフォルト選択肢（編集不可）
-  for (const o of defaultOpts) {
-    if (o === 'カスタム') continue;
-    html += `<div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #eee;">
-      <span style="flex:1;font-size:0.85rem;color:#666;">${esc(o)}</span>
-      <span style="font-size:0.7rem;color:#aaa;">デフォルト</span>
+  // 選択肢（初期の選択肢も含め、すべて編集・削除可能）
+  for (let i = 0; i < itemOpts.length; i++) {
+    html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #eee;gap:8px;">
+      <input type="text" value="${esc(itemOpts[i])}" style="flex:1;min-width:0;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
+      <button onclick="removeOptionAt('${esc(key)}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
     </div>`;
   }
-
-  // ユーザー追加選択肢（編集・削除可能）
-  for (let i = 0; i < userOpts.length; i++) {
-    html += `<div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid #eee;gap:8px;">
-      <input type="text" value="${esc(userOpts[i])}" data-user-opt-idx="${i}" style="flex:1;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-      <button onclick="editUserOption('${esc(key)}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
-      <button onclick="removeUserOptionAndClose('${esc(key)}','${esc(userOpts[i])}')" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
-    </div>`;
+  if (itemOpts.length === 0) {
+    html += `<div style="font-size:0.8rem;color:#aaa;padding:8px 0;">選択肢はありません</div>`;
   }
 
   // カスタム（追加ボタン）
   html += `<div style="margin-top:12px;">
     <button onclick="addOptionFromDialog('${esc(key)}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
   </div>
+  ${isCustomized ? `<div style="margin-top:12px;">
+    <button onclick="resetItemOptions('${esc(key)}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
+  </div>` : ''}
   <div style="margin-top:12px;">
     <button onclick="closeEditOptionsDialog()" style="width:100%;padding:10px;background:#eee;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">閉じる</button>
   </div>
@@ -3143,6 +3588,21 @@ function showEditOptionsDialog(key) {
   document.body.appendChild(overlay);
 }
 
+// 項目名の変更（rule.settings.item_labels[key] に保存。空欄なら元の名前に戻す）
+function renameItemFromDialog(key) {
+  const rule = getRule(editingId);
+  const input = document.getElementById('item-label-input');
+  if (!rule || !input) return;
+  const name = input.value.trim();
+  const labels = { ...(rule.settings.item_labels || {}) };
+  if (!name || name === (LABELS[key] || key)) delete labels[key]; else labels[key] = name;
+  rule.settings.item_labels = labels;
+  _editDirty = true;
+  saveData();
+  closeEditOptionsDialog();
+  renderEdit();
+}
+
 function closeEditOptionsDialog() {
   const overlay = document.getElementById('edit-options-overlay');
   if (overlay) overlay.remove();
@@ -3151,52 +3611,71 @@ function closeEditOptionsDialog() {
 function editUserOption(key, idx, btn) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k] || !rule.settings[k][idx]) return;
-  const input = btn.parentElement.querySelector('input');
-  const newVal = input.value.trim();
+  const list = getItemOptions(rule, key);
+  if (idx >= list.length) return;
+  const newVal = btn.parentElement.querySelector('input').value.trim();
   if (!newVal) return;
-  const oldVal = rule.settings[k][idx];
-  rule.settings[k][idx] = newVal;
+  const oldVal = list[idx];
+  if (newVal !== oldVal && list.includes(newVal)) { alert('「' + newVal + '」はすでにあります。'); return; }
+  list[idx] = newVal;
+  setItemOptions(rule, key, list);
   // 現在選択中の値も更新
-  if (rule.settings[key] === oldVal) {
-    rule.settings[key] = newVal;
-  }
+  if (rule.settings[key] === oldVal) rule.settings[key] = newVal;
+  _editDirty = true;
   saveData();
-  closeEditOptionsDialog();
   renderEdit();
+  showEditOptionsDialog(key);
 }
 
-function removeUserOptionAndClose(key, optVal) {
+function removeOptionAt(key, idx) {
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k]) return;
-  rule.settings[k] = rule.settings[k].filter(o => o !== optVal);
-  if (rule.settings[key] === optVal) {
-    const opts = rule.mode === '四麻' ? OPTIONS_4 : OPTIONS_3;
-    rule.settings[key] = (opts[key] || [''])[0];
-  }
+  const list = getItemOptions(rule, key);
+  if (idx >= list.length) return;
+  const [removed] = list.splice(idx, 1);
+  setItemOptions(rule, key, list);
+  // 現在選択中の値が削除された場合は、残っている先頭の選択肢（なければ非表示）にする
+  if (rule.settings[key] === removed) rule.settings[key] = list[0] || '';
+  _editDirty = true;
   saveData();
-  closeEditOptionsDialog();
   renderEdit();
+  showEditOptionsDialog(key);
+}
+
+function resetItemOptions(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  delete rule.settings['options_' + key];
+  delete rule.settings['user_options_' + key];
+  _editDirty = true;
+  saveData();
+  renderEdit();
+  showEditOptionsDialog(key);
 }
 
 function addOptionFromDialog(key) {
-  const label = LABELS[key] || key;
+  const label = itemLabel((getRule(editingId) || {}).settings, key);
   const val = prompt('"' + label + '"に追加する値を入力:');
   if (!val || !val.trim()) return;
   const rule = getRule(editingId);
   if (!rule) return;
-  const k = 'user_options_' + key;
-  if (!rule.settings[k]) rule.settings[k] = [];
-  if (!rule.settings[k].includes(val.trim())) {
-    rule.settings[k].push(val.trim());
-  }
+  addItemOption(rule, key, val.trim());
   rule.settings[key] = val.trim();
+  _editDirty = true;
   saveData();
-  closeEditOptionsDialog();
   renderEdit();
+  showEditOptionsDialog(key);
+}
+
+// 選択肢を追加する（選択肢を編集済みなら編集後の一覧に、未編集なら追加分(user_options_)に足す）
+function addItemOption(rule, key, val) {
+  if (Array.isArray(rule.settings['options_' + key])) {
+    setItemOptions(rule, key, [...rule.settings['options_' + key], val]);
+  } else {
+    const k = 'user_options_' + key;
+    if (!rule.settings[k]) rule.settings[k] = [];
+    if (!rule.settings[k].includes(val)) rule.settings[k].push(val);
+  }
 }
 
 function removeUserOption(key, optVal) {
@@ -3227,8 +3706,8 @@ async function exportImage() {
   showSnack('画像を生成しています...');
 
   const ruleName = rule.name || '麻雀ルール';
-  const baseRules = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  const standardObj = baseRules[rule.base_rule] || null;
+  // 比較対象のルールは、編集画面と同じく初期プリセット・自分のルールの両方から探す（IDで保存されているため）
+  const standardObj = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
 
   // 1. 画像用のクリーンなHTML要素をメモリ上で生成
   const container = document.createElement('div');
@@ -3246,8 +3725,8 @@ async function exportImage() {
       </div>
   `;
 
-  // カテゴリデータの生成
-  const appCats = getCategories(rule.mode);
+  // カテゴリデータの生成（ルールごとの大項目の追加・削除・並べ替えを反映）
+  const appCats = getRuleCategories(rule);
 
   // ペナルティ移動ロジック（画像出力用）
   const IMG_PENALTY_CATS = PENALTY_MOVE_CATS;
@@ -3271,7 +3750,7 @@ async function exportImage() {
 
       // ペナルティカテゴリのキー移動
       let keys = [...origKeys];
-      const imgThisPenaltyCat = IMG_PENALTY_CATS.find(pc => catName.includes(pc));
+      const imgThisPenaltyCat = !cat[3] && IMG_PENALTY_CATS.find(pc => catName.includes(pc));
       if (imgThisPenaltyCat) {
         for (const pk of imgPenaltyKeys) {
           if (!keys.includes(pk) && imgPenaltyKeyTargetCat[pk] === imgThisPenaltyCat) keys.push(pk);
@@ -3304,25 +3783,25 @@ async function exportImage() {
                   const customVal = rule.settings[k + '_custom'] || '';
                   displayValue = customVal || '未入力';
               }
-              const stdVal = standardObj ? String(standardObj[k] || "") : "";
-              const isChanged = standardObj && (!(k in standardObj) || String(val) !== stdVal);
+              const isChanged = applyHighlightOverride(rule, k, isItemDiff(rule.settings, standardObj, k, val));
               const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
               const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
               rowsHtml += `
                   <tr style="background-color: ${bgColor};">
-                      <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(LABELS[k]||k)}</td>
+                      <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.5;">${esc(itemLabel(rule.settings, k))}</td>
                       <td style="padding: 12px 16px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.5;">${esc(displayValue)}</td>
                   </tr>`;
               rowIndex++;
           }
-          if (customizable) {
+          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
+          {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
                   if (item.name || item.value) {
                       const itemName = item.name || '(未設定)';
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
                       rowsHtml += `
@@ -3358,7 +3837,7 @@ async function exportImage() {
       if (rowIndex === 0 && (!catMemo || catMemo.trim() === '')) continue;
 
       imgCatNum++;
-      const displayCatName = `${imgCatNum}. ${catKey}`;
+      const displayCatName = `${imgCatNum}. ${catDisplayName(rule, cat)}`;
       html += `<div style="margin-bottom: 32px;">`;
       html += `<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 10px 0; background-color: #e5e5ea; padding: 10px 16px; border-radius: 6px; color: #1c1c1e;">${esc(displayCatName)}</h2>`;
       if (rowIndex > 0) {
@@ -3427,8 +3906,8 @@ async function exportPDF() {
   if (!rule) { showSnack('ルールが選択されていません'); return; }
 
   const ruleName = rule.name || '麻雀ルール';
-  const baseRules = rule.mode === '四麻' ? BASE_RULES_4 : BASE_RULES_3;
-  const standardObj = baseRules[rule.base_rule] || null;
+  // 比較対象のルールは、編集画面と同じく初期プリセット・自分のルールの両方から探す（IDで保存されているため）
+  const standardObj = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
   const standardRule = standardObj ? rule.base_rule : (rule.mode === '四麻' ? '四人麻雀ルール' : '三人麻雀ルール');
 
   // 1. PDF用のクリーンなHTML要素を裏側（メモリ上）で生成する
@@ -3443,8 +3922,8 @@ async function exportPDF() {
       </div>
   `;
 
-  // カテゴリデータの生成
-  const appCats = getCategories(rule.mode);
+  // カテゴリデータの生成（ルールごとの大項目の追加・削除・並べ替えを反映）
+  const appCats = getRuleCategories(rule);
 
   // ペナルティ移動ロジック（PDF出力用）
   const PDF_PENALTY_CATS = PENALTY_MOVE_CATS;
@@ -3468,7 +3947,7 @@ async function exportPDF() {
 
       // ペナルティカテゴリのキー移動
       let keys = [...origKeys];
-      const pdfThisPenaltyCat = PDF_PENALTY_CATS.find(pc => catName.includes(pc));
+      const pdfThisPenaltyCat = !cat[3] && PDF_PENALTY_CATS.find(pc => catName.includes(pc));
       if (pdfThisPenaltyCat) {
         for (const pk of pdfPenaltyKeys) {
           if (!keys.includes(pk) && pdfPenaltyKeyTargetCat[pk] === pdfThisPenaltyCat) keys.push(pk);
@@ -3501,25 +3980,25 @@ async function exportPDF() {
                   const customVal = rule.settings[k + '_custom'] || '';
                   displayValue = customVal || '未入力';
               }
-              const stdVal = standardObj ? String(standardObj[k] || "") : "";
-              const isChanged = standardObj && (!(k in standardObj) || String(val) !== stdVal);
+              const isChanged = applyHighlightOverride(rule, k, isItemDiff(rule.settings, standardObj, k, val));
               const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
               const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
               rowsHtml += `
                   <tr style="background-color: ${bgColor};">
-                      <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(LABELS[k]||k)}</td>
+                      <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 40%; color: #555; line-height: 1.4;">${esc(itemLabel(rule.settings, k))}</td>
                       <td style="padding: 10px 12px; border-top: 1px solid #eaeaea; width: 60%; text-align: left; ${valStyle} line-height: 1.4;">${esc(displayValue)}</td>
                   </tr>`;
               rowIndex++;
           }
-          if (customizable) {
+          // 追加した項目は編集画面と同じく全大項目で出力する（以前は罰則系の大項目だけだった）
+          {
               const customItems = rule.settings['custom_' + catKey] || [];
               for (const item of customItems) {
                   if (item.name || item.value) {
                       const itemName = item.name || '(未設定)';
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = standardObj && (!bItem || String(item.value) !== String(bItem.value || ""));
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
                       rowsHtml += `
@@ -3555,7 +4034,7 @@ async function exportPDF() {
       if (rowIndex === 0 && (!catMemo || catMemo.trim() === '')) continue;
 
       pdfCatNum++;
-      const displayCatName = `${pdfCatNum}. ${catKey}`;
+      const displayCatName = `${pdfCatNum}. ${catDisplayName(rule, cat)}`;
       html += `<div style="page-break-inside: avoid; margin-bottom: 28px;">`;
       html += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(displayCatName)}</h2>`;
       if (rowIndex > 0) {
@@ -3725,8 +4204,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.04", 
-    deployDate: "2026-10-13 21:02",
+    appVersion: "v5.05", 
+    deployDate: "2026-10-15 13:58",
   };
 
   // ==========================================
