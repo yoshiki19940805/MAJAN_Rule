@@ -2955,10 +2955,14 @@ function onCategoryDragMove(e) {
   const deltaY = Math.min(maxDelta, Math.max(minDelta, e.clientY - d.startY));
   d.row.style.transform = `translateY(${deltaY}px)`;
   const centerY = r0.top + r0.height / 2 + deltaY;
-  // ドラッグ中の大項目の中心がどの位置にあるかで移動先を決める
-  let target = 0;
+  // ドラッグ中の大項目の中心が、ほかの大項目の中心に届いたら追い越したとみなして移動先を決める
+  // （一覧の範囲内に留めているため、先頭・最後の行の中心ちょうどでも先頭・最後に入れるよう、
+  //   上へ動かすときは上の行、下へ動かすときは下の行について「届いたか」で判定する）
+  let target = d.index;
   d.rects.forEach((r, i) => {
-    if (i !== d.index && centerY > r.top + r.height / 2) target++;
+    const c = r.top + r.height / 2;
+    if (i < d.index && centerY <= c) target--;
+    if (i > d.index && centerY >= c) target++;
   });
   d.target = target;
   // 追い越された大項目を実際にずらして、移動先が分かるようにする
