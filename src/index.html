@@ -1678,9 +1678,16 @@ function catKeyOf(cat) { return cat[0].replace(/^\d+\.\s*/, ''); }
 //   rule.settings.deleted_cats : 削除した既存の大項目名の配列（値は残るので、戻すと元通りになる）
 //   rule.settings.cat_order    : 大項目名の並び順
 // includeDeleted=true のときは削除済みの既存大項目も含めて返す（大項目の編集ポップアップ用）
+// チョンボ/上がり放棄/軽罰符/ノーペナルティの大項目は、値に応じて項目が相互に移動し合うため削除できない
+// （中の項目がなければ表示画面では自動で非表示になる）
+function isUndeletableCategory(cat) {
+  return !cat[3] && PENALTY_MOVE_CATS.some(pc => catKeyOf(cat) === pc);
+}
+
 function getRuleCategories(rule, includeDeleted) {
   const s = rule.settings || {};
   const deleted = new Set(s.deleted_cats || []);
+  PENALTY_MOVE_CATS.forEach(pc => deleted.delete(pc));
   let cats = [
     ...getCategories(rule.mode),
     ...(s.user_cats || []).map(name => [name, [], false, true]),
@@ -2614,8 +2621,9 @@ function openCategoryManager() {
             <div>
                 <h3 class="font-bold text-[17px] text-theme-text">大項目の編集</h3>
                 <p class="text-[11px] text-theme-textMuted mt-0.5">右の <span class="material-symbols-outlined text-[13px] align-[-2px]">drag_handle</span> をドラッグして並べ替えできます</p>
+                <p class="text-[11px] text-theme-textMuted"><span class="material-symbols-outlined text-[13px] align-[-2px]">lock</span> の大項目は削除できません</p>
             </div>
-            <button class="text-theme-primary font-semibold text-[16px] px-2 py-1" onclick="closeCategoryManager()">完了</button>
+            <button class="text-theme-primary font-semibold text-[16px] px-2 py-1 shrink-0 whitespace-nowrap" onclick="closeCategoryManager()">完了</button>
         </div>
         <div id="cat-manager-body" class="overflow-y-auto px-4 pb-8 flex-1"></div>
     </div>`;
@@ -2635,7 +2643,8 @@ function renderCategoryManager() {
   const body = document.getElementById('cat-manager-body');
   const rule = getRule(editingId);
   if (!body || !rule) return;
-  const deleted = new Set(rule.settings.deleted_cats || []);
+  // 削除できない大項目は、以前のバージョンで削除されていても常に表示中として扱う
+  const deleted = new Set((rule.settings.deleted_cats || []).filter(k => !PENALTY_MOVE_CATS.includes(k)));
   const all = getRuleCategories(rule, true);
   const active = all.filter(c => !deleted.has(catKeyOf(c)));
   const removed = all.filter(c => deleted.has(catKeyOf(c)));
@@ -2644,9 +2653,13 @@ function renderCategoryManager() {
   active.forEach((c, i) => {
     const key = catKeyOf(c);
     html += `<div class="cat-manager-row flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 bg-theme-surface" data-cat-key="${esc(key)}">
+        ${isUndeletableCategory(c) ? `
+        <span class="flex items-center shrink-0 text-theme-textMuted opacity-40" title="この大項目は削除できません">
+            <span class="material-symbols-outlined text-[22px]">lock</span>
+        </span>` : `
         <button class="text-theme-danger flex items-center shrink-0" onclick="deleteCategory('${esc(key)}')" aria-label="削除">
             <span class="material-symbols-outlined text-[22px]">remove_circle</span>
-        </button>
+        </button>`}
         <span class="text-[13px] text-theme-textMuted w-6 text-right shrink-0">${i + 1}.</span>
         <span class="flex-1 text-[15px] text-theme-text min-w-0 break-words">${esc(key)}</span>
         ${c[3] ? '<span class="text-[10px] text-theme-primary border border-theme-primary/40 rounded px-1.5 py-0.5 shrink-0">追加</span>' : ''}
@@ -2711,6 +2724,8 @@ function addCategory() {
 function deleteCategory(key) {
   const rule = getRule(editingId);
   if (!rule) return;
+  const cat = getRuleCategories(rule, true).find(c => catKeyOf(c) === key);
+  if (!cat || isUndeletableCategory(cat)) return;
   const isUserCat = (rule.settings.user_cats || []).includes(key);
   if (isUserCat) {
     const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
