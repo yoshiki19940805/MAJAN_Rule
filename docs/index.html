@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.09";
+    const currentVersion = "v5.10";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -1646,8 +1646,17 @@ function loadData() {
   }
   if (migrated) saveData();
 }
-function saveData() {
-  if (editingId) {
+// 編集画面で「保存」を押す前（編集中）かどうか
+function isEditingUncommitted() {
+  return !!(editingId && !isViewMode && !isSharedMode);
+}
+
+// commit=true は「保存」ボタンによる保存。編集中の値の変更などで呼ばれる途中保存（commit なし）では、
+// 編集中のルールは端末に「編集前の状態」のまま書き込む（新規作成中のルールは書き込まない）。
+// こうしないと、保存も「戻る」もせずにアプリを閉じた時に、保存していない変更や新規ルールが残ってしまう
+function saveData(commit) {
+  const uncommitted = !commit && isEditingUncommitted();
+  if (editingId && !uncommitted) {
     const editingRule = getRule(editingId);
     if (editingRule && !editingRule.readonly) {
       const now = new Date();
@@ -1660,9 +1669,53 @@ function saveData() {
       editingRule.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
     }
   }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
-  // ログイン済みならクラウドにも同期（バックグラウンド）
-  if (typeof syncRulesToCloud === 'function' && window._fbUser && !window._fbUser.isAnonymous) syncRulesToCloud();
+  let toStore = appData;
+  if (uncommitted) {
+    let prevRule = null;
+    try {
+      const prev = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (prev && Array.isArray(prev.rules)) prevRule = prev.rules.find(r => r.id === editingId) || null;
+    } catch(e) {}
+    toStore = { ...appData, rules: appData.rules.flatMap(r => r.id === editingId ? (prevRule ? [prevRule] : []) : [r]) };
+  }
+  let saved = true;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore)); } catch(e) { saved = false; }
+  // ログイン済みならクラウドにも同期（バックグラウンド）。編集中の途中保存では同期しない
+  if (!uncommitted && typeof syncRulesToCloud === 'function' && window._fbUser && !window._fbUser.isAnonymous) syncRulesToCloud();
+  return saved;
+}
+
+// 保存ボタンを押した時の確認。保存できない場合は理由をポップアップで伝えて false を返す
+function confirmSaveEditingRule() {
+  const rule = getRule(editingId);
+  if (!rule) return false;
+  const name = (rule.name || '').trim();
+  if (!name) {
+    alert('ルール名を入力してください。');
+    return false;
+  }
+  // 同じモード（四麻／三麻）のほかのルールと同じ名前では保存できない（共有で一時的に表示しているルールは除く）
+  const dup = appData.rules.find(r => r.id !== rule.id && r.mode === rule.mode && !isTemporarySharedRule(r) && (r.name || '').trim() === name);
+  if (dup) {
+    alert('「' + name + '」という名前のルールがすでにあります。\n別の名前にしてから保存してください。');
+    return false;
+  }
+  return true;
+}
+// 端末の保存容量がいっぱいなどで保存できなかった時の警告
+function alertSaveFailed() {
+  alert('端末の保存容量がいっぱいのため、保存できませんでした。\n不要なルールを削除するか、ブラウザのデータを整理してから、もう一度保存してください。');
+}
+// 共有リンクから一時的に表示しているルール（共有ルール・比較用の仮ルール）
+function isTemporarySharedRule(r) {
+  return !!(r.isSharedPhantom || String(r.id).startsWith('shared_'));
+}
+// コピーしたルールの名前。ほかのルールと重ならないよう「（コピー2）」「（コピー3）」…と番号を付ける
+function uniqueCopyName(baseName, mode) {
+  const used = new Set(appData.rules.filter(r => r.mode === mode && !isTemporarySharedRule(r)).map(r => (r.name || '').trim()));
+  let name = baseName + '（コピー）', n = 2;
+  while (used.has(name)) name = baseName + '（コピー' + (n++) + '）';
+  return name;
 }
 
 function getBaseRuleName(k) {
@@ -1707,19 +1760,24 @@ function setItemOptions(rule, key, list) {
 // rule.settings.highlight_overrides[比較対象のルールID][項目ID] = true(強調)/false(強調しない) として保存する。
 // 項目IDは、既存の項目はキー、追加した項目は 'custom:' + 大項目名 + ':' + 項目名
 function highlightBaseId(rule) { return rule.base_rule || '_none_'; }
-function applyHighlightOverride(rule, itemId, autoDiff) {
-  const o = ((rule.settings.highlight_overrides || {})[highlightBaseId(rule)] || {})[itemId];
+// legacyId は以前の形式の項目ID（追加した項目を名前で区別していた頃の設定を引き継ぐため）
+function applyHighlightOverride(rule, itemId, autoDiff, legacyId) {
+  const forBase = (rule.settings.highlight_overrides || {})[highlightBaseId(rule)] || {};
+  const o = itemId in forBase ? forBase[itemId] : (legacyId ? forBase[legacyId] : undefined);
   return typeof o === 'boolean' ? o : !!autoDiff;
 }
-function customItemId(catKey, item) { return 'custom:' + catKey + ':' + (item.name || ''); }
+// 追加した項目は、同じ名前の項目があっても区別できるようIDで識別する
+function customItemId(catKey, item) { return 'custom:' + catKey + ':' + (item.id || item.name || ''); }
+function legacyCustomItemId(catKey, item) { return 'custom:' + catKey + ':' + (item.name || ''); }
 // 手動設定を除いた、比較対象のルールとの自動の差分判定
 function autoItemDiff(rule, itemId) {
   const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
   if (!base) return false;
-  const m = itemId.match(/^custom:(.*?):(.*)$/);
+  // 'custom:' + 大項目名 + ':' + 項目ID（大項目名に「:」が入っていてもよいよう、最後の「:」で区切る）
+  const m = itemId.match(/^custom:(.*):([^:]*)$/);
   if (m) {
-    const item = (rule.settings['custom_' + m[1]] || []).find(x => (x.name || '') === m[2]);
-    const bItem = (base['custom_' + m[1]] || []).find(x => (x.name || '') === m[2]);
+    const item = (rule.settings['custom_' + m[1]] || []).find(x => (x.id || x.name || '') === m[2]);
+    const bItem = item && (base['custom_' + m[1]] || []).find(x => (x.name || '') === (item.name || ''));
     return !bItem || String((item || {}).value || '') !== String(bItem.value || '');
   }
   return isItemDiff(rule.settings, base, itemId, rule.settings[itemId] ?? '');
@@ -1741,8 +1799,17 @@ function toggleHighlight(itemId) {
 }
 function toggleCustomHighlight(catKey, idx) {
   const rule = getRule(editingId);
-  const item = rule && (rule.settings['custom_' + catKey] || [])[idx];
-  if (item) toggleHighlight(customItemId(catKey, item));
+  const item = rule && customItemsWithIds(rule, catKey)[idx];
+  if (!item) return;
+  // 以前の形式（名前で区別）の設定が残っていれば、今の形式に移してから切り替える
+  const all = rule.settings.highlight_overrides || {};
+  const forBase = all[highlightBaseId(rule)] || {};
+  const legacy = legacyCustomItemId(catKey, item), id = customItemId(catKey, item);
+  if (legacy in forBase && !(id in forBase)) {
+    rule.settings.highlight_overrides = { ...all, [highlightBaseId(rule)]: { ...forBase, [id]: forBase[legacy] } };
+    delete rule.settings.highlight_overrides[highlightBaseId(rule)][legacy];
+  }
+  toggleHighlight(id);
 }
 
 // 追加した項目（custom_）に並べ替え用のIDを付けて返す（以前のデータにはIDがないので、無ければ付ける）
@@ -1872,7 +1939,12 @@ function createCustomBaseRule(mode) {
 let _isNewlyCreated = false;
 
 function goHome() {
+  // 共有リンクから一時的に表示したルール（共有ルール・比較用の仮ルール）は、
+  // 自分のルールの比較対象になっていなければ片付ける
+  const before = appData.rules.length;
+  appData.rules = appData.rules.filter(r => !isTemporarySharedRule(r) || appData.rules.some(o => !isTemporarySharedRule(o) && o.base_rule === r.id));
   editingId = null;
+  if (appData.rules.length !== before) saveData();
   _editSnapshot = null;
   _editNameSnapshot = null;
   _isNewlyCreated = false;
@@ -1929,15 +2001,17 @@ function goHomeWithConfirm() {
 }
 
 function saveAndGoHome() {
+  if (!confirmSaveEditingRule()) return;
+  if (!saveData(true)) { alertSaveFailed(); return; }
   _isNewlyCreated = false;
-  saveData();
   goHome();
 }
 
 function saveAndGoView() {
+  if (!confirmSaveEditingRule()) return;
+  if (!saveData(true)) { alertSaveFailed(); return; }
   _isNewlyCreated = false;
   _editDirty = false;
-  saveData();
   // スナップショットを更新
   const rule = getRule(editingId);
   if (rule) {
@@ -2036,7 +2110,7 @@ function copySharedRule() {
   const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const copy = JSON.parse(JSON.stringify(rule));
   copy.id = newId;
-  copy.name = rule.name + '（コピー）';
+  copy.name = uniqueCopyName(rule.name, rule.mode);
   delete copy.readonly;
   // 比較対象のルールのデフォルトを、コピー元のルールにしておく
   copy.base_rule = rule.id;
@@ -2325,6 +2399,9 @@ function editRule(id) {
 }
 
 function askDelete(id) {
+  // プリセット（編集不可のルール）は削除できない
+  const target = getRule(id);
+  if (!target || target.readonly) return;
   deleteTargetId = id;
   document.getElementById('modal-delete').classList.add('show');
 }
@@ -2333,7 +2410,8 @@ function closeModal() {
   deleteTargetId = null;
 }
 function confirmDelete() {
-  if (deleteTargetId) {
+  const target = deleteTargetId && getRule(deleteTargetId);
+  if (target && !target.readonly) {
     // クラウドからも削除
     if (typeof deleteRuleFromCloud === 'function') deleteRuleFromCloud(deleteTargetId);
     appData.rules = appData.rules.filter(r => r.id !== deleteTargetId);
@@ -2344,13 +2422,18 @@ function confirmDelete() {
   showSnack('ルールを削除しました');
 }
 
+let _lastDuplicateAt = 0;
 function duplicateRule(id) {
+  // コピーボタンを素早く2回押しても、2つ複製されないようにする（1秒以内の連続は無視）
+  const pressedAt = Date.now();
+  if (pressedAt - _lastDuplicateAt < 1000) return;
+  _lastDuplicateAt = pressedAt;
   const src = getRule(id);
   if (!src) return;
   const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = newId;
-  copy.name = src.name + '（コピー）';
+  copy.name = uniqueCopyName(src.name, src.mode);
   delete copy.readonly;
   const now = new Date();
   const y = now.getFullYear();
@@ -2663,7 +2746,7 @@ function renderEdit() {
         const itemName = customItems[i].name || ('項目'+(i+1));
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
-        const isDiff = applyHighlightOverride(rule, customItemId(catKey, customItems[i]), base && (!bItem || cVal !== String(bItem.value || "")));
+        const isDiff = applyHighlightOverride(rule, customItemId(catKey, customItems[i]), base && (!bItem || cVal !== String(bItem.value || "")), legacyCustomItemId(catKey, customItems[i]));
         
         let cValSizeClass = "text-[15px]";
         if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
@@ -3110,18 +3193,20 @@ function onBaseRuleChange(val) {
   }
 }
 function onSettingChange(key, val) {
-  _editDirty = true;
-  const rule = getRule(editingId);
-  if (rule) { rule.settings[key] = val; saveData(); }
-
-  // カスタム選択時にpromptで値入力→リストに追加
+  // カスタム選択時にpromptで値入力→リストに追加。値は入力が済んでから設定する
+  // （入力をキャンセルした時に「カスタム」という値が残らないようにするため）
   if (val === 'カスタム' && customDropdownKeys.has(key)) {
     setTimeout(() => showAddOptionDialog(key), 50);
     return;
   }
 
+  _editDirty = true;
+  const rule = getRule(editingId);
+  if (rule) { rule.settings[key] = val; saveData(); }
+
   // カスタム系ドロップダウンが変わったら再描画
-  const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya']);
+  // （途中流局は「なし」で大項目ごと隠れるため、切り替えたらその場で再描画する）
+  const reRenderKeys = new Set(['yakuman_type','chombo_batsu','mochi_ten','kaeshi_ten','uma','ipponba','oras_oya','tochu_ryukyoku']);
   // 罰則系4大項目(チョンボ/上がり放棄/軽罰符/ノーペナルティ)のキーが変わった場合も、
   // 編集画面上でその場でカテゴリ間を移動させるため再描画する
   // （対象キーはハードコードでなくCATEGORIES定義から動的に判定するため、
@@ -3626,11 +3711,13 @@ function updateUserItem(catKey, idx, field, val) {
 function showAddOptionDialog(key) {
   const label = itemLabel((getRule(editingId) || {}).settings, key);
   const val = prompt('"' + label + '"の値を入力してください:');
-  if (!val || !val.trim()) return;
+  // キャンセル・空欄の場合は値を変えず、プルダウンの表示も元の値に戻す
+  if (!val || !val.trim()) { renderEdit(); return; }
   const rule = getRule(editingId);
   if (!rule) return;
   addItemOption(rule, key, val.trim());
   rule.settings[key] = val.trim();
+  _editDirty = true;
   saveData();
   renderEdit();
 }
@@ -3925,7 +4012,7 @@ async function exportImage() {
                       const itemName = item.name || '(未設定)';
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")), legacyCustomItemId(catKey, item));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
                       rowsHtml += `
@@ -4118,7 +4205,7 @@ async function exportPDF() {
                       const itemName = item.name || '(未設定)';
                       const bItems = (standardObj && standardObj['custom_' + catKey]) || [];
                       const bItem = bItems.find(x => x.name === itemName);
-                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")));
+                      const isChanged = applyHighlightOverride(rule, customItemId(catKey, item), standardObj && (!bItem || String(item.value) !== String(bItem.value || "")), legacyCustomItemId(catKey, item));
                       const valStyle = isChanged ? 'color: #007AFF; font-weight: bold;' : 'color: #111; font-weight: 500;';
                       const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f9f9fa';
                       rowsHtml += `
@@ -4343,8 +4430,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.09", 
-    deployDate: "2026-10-15 15:45",
+    appVersion: "v5.10", 
+    deployDate: "2026-10-15 20:03",
   };
 
   // ==========================================
@@ -4358,7 +4445,8 @@ loadData();
     window.triggerReactRefresh = () => setRefreshTrick(prev => prev + 1);
     
     // VanillaJS側で保存されたルールをフィルタリング
-    let combinedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab);
+    // 共有リンクから一時的に表示したルールは一覧に出さない
+    let combinedRules = rulesFromVanilla.filter(rule => (rule.mode === '四麻' ? 4 : 3) === activeTab && !isTemporarySharedRule(rule));
 
     const parseDateStr = (str) => {
       if (!str) return 0;
@@ -4510,13 +4598,18 @@ loadData();
                     >
                       <span className="material-symbols-outlined text-[20px]">content_copy</span>
                     </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
-                      className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
-                      aria-label="削除"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
+                    {/* プリセット（編集不可のルール）は削除できないため、削除ボタンを出さない */}
+                    {!isReadOnly ? (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleAction('delete', rule); }}
+                        className="flex items-center justify-center hover:text-theme-danger active:scale-90 transition-all font-inherit"
+                        aria-label="削除"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                      </button>
+                    ) : (
+                      <span className="w-5" aria-hidden="true"></span>
+                    )}
                   </div>
                 </div>
               );
