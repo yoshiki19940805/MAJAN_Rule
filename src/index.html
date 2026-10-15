@@ -2662,14 +2662,16 @@ function renderEdit() {
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
                         
-                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full">
+                        <!-- 既存の項目と同じく、選択肢(select)は右端だけに置き、値の部分はタップで選択肢を開く。
+                             値の部分全体をselectで覆うと、そこを長押ししても並べ替えが始まらないため -->
+                        <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full" ${!isReadonlyView ? `onclick="openValueSelect(event, this)"` : ''}>
                             <span class="${cValSizeClass} text-right w-full block pointer-events-none whitespace-normal break-words ${!isReadonlyView ? 'pr-6 ' : ''}${isDiff ? 'text-theme-primary font-bold' : 'text-theme-textMuted'}">
                                 ${esc(cVal)}
                             </span>
                             ${!isReadonlyView ? `<span class="material-symbols-outlined absolute right-0 text-theme-textMuted text-[18px] pointer-events-none">
                                 unfold_more
                             </span>
-                            <select class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
+                            <select class="absolute right-0 top-0 w-9 h-full opacity-0 cursor-pointer" onchange="onCustomPenaltySelect('${esc(catKey)}',${i},this.value)">
                                 ${cOpts.map(o => `<option value="${esc(o)}" ${cVal===o?'selected':''}>${esc(o)}</option>`).join('')}
                             </select>` : ''}
                         </div>
