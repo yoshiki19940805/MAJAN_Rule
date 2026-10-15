@@ -1684,6 +1684,26 @@ function isUndeletableCategory(cat) {
   return !cat[3] && PENALTY_MOVE_CATS.some(pc => catKeyOf(cat) === pc);
 }
 
+// 大項目の表示名。名前を変更した場合は rule.settings.cat_names[catKey] に保存する
+// （値・特記事項・並び順などは元の名前(catKey)で保存されたままなので、名前を変えても壊れない）
+function catDisplayName(rule, cat) {
+  const key = catKeyOf(cat);
+  return ((rule.settings || {}).cat_names || {})[key] || key;
+}
+
+// 大項目の名前として使えるかを確認し、使えない場合は理由を表示して null を返す
+function normalizeCategoryName(input) {
+  // 先頭の「1. 」のような番号は表示時に自動で付くため取り除く
+  const name = input.trim().replace(/^\d+\.\s*/, '');
+  if (!name) return null;
+  // 名前はHTML属性やonclick内の文字列に埋め込むため、壊れる原因になる記号は使えないようにする
+  if (/['"`\\<>&]/.test(name)) {
+    alert('大項目の名前に次の記号は使えません:  \' " ` \\ < > &');
+    return null;
+  }
+  return name;
+}
+
 function getRuleCategories(rule, includeDeleted) {
   const s = rule.settings || {};
   const deleted = new Set(s.deleted_cats || []);
@@ -2352,7 +2372,7 @@ function renderEdit() {
   for (const cat of cats) {
     const catNameLong = cat[0], keys = cat[1], customizable = cat[2] || false;
     const catKey = catKeyOf(cat);
-    const catName = catKey;
+    const catName = catDisplayName(rule, cat);
 
     // 途中流局が「なし」の場合、途中流局カテゴリをスキップ
     if (catNameLong.includes('途中流局') && (rule.settings['tochu_ryukyoku'] === 'なし')) continue;
@@ -2586,8 +2606,7 @@ function renderEdit() {
 
     // 通し番号を動的に付与（元の番号を除去してから再付番）
     catDisplayNum++;
-    const catNameWithoutNum = catNameLong.replace(/^\d+\.\s*/, '');
-    const displayCatName = `${catDisplayNum}. ${catNameWithoutNum}`;
+    const displayCatName = `${catDisplayNum}. ${catName}`;
 
     html += `<div class="flex flex-col w-full">
         <h2 class="text-[13px] font-semibold text-theme-textMuted tracking-wider ml-4 mb-1.5">${esc(displayCatName)}</h2>
@@ -2620,8 +2639,8 @@ function openCategoryManager() {
         <div class="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
             <div>
                 <h3 class="font-bold text-[17px] text-theme-text">大項目の編集</h3>
-                <p class="text-[11px] text-theme-textMuted mt-0.5">長押ししてドラッグすると並べ替えできます</p>
-                <p class="text-[11px] text-theme-textMuted"><span class="material-symbols-outlined text-[13px] align-[-2px]">lock</span> の大項目は削除できません</p>
+                <p class="text-[11px] text-theme-textMuted mt-0.5">長押し＋ドラッグで並べ替え、<span class="material-symbols-outlined text-[13px] align-[-2px]">edit</span> で名前を変更できます</p>
+                <p class="text-[11px] text-theme-textMuted"><span class="material-symbols-outlined text-[13px] align-[-2px]">lock</span> の大項目は削除・名前の変更ができません</p>
             </div>
             <button class="text-theme-primary font-semibold text-[16px] px-2 py-1 shrink-0 whitespace-nowrap" onclick="closeCategoryManager()">完了</button>
         </div>
@@ -2661,8 +2680,12 @@ function renderCategoryManager() {
             <span class="material-symbols-outlined text-[22px]">remove_circle</span>
         </button>`}
         <span class="text-[13px] text-theme-textMuted w-6 text-right shrink-0">${i + 1}.</span>
-        <span class="flex-1 text-[15px] text-theme-text min-w-0 break-words">${esc(key)}</span>
+        <span class="flex-1 text-[15px] text-theme-text min-w-0 break-words">${esc(catDisplayName(rule, c))}</span>
         ${c[3] ? '<span class="text-[10px] text-theme-primary border border-theme-primary/40 rounded px-1.5 py-0.5 shrink-0">追加</span>' : ''}
+        ${isUndeletableCategory(c) ? '' : `
+        <button class="text-theme-textMuted flex items-center shrink-0 px-1" onclick="renameCategory('${esc(key)}')" aria-label="名前を変更">
+            <span class="material-symbols-outlined text-[20px]">edit</span>
+        </button>`}
     </div>`;
   });
   html += `<button class="w-full text-left px-4 py-3.5 text-[15px] text-theme-primary font-medium active:bg-gray-50 flex items-center gap-1" onclick="addCategory()">
@@ -2675,7 +2698,7 @@ function renderCategoryManager() {
     removed.forEach(c => {
       const key = catKeyOf(c);
       html += `<div class="flex items-center gap-2 px-3 py-3 border-b border-theme-border/40 last:border-b-0">
-          <span class="flex-1 text-[15px] text-theme-textMuted min-w-0 break-words">${esc(key)}</span>
+          <span class="flex-1 text-[15px] text-theme-textMuted min-w-0 break-words">${esc(catDisplayName(rule, c))}</span>
           <button class="text-theme-primary text-[14px] font-medium flex items-center gap-0.5 shrink-0" onclick="restoreCategory('${esc(key)}')">
               <span class="material-symbols-outlined text-[18px]">undo</span>元に戻す
           </button>
@@ -2698,25 +2721,54 @@ function addCategory() {
   if (!rule) return;
   const input = prompt('追加する大項目の名前を入力してください:');
   if (input === null) return;
-  // 先頭の「1. 」のような番号は表示時に自動で付くため取り除く
-  const name = input.trim().replace(/^\d+\.\s*/, '');
+  const name = normalizeCategoryName(input);
   if (!name) return;
-  // 名前はHTML属性やonclick内の文字列に埋め込むため、壊れる原因になる記号は使えないようにする
-  if (/['"`\\<>&]/.test(name)) {
-    alert('大項目の名前に次の記号は使えません:  \' " ` \\ < > &');
-    return;
-  }
-  const existing = getRuleCategories(rule, true).map(catKeyOf);
-  if (existing.includes(name)) {
-    if ((rule.settings.deleted_cats || []).includes(name)) {
-      restoreCategory(name);
+  const all = getRuleCategories(rule, true);
+  const same = all.find(c => catDisplayName(rule, c) === name);
+  if (same) {
+    const sameKey = catKeyOf(same);
+    if ((rule.settings.deleted_cats || []).includes(sameKey)) {
+      restoreCategory(sameKey);
       showSnack('削除していた「' + name + '」を元に戻しました');
     } else {
       alert('「' + name + '」はすでにあります。別の名前を入力してください。');
     }
     return;
   }
-  rule.settings.user_cats = [...(rule.settings.user_cats || []), name];
+  // 名前を変更した既存の大項目の元の名前と重なる場合は、内部の名前(catKey)だけ別のものにする
+  const keys = all.map(catKeyOf);
+  let key = name, n = 2;
+  while (keys.includes(key)) key = name + '#' + (n++);
+  rule.settings.user_cats = [...(rule.settings.user_cats || []), key];
+  if (key !== name) rule.settings.cat_names = { ...(rule.settings.cat_names || {}), [key]: name };
+  commitCategoryChange();
+}
+
+function renameCategory(key) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const all = getRuleCategories(rule, true);
+  const cat = all.find(c => catKeyOf(c) === key);
+  if (!cat || isUndeletableCategory(cat)) return;
+  const current = catDisplayName(rule, cat);
+  const input = prompt('「' + current + '」の新しい名前を入力してください:' + (cat[3] ? '' : '\n（空欄にすると元の名前「' + key + '」に戻ります）'), current);
+  if (input === null) return;
+  let name;
+  if (input.trim() === '') {
+    if (cat[3]) return;
+    name = key;
+  } else {
+    name = normalizeCategoryName(input);
+    if (!name) return;
+  }
+  if (name === current) return;
+  if (all.some(c => c !== cat && catDisplayName(rule, c) === name)) {
+    alert('「' + name + '」はすでにあります。別の名前を入力してください。');
+    return;
+  }
+  const names = { ...(rule.settings.cat_names || {}) };
+  if (name === key) delete names[key]; else names[key] = name;
+  rule.settings.cat_names = names;
   commitCategoryChange();
 }
 
@@ -2728,11 +2780,12 @@ function deleteCategory(key) {
   const isUserCat = (rule.settings.user_cats || []).includes(key);
   if (isUserCat) {
     const hasContent = (rule.settings['custom_' + key] || []).length > 0 || (rule.settings['memo_' + key] || '').trim() !== '';
-    if (hasContent && !confirm('「' + key + '」を削除しますか？\n中の項目と特記事項も削除されます。')) return;
+    if (hasContent && !confirm('「' + catDisplayName(rule, cat) + '」を削除しますか？\n中の項目と特記事項も削除されます。')) return;
     rule.settings.user_cats = rule.settings.user_cats.filter(k => k !== key);
     delete rule.settings['custom_' + key];
     delete rule.settings['memo_' + key];
     delete rule.settings['item_order_' + key];
+    if (rule.settings.cat_names) delete rule.settings.cat_names[key];
     if (Array.isArray(rule.settings.cat_order)) rule.settings.cat_order = rule.settings.cat_order.filter(k => k !== key);
   } else {
     // 既存の大項目は設定値を残したまま非表示にし、「削除した大項目」からいつでも戻せるようにする
@@ -3644,7 +3697,7 @@ async function exportImage() {
       if (rowIndex === 0 && (!catMemo || catMemo.trim() === '')) continue;
 
       imgCatNum++;
-      const displayCatName = `${imgCatNum}. ${catKey}`;
+      const displayCatName = `${imgCatNum}. ${catDisplayName(rule, cat)}`;
       html += `<div style="margin-bottom: 32px;">`;
       html += `<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 10px 0; background-color: #e5e5ea; padding: 10px 16px; border-radius: 6px; color: #1c1c1e;">${esc(displayCatName)}</h2>`;
       if (rowIndex > 0) {
@@ -3841,7 +3894,7 @@ async function exportPDF() {
       if (rowIndex === 0 && (!catMemo || catMemo.trim() === '')) continue;
 
       pdfCatNum++;
-      const displayCatName = `${pdfCatNum}. ${catKey}`;
+      const displayCatName = `${pdfCatNum}. ${catDisplayName(rule, cat)}`;
       html += `<div style="page-break-inside: avoid; margin-bottom: 28px;">`;
       html += `<h2 style="font-size: 16px; font-weight: bold; margin: 0 0 6px 0; background-color: #e5e5ea; padding: 8px 12px; border-radius: 4px; color: #1c1c1e;">${esc(displayCatName)}</h2>`;
       if (rowIndex > 0) {
