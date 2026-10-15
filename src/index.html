@@ -2369,6 +2369,15 @@ function renderEdit() {
   }
 
   let catDisplayNum = 0;
+  let prevCatKey = null; // 直前に表示した大項目（大項目の間に置く追加ボタン用）
+  // 大項目と大項目の間（および最後）に置く「大項目を追加」ボタン。押すとその位置に追加される
+  const insertCatButton = (afterKey) => `<div class="flex items-center gap-2 -my-3 px-2">
+        <div class="flex-1 border-t border-dashed border-theme-border"></div>
+        <button class="text-theme-primary text-[12px] font-medium flex items-center gap-0.5 px-2 py-1 rounded-lg active:bg-gray-100 shrink-0" onclick="addCategory('${esc(afterKey)}')">
+            <span class="material-symbols-outlined text-[16px]">add</span>大項目を追加
+        </button>
+        <div class="flex-1 border-t border-dashed border-theme-border"></div>
+    </div>`;
   for (const cat of cats) {
     const catNameLong = cat[0], keys = cat[1], customizable = cat[2] || false;
     const catKey = catKeyOf(cat);
@@ -2607,6 +2616,8 @@ function renderEdit() {
     // 通し番号を動的に付与（元の番号を除去してから再付番）
     catDisplayNum++;
     const displayCatName = `${catDisplayNum}. ${catName}`;
+    if (!isReadonlyView && prevCatKey !== null) html += insertCatButton(prevCatKey);
+    prevCatKey = catKey;
 
     html += `<div class="flex flex-col w-full">
         <h2 class="text-[13px] font-semibold text-theme-textMuted tracking-wider ml-4 mb-1.5">${esc(displayCatName)}</h2>
@@ -2614,8 +2625,10 @@ function renderEdit() {
     </div>`;
   }
 
-  // 編集画面では、先頭に大項目の追加・削除・並べ替えを行うポップアップを開くボタンを置く
+  // 編集画面では、最後の大項目の後ろにも追加ボタンを置き、
+  // 先頭に大項目の追加・削除・並べ替えを行うポップアップを開くボタンを置く
   if (!isReadonlyView) {
+    if (prevCatKey !== null) html += insertCatButton(prevCatKey);
     html = `<div class="flex justify-end -mb-3">
         <button class="text-theme-primary text-[14px] font-medium flex items-center gap-1 px-2 py-1 rounded-lg active:bg-gray-100" onclick="openCategoryManager()">
             <span class="material-symbols-outlined text-[18px]">reorder</span>大項目の編集
@@ -2713,10 +2726,13 @@ function renderCategoryManager() {
 function commitCategoryChange() {
   _editDirty = true;
   if (!isSharedMode) saveData();
-  renderCategoryManager();
+  // ポップアップが開いていればポップアップを、編集画面から直接操作した場合は編集画面を描き直す
+  if (document.getElementById('cat-manager-overlay')) renderCategoryManager();
+  else renderEdit();
 }
 
-function addCategory() {
+// afterKey を指定すると、その大項目のすぐ後ろに追加する（省略時は最後に追加）
+function addCategory(afterKey) {
   const rule = getRule(editingId);
   if (!rule) return;
   const input = prompt('追加する大項目の名前を入力してください:');
@@ -2741,7 +2757,19 @@ function addCategory() {
   while (keys.includes(key)) key = name + '#' + (n++);
   rule.settings.user_cats = [...(rule.settings.user_cats || []), key];
   if (key !== name) rule.settings.cat_names = { ...(rule.settings.cat_names || {}), [key]: name };
+  if (afterKey) {
+    // 今の並び順（削除済みも含む）の afterKey の直後に入れて、並び順として保存する
+    const order = getRuleCategories(rule, true).map(catKeyOf).filter(k => k !== key);
+    const at = order.indexOf(afterKey);
+    order.splice(at === -1 ? order.length : at + 1, 0, key);
+    rule.settings.cat_order = order;
+  }
   commitCategoryChange();
+  if (afterKey && !document.getElementById('cat-manager-overlay')) {
+    // 追加した大項目が見えるようにスクロールする
+    const memo = document.querySelector(`[data-memo-key="${key}"]`);
+    if (memo) memo.closest('.flex.flex-col.w-full').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 function renameCategory(key) {
