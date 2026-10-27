@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.10";
+    const currentVersion = "v5.11";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -3766,7 +3766,14 @@ function showCustomItemDialog(catKey, idx) {
   if (item) showEditOptionsDialog('c:' + item.id + ':' + catKey);
 }
 
-function showEditOptionsDialog(ref) {
+const TRASH_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>';
+
+// 日本語入力の変換確定の Enter では反応しない
+function isEnterKey(e) {
+  return e.key === 'Enter' && !e.isComposing && e.keyCode !== 229;
+}
+
+function showEditOptionsDialog(ref, focusAdd) {
   const rule = getRule(editingId);
   if (!rule) return;
   const acc = getItemAccessor(rule, ref);
@@ -3779,56 +3786,82 @@ function showEditOptionsDialog(ref) {
   closeEditOptionsDialog();
   const overlay = document.createElement('div');
   overlay.id = 'edit-options-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.className = 'sheet-overlay';
 
   const labelNote = acc.defaultLabel
-    ? `※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。空欄で変更すると元の名前「${esc(acc.defaultLabel)}」に戻ります。`
-    : '※ 名前を変えた項目は、変更前の項目とは別の項目として扱われ、比較対象のルールとの差分として表示されます。';
-  let html = `<div style="background:#fff;border-radius:12px;width:90%;max-width:400px;max-height:80vh;overflow-y:auto;padding:20px;">
-    <h3 style="margin:0 0 12px;font-size:1rem;">📝 ${esc(label)} を編集</h3>
-    <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">項目名</div>
-    <div style="display:flex;gap:8px;margin-bottom:4px;">
-      <input type="text" id="item-label-input" value="${esc(label)}" placeholder="${esc(acc.defaultLabel || '項目名')}" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.9rem;">
-      <button onclick="renameItemFromDialog('${r}')" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">変更</button>
+    ? `名前を変えると、比較対象とは別の項目として扱われます。空欄にすると「${esc(acc.defaultLabel)}」に戻ります。`
+    : '名前を変えると、比較対象とは別の項目として扱われます。';
+  // 入力欄は書き換えて欄を離れる（または Enter）と保存される
+  let html = `<div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <div class="sheet-title" id="item-dialog-title">${esc(label)}</div>
+      <button class="sheet-close" onclick="finishEditOptionsDialog('${r}')" aria-label="閉じる">✕</button>
     </div>
-    <div style="font-size:0.7rem;color:#888;margin-bottom:16px;line-height:1.5;">${labelNote}</div>
-    <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">選択肢</div>
-    <div style="font-size:0.75rem;color:#888;margin-bottom:12px;">※ 内容を書き換えて「保存」、「削除」で選択肢から外せます</div>`;
+    <div class="sheet-body">
+      <div class="sheet-label">項目名</div>
+      <input type="text" id="item-label-input" class="sheet-input" value="${esc(label)}" placeholder="${esc(acc.defaultLabel || '項目名')}" onchange="renameItemFromDialog('${r}')" onkeydown="if(isEnterKey(event))this.blur()">
+      <div class="sheet-note">${labelNote}</div>
+
+      <div class="sheet-label">選択肢</div>
+      <div class="opt-list">`;
 
   // 選択肢（初期の選択肢も含め、すべて編集・削除可能）
   for (let i = 0; i < itemOpts.length; i++) {
-    html += `<div style="display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #eee;gap:8px;">
-      <input type="text" value="${esc(itemOpts[i])}" style="flex:1;min-width:0;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-      <button onclick="editUserOption('${r}',${i},this)" style="background:#3182CE;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">保存</button>
-      <button onclick="removeOptionAt('${r}',${i})" style="background:#E53E3E;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap;">削除</button>
-    </div>`;
+    html += `<div class="opt-row">
+        <input type="text" value="${esc(itemOpts[i])}" onchange="editUserOption('${r}',${i},this)" onkeydown="if(isEnterKey(event))this.blur()">
+        <button class="opt-del" onclick="removeOptionAt('${r}',${i})" aria-label="削除">${TRASH_ICON}</button>
+      </div>`;
   }
-  if (itemOpts.length === 0) {
-    html += `<div style="font-size:0.8rem;color:#aaa;padding:8px 0;">選択肢はありません</div>`;
-  }
-
-  html += `<div style="margin-top:12px;">
-    <button onclick="addOptionFromDialog('${r}')" style="width:100%;padding:10px;background:#3182CE;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">＋ 選択肢を追加</button>
-  </div>
-  ${acc.isCustomized() ? `<div style="margin-top:12px;">
-    <button onclick="resetItemOptions('${r}')" style="width:100%;padding:10px;background:#fff;color:#3182CE;border:1px solid #3182CE;border-radius:6px;cursor:pointer;font-size:0.85rem;">初期の選択肢に戻す</button>
-  </div>` : ''}
-  <div style="margin-top:12px;">
-    <button onclick="closeEditOptionsDialog()" style="width:100%;padding:10px;background:#eee;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">閉じる</button>
-  </div>
+  html += `<div class="opt-row opt-add">
+        <span class="opt-add-icon">＋</span>
+        <input type="text" id="option-add-input" placeholder="選択肢を追加" onkeydown="if(isEnterKey(event))addOptionFromDialog('${r}')" oninput="this.nextElementSibling.hidden=!this.value.trim()">
+        <button class="opt-add-btn" onclick="addOptionFromDialog('${r}')" hidden>追加</button>
+      </div>
+      </div>
+      ${acc.isCustomized() ? `<button class="sheet-link" onclick="resetItemOptions('${r}')">初期の選択肢に戻す</button>` : ''}
+    </div>
+    <div class="sheet-foot">
+      <button class="sheet-done" onclick="finishEditOptionsDialog('${r}')">完了</button>
+    </div>
   </div>`;
 
   overlay.innerHTML = html;
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeEditOptionsDialog(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) finishEditOptionsDialog(ref); });
   document.body.appendChild(overlay);
+  if (focusAdd) document.getElementById('option-add-input').focus();
 }
 
 // ダイアログでの変更を保存し、編集画面とダイアログを描き直す（ダイアログは開いたまま）
-function commitItemDialogChange(ref) {
+function commitItemDialogChange(ref, focusAdd) {
   _editDirty = true;
   saveData();
   renderEdit();
-  showEditOptionsDialog(ref);
+  showEditOptionsDialog(ref, focusAdd);
+}
+
+// ダイアログは作り直さずに保存する（入力中の別の欄やボタンのタップを妨げないため）
+function saveItemDialogChange() {
+  _editDirty = true;
+  saveData();
+  renderEdit();
+}
+
+// 「完了」や外側のタップで閉じる。追加欄に書きかけの選択肢があれば追加してから閉じる
+function finishEditOptionsDialog(ref) {
+  const addInput = document.getElementById('option-add-input');
+  const val = addInput ? addInput.value.trim() : '';
+  if (val) {
+    const rule = getRule(editingId);
+    const acc = rule && getItemAccessor(rule, ref);
+    if (acc) {
+      const list = acc.options();
+      if (!list.includes(val)) list.push(val);
+      acc.setOptions(list);
+      acc.setValue(val);
+      saveItemDialogChange();
+    }
+  }
+  closeEditOptionsDialog();
 }
 
 // 項目名の変更（既存の項目は空欄なら元の名前に戻す。追加した項目は空欄にはできない）
@@ -3838,12 +3871,12 @@ function renameItemFromDialog(ref) {
   const acc = rule && getItemAccessor(rule, ref);
   if (!acc || !input) return;
   const name = input.value.trim();
-  if (!name && !acc.defaultLabel) return;
+  if (!name && !acc.defaultLabel) { input.value = acc.label(); return; }
   acc.setLabel(name);
-  _editDirty = true;
-  saveData();
-  closeEditOptionsDialog();
-  renderEdit();
+  input.value = acc.label();
+  const title = document.getElementById('item-dialog-title');
+  if (title) title.textContent = acc.label();
+  saveItemDialogChange();
 }
 
 function closeEditOptionsDialog() {
@@ -3851,21 +3884,23 @@ function closeEditOptionsDialog() {
   if (overlay) overlay.remove();
 }
 
-function editUserOption(ref, idx, btn) {
+function editUserOption(ref, idx, input) {
   const rule = getRule(editingId);
   const acc = rule && getItemAccessor(rule, ref);
   if (!acc) return;
   const list = acc.options();
   if (idx >= list.length) return;
-  const newVal = btn.parentElement.querySelector('input').value.trim();
-  if (!newVal) return;
   const oldVal = list[idx];
-  if (newVal !== oldVal && list.includes(newVal)) { alert('「' + newVal + '」はすでにあります。'); return; }
+  const newVal = input.value.trim();
+  if (!newVal) { input.value = oldVal; return; }
+  if (newVal !== oldVal && list.includes(newVal)) { alert('「' + newVal + '」はすでにあります。'); input.value = oldVal; return; }
+  input.value = newVal;
+  if (newVal === oldVal) return;
   list[idx] = newVal;
   acc.setOptions(list);
   // 現在選択中の値も更新
   if (acc.value() === oldVal) acc.setValue(newVal);
-  commitItemDialogChange(ref);
+  saveItemDialogChange();
 }
 
 function removeOptionAt(ref, idx) {
@@ -3889,17 +3924,20 @@ function resetItemOptions(ref) {
   commitItemDialogChange(ref);
 }
 
+// 追加欄の値を選択肢に加える。続けて追加できるよう、追加欄にフォーカスを戻す
 function addOptionFromDialog(ref) {
   const rule = getRule(editingId);
   const acc = rule && getItemAccessor(rule, ref);
-  if (!acc) return;
-  const val = prompt('"' + acc.label() + '"に追加する値を入力:');
-  if (!val || !val.trim()) return;
+  const input = document.getElementById('option-add-input');
+  if (!acc || !input) return;
+  const val = input.value.trim();
+  if (!val) return;
   const list = acc.options();
-  if (!list.includes(val.trim())) list.push(val.trim());
+  if (list.includes(val)) { alert('「' + val + '」はすでにあります。'); return; }
+  list.push(val);
   acc.setOptions(list);
-  acc.setValue(val.trim());
-  commitItemDialogChange(ref);
+  acc.setValue(val);
+  commitItemDialogChange(ref, true);
 }
 
 function addItemOption(rule, key, val) {
@@ -4430,8 +4468,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.10", 
-    deployDate: "2026-10-15 20:03",
+    appVersion: "v5.11", 
+    deployDate: "2026-10-27 20:25",
   };
 
   // ==========================================

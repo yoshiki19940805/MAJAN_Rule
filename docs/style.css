@@ -335,6 +335,84 @@ select:disabled, input:disabled, textarea:disabled {
 .modal-box .modal-btns { display: flex; gap: 10px; }
 .modal-box .modal-btns .btn { flex: 1; }
 
+/* --- 項目の編集シート（下からせり出す） --- */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,0.45);
+  z-index: 9999; display: flex; align-items: flex-end; justify-content: center;
+  animation: sheet-fade 0.2s ease;
+}
+.sheet {
+  background: var(--surface); width: 100%; max-width: 520px; max-height: 88dvh;
+  border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.12);
+  animation: sheet-up 0.25s cubic-bezier(0.2,0.8,0.2,1);
+}
+@keyframes sheet-fade { from { opacity: 0; } }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+.sheet-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 20px 20px 8px; position: relative;
+}
+.sheet-head::before {
+  content: ''; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 36px; height: 4px; border-radius: 2px; background: var(--border);
+}
+.sheet-title {
+  flex: 1; min-width: 0; font-size: 1.15rem; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sheet-close {
+  width: 32px; height: 32px; border-radius: 50%; border: none; flex-shrink: 0;
+  background: var(--bg); color: var(--text-sub); font-size: 0.85rem; cursor: pointer;
+}
+.sheet-body { padding: 8px 20px 4px; overflow-y: auto; }
+.sheet-label {
+  font-size: 0.75rem; font-weight: 600; color: var(--text-sub);
+  letter-spacing: 0.04em; margin: 12px 0 6px;
+}
+.sheet-input {
+  width: 100%; padding: 12px 14px; font-size: 16px; font-family: inherit; color: var(--text);
+  background: var(--bg); border: 1.5px solid transparent; border-radius: var(--radius-sm);
+  outline: none; transition: border-color var(--transition), background var(--transition);
+}
+.sheet-input:focus { border-color: var(--accent); background: var(--surface); }
+.sheet-note { font-size: 0.72rem; color: var(--text-sub); line-height: 1.6; margin-top: 6px; }
+.opt-list { background: var(--bg); border-radius: var(--radius-sm); overflow: hidden; }
+.opt-row {
+  display: flex; align-items: center; gap: 4px; padding: 0 6px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.opt-row:last-child { border-bottom: none; }
+.opt-row:focus-within { background: var(--surface); box-shadow: inset 3px 0 0 var(--accent); }
+.opt-row input {
+  flex: 1; min-width: 0; padding: 12px 0; font-size: 16px; font-family: inherit;
+  color: var(--text); background: none; border: none; outline: none;
+}
+.opt-del {
+  width: 40px; height: 40px; flex-shrink: 0; border: none; background: none; border-radius: 50%;
+  color: #A0AEC0; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: color var(--transition), background var(--transition);
+}
+.opt-del:hover, .opt-del:active { color: var(--highlight); background: var(--highlight-bg); }
+.opt-add-icon { color: var(--accent); font-weight: 700; margin-right: 4px; }
+.opt-add input::placeholder { color: var(--accent); opacity: 0.85; }
+.opt-add-btn {
+  flex-shrink: 0; border: none; background: var(--accent); color: #fff;
+  font-size: 0.8rem; font-weight: 600; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+}
+.opt-add-btn[hidden] { display: none; }
+.sheet-link {
+  display: block; margin: 12px auto 0; background: none; border: none;
+  color: var(--accent); font-size: 0.8rem; cursor: pointer; padding: 6px;
+}
+.sheet-foot { padding: 12px 20px calc(16px + env(safe-area-inset-bottom)); }
+.sheet-done {
+  width: 100%; padding: 14px; border: none; border-radius: var(--radius-sm);
+  background: var(--accent); color: #fff; font-size: 0.95rem; font-weight: 700;
+  font-family: inherit; cursor: pointer; transition: background var(--transition);
+}
+.sheet-done:active { background: var(--accent-hover); }
+
 /* --- PWA install banner --- */
 .install-banner {
   background: linear-gradient(135deg, var(--accent), #2B6CB0);
