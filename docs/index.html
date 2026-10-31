@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v5.11";
+    const currentVersion = "v6.00";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -71,6 +71,11 @@
       const shareParam = urlParams.get('share');
       let newUrl = "?v=" + currentVersion;
       if (shareParam) newUrl += "&share=" + encodeURIComponent(shareParam);
+      // 送るときに選んだ比較対象（verのリンク）も残す
+      const cmpParam = urlParams.get('cmp');
+      if (shareParam && cmpParam) newUrl += "&cmp=" + encodeURIComponent(cmpParam);
+      // テストでエミュレーターにつなぐ印（手元のサーバーのときだけ）
+      if (location.hostname === 'localhost' && urlParams.get('emu') === '1') newUrl += "&emu=1";
       window.location.replace(newUrl);
     } else {
       // バージョンが一致したらカウンタをリセット
@@ -125,6 +130,11 @@
   firebase.initializeApp(firebaseConfig);
   const fbAuth = firebase.auth();
   const fbDb = firebase.firestore();
+  // テスト用：手元（localhost）で ?emu=1 を付けて開いたときだけ、Firebaseのエミュレーターにつなぐ（tests/ver/README.md）
+  if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('emu') === '1') {
+    fbDb.useEmulator('localhost', 8080);
+    fbAuth.useEmulator('http://localhost:9099');
+  }
 
   // =====================================================================
   // Firebase 同期ヘルパー
@@ -137,30 +147,52 @@
     return rule && (rule.readonly === true || (rule.id && rule.id.startsWith('preset_')));
   }
 
+  // ルールに足した項目（ver管理）。古いアプリの同期はルール本体を決まった項目だけで上書きするため、
+  // これらはルール本体とは別の場所（users/{uid}/rule_ext）に保存する
+  const RULE_EXT_KEYS = ['verLabel', 'copiedFrom', 'link'];
+  // 別の端末などで削除したルールのID（クラウドの deleted_rules から読んだもの）
+  let _cloudDeletedIds = new Set();
+
+  // 1回の書き込み（バッチ）は500件までなので、分けて書き込む
+  async function commitInChunks(ops) {
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = fbDb.batch();
+      for (const op of ops.slice(i, i + 400)) op(batch);
+      await batch.commit();
+    }
+  }
+
   // Firestoreにユーザールールを保存（ログイン済みユーザーのみ）
   async function syncRulesToCloud() {
     if (!_fbUid || _fbSyncing) return;
     // 未ログイン（匿名 or null）の場合はスキップ
     if (!fbAuth.currentUser || fbAuth.currentUser.isAnonymous) return;
+    const userDoc = fbDb.collection('users').doc(_fbUid);
+    // 削除したルール（削除待ちを含む）はクラウドに戻さない
+    const pendingIds = new Set(loadPendingCloudDeletes().map(p => p.ruleId));
+    const userRules = (appData.rules || []).filter(r => !isPresetRule(r) && !r.id.startsWith('shared_') && !_cloudDeletedIds.has(r.id) && !pendingIds.has(r.id));
+    // ルール本体。上書きではなく項目を足す形（merge）で書き込み、古いアプリが知らない項目を消さない
     try {
-      const userRules = (appData.rules || []).filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
-      const batch = fbDb.batch();
-      const colRef = fbDb.collection('users').doc(_fbUid).collection('rules');
-      
-      // 現在のルールを書き込み
-      for (const rule of userRules) {
-        batch.set(colRef.doc(rule.id), {
-          mode: rule.mode,
-          name: rule.name,
-          base_rule: rule.base_rule || '',
-          date: rule.date || '',
-          settings: JSON.stringify(rule.settings || {}),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      }
-      await batch.commit();
+      await commitInChunks(userRules.map(rule => batch => batch.set(userDoc.collection('rules').doc(rule.id), {
+        mode: rule.mode,
+        name: rule.name,
+        base_rule: rule.base_rule || '',
+        date: rule.date || '',
+        settings: JSON.stringify(rule.settings || {}),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true })));
     } catch (e) {
       console.warn('Cloud sync failed:', e);
+    }
+    // 足した項目。ルール本体とは分けて書き込み、こちらが失敗してもルール本体の同期は止めない
+    try {
+      await commitInChunks(userRules.map(rule => batch => {
+        const ext = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        for (const k of RULE_EXT_KEYS) ext[k] = rule[k] === undefined ? null : rule[k];
+        batch.set(userDoc.collection('rule_ext').doc(rule.id), ext, { merge: true });
+      }));
+    } catch (e) {
+      console.warn('Cloud ext sync failed:', e);
     }
   }
 
@@ -188,34 +220,160 @@
     }
   }
 
+  // クラウドから、ルールに足した項目（ルールIDごと）と、削除したルールのIDを読み込む。
+  // 読めなかったときは null（削除の判断に使うため、読めなかったことと「ない」ことを分ける）
+  async function loadCloudExtras() {
+    if (!_fbUid) return null;
+    try {
+      const userDoc = fbDb.collection('users').doc(_fbUid);
+      const [extSnap, delSnap] = await Promise.all([userDoc.collection('rule_ext').get(), userDoc.collection('deleted_rules').get()]);
+      const ext = {};
+      extSnap.forEach(doc => { ext[doc.id] = doc.data(); });
+      const deleted = new Set();
+      delSnap.forEach(doc => deleted.add(doc.id));
+      return { ext, deleted };
+    } catch (e) {
+      console.warn('Cloud ext load failed:', e);
+      return null;
+    }
+  }
+
   // ローカルとクラウドのルールをマージ
   async function mergeCloudRules() {
+    // 前に削除したルールを先にクラウドから消しておく（消す前に読み込むと、削除したルールが戻ってしまう）
+    await processPendingCloudDeletes();
     const cloudRules = await loadRulesFromCloud();
-    if (cloudRules.length === 0) return;
+    const extras = await loadCloudExtras();
+    if (extras) _cloudDeletedIds = extras.deleted;
+    const isUserRule = r => !isPresetRule(r) && !r.id.startsWith('shared_');
 
-    const localUserRules = appData.rules.filter(r => !isPresetRule(r) && !r.id.startsWith('shared_'));
-    const localIds = new Set(localUserRules.map(r => r.id));
+    // 別の端末で削除したルールは、この端末からも消す
+    const before = appData.rules.length;
+    appData.rules = appData.rules.filter(r => !(isUserRule(r) && _cloudDeletedIds.has(r.id)));
+    let changed = appData.rules.length !== before;
 
-    // クラウドにあってローカルにないルールを追加
-    for (const cr of cloudRules) {
-      if (!localIds.has(cr.id)) {
-        appData.rules.push(cr);
-      }
+    // 古いアプリの同期などで、削除したルールがクラウドに戻っていたら消す
+    const revived = cloudRules.filter(cr => _cloudDeletedIds.has(cr.id));
+    if (revived.length) {
+      const colRef = fbDb.collection('users').doc(_fbUid).collection('rules');
+      commitInChunks(revived.map(cr => batch => batch.delete(colRef.doc(cr.id)))).catch(e => console.warn('Cloud cleanup failed:', e));
     }
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+
+    // 両方にあるルールは、リンクの情報（作成者パスワード・公開している内容の記録）だけを新しい方に合わせる。手元の設定は変えない
+    if (extras) for (const r of appData.rules) {
+      const ext = isUserRule(r) && extras.ext[r.id];
+      if (ext && ext.link && mergeCloudLink(r, ext.link)) changed = true;
+    }
+
+    const localIds = new Set(appData.rules.filter(isUserRule).map(r => r.id));
+    const pendingIds = new Set(loadPendingCloudDeletes().map(p => p.ruleId));
+    // クラウドにあってローカルにないルールを追加（足した項目も一緒に戻す）
+    for (const cr of cloudRules) {
+      if (localIds.has(cr.id) || _cloudDeletedIds.has(cr.id) || pendingIds.has(cr.id)) continue;
+      const ext = extras && extras.ext[cr.id];
+      if (ext) for (const k of RULE_EXT_KEYS) if (ext[k] !== null && ext[k] !== undefined) cr[k] = ext[k];
+      appData.rules.push(cr);
+      changed = true;
+    }
+    if (changed) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch(e) {}
+    }
     if (typeof renderHome === 'function') renderHome();
   }
 
-  // Firestoreから特定ルールを削除（ログイン済みユーザーのみ）
-  async function deleteRuleFromCloud(ruleId) {
-    if (!_fbUid) return;
-    if (!fbAuth.currentUser || fbAuth.currentUser.isAnonymous) return;
+  // クラウドにあるリンクの情報を、端末のルールに合わせる。変えたら true
+  function mergeCloudLink(rule, cl) {
+    if (!cl || !cl.seriesId || cl.ruleId !== rule.id) return false;
+    if (!rule.link) {
+      // ほかの端末でリンクを作った。手元の中身がどの公開をもとにしているかは分からないので、表示画面を開いたときに比べる
+      rule.link = Object.assign({}, cl, { basedOn: -1 });
+      rule.verLabel = cl.pubLabel;
+      return true;
+    }
+    if (rule.link.seriesId !== cl.seriesId) return false;
+    let changed = false;
+    if (!rule.link.password && cl.password) { rule.link.password = cl.password; changed = true; }
+    if ((cl.pubOp || 0) > (rule.link.pubOp || 0)) {
+      for (const k of ['pubSeq', 'pubLabel', 'pubShareId', 'pubOp', 'pubSnapshot', 'firstLabel']) rule.link[k] = cl[k];
+      rule.verLabel = cl.pubLabel;
+      changed = true;
+    }
+    for (const [id, b] of Object.entries(cl.bases || {})) {
+      const mine = (rule.link.bases = rule.link.bases || {})[id];
+      if (!mine || (b.usedAt || 0) > (mine.usedAt || 0)) { rule.link.bases[id] = b; changed = true; }
+    }
+    return changed;
+  }
+
+  // ---- 削除したルールの記録 ----
+  // 削除はまず端末の「削除待ち」に入れ、ログインしていて通信できるときにクラウドから消す。
+  // ログアウト中や通信できないときに削除しても、次にログインしたとき・通信できるようになったときに消える
+  const PENDING_DELETES_KEY = 'mahjong_pending_cloud_deletes';
+  const LAST_UID_KEY = 'mahjong_last_uid';
+  function loadPendingCloudDeletes() {
     try {
-      await fbDb.collection('users').doc(_fbUid).collection('rules').doc(ruleId).delete();
-    } catch (e) {
-      console.warn('Cloud delete failed:', e);
+      const arr = JSON.parse(localStorage.getItem(PENDING_DELETES_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+  function savePendingCloudDeletes(arr) {
+    try { localStorage.setItem(PENDING_DELETES_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+  // ルールを削除したときに呼ぶ。削除したときのアカウント（ログアウト中なら最後にログインしたアカウント）を記録する。
+  // series（シリーズのIDと作成者パスワード）を渡したときは、サーバーのシリーズ（すべてのverのリンク）も削除する
+  function recordCloudDelete(ruleId, series) {
+    let uid = _fbUid;
+    if (!uid) { try { uid = localStorage.getItem(LAST_UID_KEY); } catch (e) {} }
+    // 一度もログインしていない端末のルールはクラウドにないので、クラウドの削除は記録しない
+    if (!uid && !series) return;
+    const arr = loadPendingCloudDeletes().filter(p => p.ruleId !== ruleId);
+    arr.push(Object.assign({ ruleId, uid: uid || null }, series || {}));
+    savePendingCloudDeletes(arr);
+    processPendingCloudDeletes();
+  }
+  let _processingDeletes = false;
+  function updatePendingCloudDelete(ruleId, fields) {
+    savePendingCloudDeletes(loadPendingCloudDeletes().map(x => x.ruleId === ruleId ? Object.assign(x, fields) : x));
+  }
+  async function processPendingCloudDeletes() {
+    if (_processingDeletes) return;
+    _processingDeletes = true;
+    try {
+      for (const p of loadPendingCloudDeletes()) {
+        // サーバーのシリーズの削除は、ログインしているかどうか・どのアカウントかに関係なく行う
+        if (p.seriesId) {
+          try {
+            await deleteSeriesOnServer(p.seriesId, p.password);
+            updatePendingCloudDelete(p.ruleId, { seriesId: null, password: null });
+          } catch (e) {
+            console.warn('Series delete failed:', e);
+            continue;
+          }
+        }
+        if (!p.uid) { savePendingCloudDeletes(loadPendingCloudDeletes().filter(x => x.ruleId !== p.ruleId)); continue; }
+        // 別のアカウントのルールは、このアカウントのクラウドからは消さない（そのアカウントでログインしたときに消す）
+        if (!_fbUid || p.uid !== _fbUid || !fbAuth.currentUser || fbAuth.currentUser.isAnonymous) continue;
+        const userDoc = fbDb.collection('users').doc(_fbUid);
+        try {
+          // ルール本体を消す（前からある場所なので、Firestoreのルールの更新前でも消せる）
+          await userDoc.collection('rules').doc(p.ruleId).delete();
+          // 削除の記録を残し、足した項目を消す
+          const batch = fbDb.batch();
+          batch.set(userDoc.collection('deleted_rules').doc(p.ruleId), { deletedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          batch.delete(userDoc.collection('rule_ext').doc(p.ruleId));
+          await batch.commit();
+          _cloudDeletedIds.add(p.ruleId);
+          savePendingCloudDeletes(loadPendingCloudDeletes().filter(x => x.ruleId !== p.ruleId));
+        } catch (e) {
+          // 通信できないなど。削除待ちに残し、次の機会にやり直す
+          console.warn('Cloud delete failed:', e);
+        }
+      }
+    } finally {
+      _processingDeletes = false;
     }
   }
+  window.addEventListener('online', () => processPendingCloudDeletes());
 
   // Googleログイン
   function signInWithGoogle() {
@@ -240,6 +398,8 @@
       // Googleログイン済みユーザー
       _fbUid = user.uid;
       window._fbUser = user;
+      // ログアウト中に削除したルールを、次にログインしたときにクラウドから消すため
+      try { localStorage.setItem(LAST_UID_KEY, user.uid); } catch (e) {}
       // クラウドからルールをマージ
       if (typeof STORAGE_KEY !== 'undefined') {
         await mergeCloudRules();
@@ -518,10 +678,30 @@
         <div class="z-10 w-[70px]"></div>
     </nav>
 
-    <main class="flex-1 overflow-y-auto pb-32 w-full">
+    <main class="flex-1 overflow-y-auto pb-40 w-full">
         <div class="px-4 pt-6 pb-2 w-full">
-            <input type="text" id="edit-name" placeholder="ルール名を入力" class="w-full text-2xl font-bold bg-transparent border-none outline-none placeholder-theme-textMuted mb-5" oninput="onNameChange(this.value)">
-            
+            <!-- verのリンクの帯（下書きがある・過去のverを見ている など） -->
+            <div id="edit-banner"></div>
+            <div class="flex items-center gap-2 mb-5">
+                <input type="text" id="edit-name" placeholder="ルール名を入力" class="flex-1 min-w-0 text-2xl font-bold bg-transparent border-none outline-none placeholder-theme-textMuted" oninput="onNameChange(this.value)">
+                <span id="edit-ver-badge" class="hidden shrink-0 text-[12px] font-semibold text-theme-primary bg-theme-highlightBg rounded-full px-2.5 py-0.5"></span>
+                <span id="edit-draft-badge" class="hidden shrink-0 draft-badge">下書きあり</span>
+            </div>
+            <!-- ルールのver（編集画面だけ表示） -->
+            <div id="edit-ver-field" class="hidden -mt-2 mb-5">
+                <div class="bg-theme-surface rounded-xl px-4 py-3 flex items-center shadow-sm border border-theme-border/30">
+                    <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">ver</span>
+                    <div id="edit-ver-input-wrap" class="flex-1 flex items-center justify-end min-w-0">
+                        <span class="text-theme-textMuted text-sm mr-0.5">ver</span>
+                        <input type="text" id="edit-ver" class="w-28 text-sm font-medium bg-transparent border-none outline-none text-theme-text" oninput="onVerChange(this.value)" autocomplete="off">
+                    </div>
+                    <!-- リンクを作ったルールでは書き換えられない（新しいverは「保存して公開」のときに付ける） -->
+                    <div id="edit-ver-static" class="hidden flex-1 text-right text-sm font-medium text-theme-text"></div>
+                </div>
+                <div id="edit-ver-note" class="hidden text-theme-textMuted text-[12px] mt-1 px-1"></div>
+                <div id="edit-ver-error" class="hidden text-theme-danger text-[12px] mt-1 px-1"></div>
+            </div>
+
             <div id="base-rule-section" class="bg-theme-surface rounded-xl p-4 flex items-center justify-between shadow-sm border border-theme-border/30 hidden">
                 <span class="font-medium text-sm whitespace-nowrap mr-4 shrink-0">比較対象のルール</span>
                 
@@ -544,6 +724,7 @@
     <div class="fixed bottom-0 w-full max-w-[40rem] bg-theme-bg/95 backdrop-blur-md border-t border-theme-border/50 p-4 pb-8 z-40" id="bottom-bar">
         <div id="bottom-bar-content" class="flex gap-3">
         </div>
+        <div id="bottom-bar-sub"></div>
     </div>
 
     <!-- Action Sheet Overlay -->
@@ -552,14 +733,16 @@
     <!-- Action Sheet -->
     <div id="action-sheet" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[40rem] z-[70] transition-transform duration-300 translate-y-full px-3 pb-8 pt-2">
         <div class="bg-white/95 backdrop-blur-xl rounded-2xl overflow-hidden mb-2">
-            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); shareRule(editingId); }, 300)">
-                <span class="material-symbols-outlined text-[20px]">link</span>共有URLを発行
+            <div class="py-3 text-center text-[13px] text-theme-textMuted font-medium border-b border-theme-border/50">共有</div>
+            <!-- リンクは共有シート（スマホ）を出すため、押した操作のうちに（待たずに）送る -->
+            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); onSendLinkButton();">
+                <span class="material-symbols-outlined text-[20px]">link</span>リンクで送る
             </button>
-            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); exportPDF(); }, 300)">
-                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>PDFとして出力
+            <button class="w-full py-4 text-theme-primary text-[17px] border-b border-theme-border/50 active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); exportImage(); }, 300)">
+                <span class="material-symbols-outlined text-[20px]">image</span>画像で送る
             </button>
-            <button class="w-full py-4 text-theme-primary text-[17px] active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); exportImage(); }, 300)">
-                <span class="material-symbols-outlined text-[20px]">image</span>画像として保存
+            <button class="w-full py-4 text-theme-primary text-[17px] active:bg-gray-200 flex items-center justify-center gap-2" onclick="closeActionSheet(); setTimeout(() => { if(!isSharedMode) saveData(); exportPDF(); }, 300)">
+                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>PDFで送る
             </button>
         </div>
         <div class="bg-white rounded-2xl overflow-hidden">
@@ -575,10 +758,38 @@
 <!-- 削除確認 -->
 <div class="modal-overlay" id="modal-delete">
   <div class="modal-box">
-    <p>このルールを削除しますか？</p>
+    <p id="modal-delete-text" class="ver-pre">このルールを削除しますか？</p>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-red" onclick="confirmDelete()">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 他人のルール・プリセットで「編集」を押したときの確認 -->
+<div class="modal-overlay" id="modal-copy-edit">
+  <div class="modal-box">
+    <p>このルールは他の人が作ったものなので、そのままでは編集できません。コピーして、自分のルールとして編集しますか？</p>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="closeCopyEditConfirm()">やめる</button>
+      <button class="btn btn-primary" onclick="closeCopyEditConfirm(); copySharedRule();">コピーして編集</button>
+    </div>
+  </div>
+</div>
+
+<!-- 変わった点のお知らせ（1回だけ出す） -->
+<div class="modal-overlay" id="modal-notice">
+  <div class="modal-box">
+    <p class="notice-title">雀カルテが新しくなりました</p>
+    <ul class="notice-list">
+      <li>ルールにverを付けられるようになりました。ルールを変えて公開すると、前に送ったリンクを開いた人に新しいverを知らせます。</li>
+      <li>リンクを作ったルールは、「下書き保存」で相手に見せずに保存できます。</li>
+      <li>リンク・画像・PDFは「共有」から送ります。</li>
+      <li>人から受け取ったルールの「コピーして編集」は「編集」になりました。</li>
+      <li>リンクを作ると、ルールの内容がサーバーに保存されます。ルールを削除すると、サーバーからも削除されます。</li>
+    </ul>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="closeNotice()">閉じる</button>
     </div>
   </div>
 </div>
@@ -1700,7 +1911,21 @@ function confirmSaveEditingRule() {
     alert('「' + name + '」という名前のルールがすでにあります。\n別の名前にしてから保存してください。');
     return false;
   }
+  // ver。この機能より前に作ったルール（verを持っていなかったもの）だけは空欄でも保存できる
+  const ver = normalizeVerLabel(rule.verLabel);
+  const verOptional = _editVerSnapshot === undefined && !_isNewlyCreated;
+  if (!ver && !verOptional) return showVerError('verの名前を入力してください');
+  if (charCount(ver) > VER_LABEL_MAX) return showVerError('verの名前を' + VER_LABEL_MAX + '文字以内にしてください');
+  if (ver) rule.verLabel = ver; else delete rule.verLabel;
   return true;
+}
+// verの入力欄の下に理由を出して、保存を止める
+function showVerError(msg) {
+  const err = document.getElementById('edit-ver-error');
+  if (err) { err.textContent = msg; err.classList.remove('hidden'); }
+  const input = document.getElementById('edit-ver');
+  if (input) input.focus();
+  return false;
 }
 // 端末の保存容量がいっぱいなどで保存できなかった時の警告
 function alertSaveFailed() {
@@ -1710,12 +1935,1189 @@ function alertSaveFailed() {
 function isTemporarySharedRule(r) {
   return !!(r.isSharedPhantom || String(r.id).startsWith('shared_'));
 }
-// コピーしたルールの名前。ほかのルールと重ならないよう「（コピー2）」「（コピー3）」…と番号を付ける
-function uniqueCopyName(baseName, mode) {
+// ---- ルールのver ----
+// rule.verLabel に「ver」を除いた名前（例: 1.0、2025秋）を持つ。
+// この機能より前に作ったルールは verLabel を持たない（空欄のままでも保存できる）。プリセット・共有されたルールは持たない
+const VER_LABEL_MAX = 20;
+const RULE_NAME_MAX = 100;
+const INITIAL_VER_LABEL = '1.0';
+let _editVerSnapshot;  // 編集前の verLabel（持っていなかったルールは undefined）
+// 見た目の1文字を1文字と数える（絵文字も1文字）
+function charCount(s) { return [...String(s || '')].length; }
+function truncateChars(s, max) { return [...String(s || '')].slice(0, max).join(''); }
+// 入力されたverの名前をそろえる：全角の英数字を半角にし、前後の空白と先頭の「ver」を取り除く
+function normalizeVerLabel(s) {
+  return String(s || '').normalize('NFKC').trim().replace(/^ver\s*/i, '').trim();
+}
+// 画面に出すver（例: ver1.0）。verを持たないルールは空文字
+function verText(rule) {
+  return rule && rule.verLabel ? 'ver' + rule.verLabel : '';
+}
+// 新しく作ったルール（コピーを含む）に付けるver・コピー元の記録
+function initCopiedRule(copy, srcId) {
+  copy.verLabel = INITIAL_VER_LABEL;
+  copy.copiedFrom = srcId ? { ruleId: srcId } : null;
+  // リンクの情報（シリーズ・作成者パスワード）は写さない。写すと、コピーした方で公開したときに元のルールのリンクが書き換わる
+  delete copy.link;
+  delete copy.sharedVer;
+  delete copy.sharedFixedId;
+  return copy;
+}
+function nowDateStr() {
+  const now = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}/${p(now.getMonth() + 1)}/${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
+}
+// 編集を始めるときに、元に戻せるよう名前・設定・verを控える
+function takeEditSnapshot(rule) {
+  _editSnapshot = rule ? JSON.stringify(rule.settings) : null;
+  _editNameSnapshot = rule ? rule.name : null;
+  _editVerSnapshot = rule ? rule.verLabel : undefined;
+  _editDirty = false;
+}
+// 控えた状態にルールを戻す
+function restoreEditSnapshot(rule) {
+  if (!rule) return;
+  if (_editSnapshot) rule.settings = JSON.parse(_editSnapshot);
+  if (_editNameSnapshot !== null && _editNameSnapshot !== undefined) rule.name = _editNameSnapshot;
+  if (_editVerSnapshot === undefined) delete rule.verLabel; else rule.verLabel = _editVerSnapshot;
+}
+
+// コピーしたルールの名前。ほかのルールと重ならないよう「（コピー2）」「（コピー3）」…と番号を付ける。
+// suffix は過去のverのコピーで「ver1.0のコピー」にする
+function uniqueCopyName(baseName, mode, suffix) {
+  suffix = suffix || 'コピー';
   const used = new Set(appData.rules.filter(r => r.mode === mode && !isTemporarySharedRule(r)).map(r => (r.name || '').trim()));
-  let name = baseName + '（コピー）', n = 2;
-  while (used.has(name)) name = baseName + '（コピー' + (n++) + '）';
+  let name = baseName + '（' + suffix + '）', n = 2;
+  while (used.has(name)) name = baseName + '（' + suffix + (n++) + '）';
   return name;
+}
+
+// =====================================================================
+// verのリンク（シリーズ・作成者パスワード・下書きと公開）
+// 計画書「データとFirestoreのルール」のとおり。リンクを作ったルールは rule.link を持つ
+// =====================================================================
+const KEEP_VER_KEY = 'mahjong_keep_ver';  // 「まま見る」を選んだシリーズ → そのときの最新の通し番号
+const GUEST_BASES_MAX = 30;               // ログインしていない人が1つのルールに保存できる比較対象の数
+const VER_NOTE_MAX = 200;
+const fsNow = () => firebase.firestore.FieldValue.serverTimestamp();
+const seriesRef = sid => fbDb.collection('rule_series').doc(sid);
+
+// 推測できないランダムな文字列（作成者パスワード・シリーズのID・比較対象の印）
+function randomToken(len, chars) {
+  chars = chars || 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const buf = new Uint32Array(len);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, n => chars[n % chars.length]).join('');
+}
+function isLoggedIn() { return !!(fbAuth.currentUser && !fbAuth.currentUser.isAnonymous); }
+function todayStr() { return nowDateStr().slice(0, 10); }
+function hasLink(rule) { return !!(rule && rule.link && rule.link.seriesId); }
+// この端末に作成者パスワードがあり、公開・削除できるか
+function canPublish(rule) { return hasLink(rule) && !!rule.link.password; }
+function verError(code, extra) { const e = new Error(code); e.verCode = code; return Object.assign(e, extra || {}); }
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(verError('offline')), ms))]);
+}
+function verUrl(shareId, cmp) {
+  return window.location.origin + window.location.pathname + '?share=' + shareId + (cmp ? '&cmp=' + encodeURIComponent(cmp) : '');
+}
+// 公開中のver（例: ver1.1）
+function pubVerText(rule) { return 'ver' + (rule.link.pubLabel || ''); }
+
+// ---- 下書きの判定 ----
+// 手で直した強調と差分表示。設定（settings）の中にあるが、下書きの判定と公開では設定と分けて扱う
+function isHlKey(k) { return k === 'highlight_overrides' || k.startsWith('memoDiff_'); }
+// 公開している内容の控え（pubSnapshot）と同じ形：ルール名・設定（強調を除く）・強調と差分表示
+function pubPartsOf(rule) {
+  const settings = {}, hl = {};
+  for (const [k, v] of Object.entries(rule.settings || {})) {
+    if (!isHlKey(k)) settings[k] = v;
+    else if (v !== false) hl[k] = v;  // 差分表示をOFFに戻したものは、記録がないものと同じ
+  }
+  return JSON.parse(JSON.stringify({ name: String(rule.name || '').trim(), settings, hl }));
+}
+// 中身で比べるための文字列。項目の並び順・空の値（なし・空の文字・null・空の一覧）・型の違い（0 と "0"）を無視する
+function canonical(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (Array.isArray(v)) return v.length ? '[' + v.map(canonical).join(',') + ']' : '';
+  if (typeof v === 'object') {
+    const parts = Object.keys(v).sort().map(k => [k, canonical(v[k])]).filter(([, c]) => c !== '');
+    return parts.length ? '{' + parts.map(([k, c]) => JSON.stringify(k) + ':' + c).join(',') + '}' : '';
+  }
+  return JSON.stringify(String(v));
+}
+// 公開している内容と比べて、何が変わっているか
+function pubDiff(rule) {
+  const snap = hasLink(rule) && rule.link.pubSnapshot;
+  if (!snap) return { name: false, settings: false, hl: false };
+  const cur = pubPartsOf(rule);
+  return {
+    name: cur.name !== String(snap.name || '').trim(),
+    settings: canonical(cur.settings) !== canonical(snap.settings),
+    hl: canonical(cur.hl) !== canonical(snap.hl)
+  };
+}
+function anyDiff(d) { return d.name || d.settings || d.hl; }
+// ほかの端末で公開されていて、手元の中身がそれより前の公開をもとにしているか
+function isOtherDevicePublished(rule) {
+  return hasLink(rule) && (rule.link.basedOn ?? -1) < (rule.link.pubOp || 0);
+}
+function hasDraft(rule) {
+  return hasLink(rule) && !isOtherDevicePublished(rule) && anyDiff(pubDiff(rule));
+}
+// 画像・PDFに入れるver。作成者が下書きのある自分のルールを出すときは「ver1.1（下書き）」
+function exportVerText(rule) {
+  const t = verText(rule);
+  return t && !isSharedMode && hasDraft(rule) ? t + '（下書き）' : t;
+}
+// 公開した設定と強調から、ルールの settings を組み立てる
+function settingsFromPub(settings, hl) {
+  const s = {};
+  for (const [k, v] of Object.entries(settings || {})) if (!isHlKey(k)) s[k] = v;
+  return JSON.parse(JSON.stringify(Object.assign(s, hl || {})));
+}
+// 次のverの名前の初期値。前の名前が数字で終わるなら、末尾の数字に1を足す（1.0→1.1、2→3）。それ以外は空欄
+function nextVerLabel(label) {
+  const m = String(label || '').match(/^(.*?)(\d+)$/);
+  return m ? m[1] + (parseInt(m[2], 10) + 1) : '';
+}
+// verの名前が使用済みか（全角・半角、大文字・小文字を区別しない）
+function verLabelKey(label) { return normalizeVerLabel(label).toLowerCase(); }
+function isVerLabelUsed(label, history) {
+  const key = verLabelKey(label);
+  return (history || []).some(h => verLabelKey(h.label) === key);
+}
+// 共有の中身（data）。b・bn・bs は古いアプリで開いたときのために、今見ている比較対象を入れる
+function ruleExportData(rule) {
+  const d = { m: rule.mode, n: rule.name, b: rule.base_rule, s: rule.settings, o: rule.id };
+  if (rule.base_rule) {
+    const baseRuleObj = getRule(rule.base_rule);
+    if (baseRuleObj) { d.bn = baseRuleObj.name; d.bs = baseRuleObj.settings; }
+  }
+  return d;
+}
+
+// ---- サーバーとのやりとり ----
+// 通信できないときに待ち続けないよう、サーバーから読む（端末の写しは使わない）
+async function fetchServerDoc(ref) {
+  if (navigator.onLine === false) throw verError('offline');
+  return withTimeout(ref.get({ source: 'server' }), 10000);
+}
+async function fetchSeries(sid) {
+  const snap = await fetchServerDoc(seriesRef(sid));
+  return snap.exists ? snap.data() : null;
+}
+function latestLabelOf(series) {
+  const h = (series && series.history) || [];
+  const last = h.find(x => x.seq === series.latestSeq) || h[h.length - 1];
+  return last ? last.label : '';
+}
+// まとめて書き込む。通信できないと書き込みが終わらないことがあるので、時間がかかったら失敗として先に戻る。
+// その後に書き込めたときは onLate を呼び、端末の記録をサーバーに合わせる
+async function commitBatch(batch, onLate) {
+  if (navigator.onLine === false) throw verError('offline');
+  const p = batch.commit();
+  try {
+    await withTimeout(p, 15000);
+  } catch (e) {
+    if (e && e.verCode === 'offline') p.then(() => { if (onLate) onLate(); }).catch(() => {});
+    throw e;
+  }
+}
+// 作成者の確認（公開の記録 series_ops）付きでシリーズを書き換える準備をする。
+// build(batch, series, n) で同じ書き込みに足すものを入れ、シリーズの変更を返す（断るときは verError を投げる）
+async function prepareSeriesOp(link, build) {
+  const series = await fetchSeries(link.seriesId);
+  if (!series || series.deleted) throw verError('deleted');
+  const n = (series.opCount || 0) + 1;
+  const batch = fbDb.batch();
+  batch.set(fbDb.collection('series_ops').doc(link.seriesId + '_' + n), { seriesId: link.seriesId, password: link.password, createdAt: fsNow() });
+  const changes = build(batch, series, n);
+  batch.update(seriesRef(link.seriesId), Object.assign({ opCount: n, updatedAt: fsNow() }, changes));
+  return { series, n, commit: onLate => commitBatch(batch, onLate) };
+}
+// 書き込みを断られた理由を調べる（削除されていた・先を越された・それ以外）
+async function classifyOpError(link, e, expectedSeq) {
+  if (e && e.verCode) return e;
+  try {
+    const s = await fetchSeries(link.seriesId);
+    if (!s || s.deleted) return verError('deleted');
+    if (expectedSeq !== undefined && s.latestSeq !== expectedSeq) return verError('conflict', { series: s });
+  } catch (e2) { return verError('offline'); }
+  return verError('failed');
+}
+// 別の端末でルールが削除されていたときは、リンクの情報を外して、リンクを作っていないルールに戻す
+function unlinkRule(rule) {
+  if (!rule) return;
+  delete rule.link;
+  saveData();
+  showSnack('このルールのリンクは削除されています。リンクのないルールに戻しました');
+}
+
+// 初めてリンクを作る：作成者パスワードの控え・シリーズ・通し番号1のverを1回で書き込む
+async function createVerLink(rule, label) {
+  const sid = randomToken(20), password = randomToken(40), shareId = generateShareId();
+  const name = String(rule.name || '').trim();
+  const batch = fbDb.batch();
+  batch.set(fbDb.collection('series_passwords').doc(sid), { password });
+  batch.set(seriesRef(sid), {
+    mode: rule.mode, name, latestSeq: 1, latestShareId: shareId,
+    history: [{ seq: 1, label, shareId, note: '', date: todayStr() }],
+    hlSeqs: [], baseKeys: [], shareIds: [shareId], opCount: 0, deleted: false, updatedAt: fsNow()
+  });
+  batch.set(fbDb.collection('shared_rules').doc(shareId), {
+    data: JSON.stringify(ruleExportData(rule)), createdAt: fsNow(), seriesId: sid, seq: 1, label
+  });
+  const apply = () => {
+    if (hasLink(rule)) return;
+    rule.verLabel = label;
+    rule.link = {
+      seriesId: sid, password, ruleId: rule.id, pubSeq: 1, pubLabel: label, pubShareId: shareId, firstLabel: label,
+      pubOp: 0, basedOn: 0, basedOnLabel: label, pubSnapshot: pubPartsOf(rule), bases: {},
+      history: [{ seq: 1, label, shareId, note: '', date: todayStr() }], hlSeqs: []
+    };
+    saveData();
+  };
+  await commitBatch(batch, apply);
+  apply();
+}
+
+// 新しいverを公開する。expectedSeq は公開の画面を開いたときの最新の通し番号（違えば先を越された）
+async function publishNewVer(rule, label, note, expectedSeq) {
+  const link = rule.link;
+  const shareId = generateShareId();
+  const cur = pubPartsOf(rule);
+  let op;
+  try {
+    op = await prepareSeriesOp(link, (batch, s) => {
+      if (s.latestSeq !== expectedSeq) throw verError('conflict', { series: s });
+      const seq = s.latestSeq + 1;
+      batch.set(fbDb.collection('shared_rules').doc(shareId), {
+        data: JSON.stringify(ruleExportData(rule)), createdAt: fsNow(), seriesId: link.seriesId, seq, label, note
+      });
+      const ch = {
+        latestSeq: seq, latestShareId: shareId,
+        history: [...(s.history || []), { seq, label, shareId, note, date: todayStr() }],
+        shareIds: [...(s.shareIds || []), shareId]
+      };
+      if (cur.name !== s.name) ch.name = cur.name;
+      return ch;
+    });
+    const seq = op.series.latestSeq + 1, n = op.n;
+    const apply = () => {
+      Object.assign(link, { pubSeq: seq, pubLabel: label, pubShareId: shareId, pubOp: n, basedOn: n, basedOnLabel: label, pubSnapshot: cur,
+        history: [...(op.series.history || []), { seq, label, shareId, note, date: todayStr() }], hlSeqs: op.series.hlSeqs || [] });
+      rule.verLabel = label;
+      saveData();
+    };
+    await op.commit(apply);
+    apply();
+  } catch (e) {
+    throw await classifyOpError(link, e, expectedSeq);
+  }
+}
+
+// 名前・強調だけを、verを変えずに最新のverへ公開する。強調は ver_hl に書き、そのverを hlSeqs に足す
+async function publishNameHl(rule, d) {
+  const link = rule.link;
+  const cur = pubPartsOf(rule);
+  try {
+    const op = await prepareSeriesOp(link, (batch, s) => {
+      // 別の端末が先に新しいverを公開していたら、この端末の名前・強調は ver の設定に合わないので公開しない
+      if (s.latestSeq !== link.pubSeq) throw verError('conflict', { series: s });
+      const ch = {};
+      if (d.name) ch.name = cur.name;
+      if (d.hl) {
+        batch.set(fbDb.collection('ver_hl').doc(s.latestShareId), { seriesId: link.seriesId, hl: JSON.stringify(cur.hl), updatedAt: fsNow() });
+        const seqs = s.hlSeqs || [];
+        if (!seqs.includes(s.latestSeq)) ch.hlSeqs = seqs.concat([s.latestSeq]);
+      }
+      return ch;
+    });
+    const apply = () => {
+      const snap = link.pubSnapshot || pubPartsOf(rule);
+      if (d.name) snap.name = cur.name;
+      if (d.hl) snap.hl = cur.hl;
+      const seqs = op.series.hlSeqs || [];
+      Object.assign(link, { pubSnapshot: snap, pubOp: op.n, basedOn: op.n, basedOnLabel: link.pubLabel, history: op.series.history || link.history,
+        hlSeqs: d.hl && !seqs.includes(op.series.latestSeq) ? seqs.concat([op.series.latestSeq]) : seqs });
+      saveData();
+    };
+    await op.commit(apply);
+    apply();
+  } catch (e) {
+    throw await classifyOpError(link, e);
+  }
+}
+
+// ---- 送るときの比較対象 ----
+// URLの cmp。保存が要らないもの（なし・プリセット・別のver・保存済みで中身が同じもの）はすぐ決まる。
+// 保存が要るときは { needsSave: true } を返す
+function planSendCmp(rule, baseId) {
+  if (!baseId) return { cmp: '' };
+  if (baseId.startsWith('ver:')) return { cmp: 'v:' + baseId.slice(4) };
+  const base = getRule(baseId);
+  if (!base) return { cmp: '' };
+  if (isPresetRule(base)) return { cmp: 'p:' + baseId };
+  const saved = (rule.link.bases || {})[baseId];
+  if (saved && saved.snap === canonical({ n: base.name, s: base.settings })) return { cmp: saved.mark, saved };
+  return { needsSave: true, base };
+}
+// 比較対象の中身をシリーズに保存して、その印を返す。ログインしていないときは、30件以上あれば最も長く使っていないものを1件消す
+async function saveSendBase(rule, base) {
+  const link = rule.link;
+  link.bases = link.bases || {};
+  const prev = link.bases[base.id];
+  const mark = prev ? prev.mark : randomToken(4);
+  let victim = null;
+  try {
+    const op = await prepareSeriesOp(link, (batch, s) => {
+      let keys = (s.baseKeys || []).slice();
+      if (!keys.includes(mark)) {
+        if (!isLoggedIn() && keys.length >= GUEST_BASES_MAX) {
+          const known = Object.entries(link.bases).filter(([, b]) => keys.includes(b.mark)).sort((a, b) => (a[1].usedAt || 0) - (b[1].usedAt || 0));
+          victim = known.length ? known[0][1].mark : keys[0];
+          keys = keys.filter(k => k !== victim);
+          batch.delete(fbDb.collection('series_bases').doc(link.seriesId + '_' + victim));
+        }
+        keys.push(mark);
+      }
+      batch.set(fbDb.collection('series_bases').doc(link.seriesId + '_' + mark), {
+        seriesId: link.seriesId, mark, baseId: base.id, name: base.name, mode: base.mode,
+        settings: JSON.stringify(base.settings || {}), usedAt: fsNow()
+      });
+      return { baseKeys: keys };
+    });
+    const apply = () => {
+      if (victim) for (const [id, b] of Object.entries(link.bases)) if (b.mark === victim) delete link.bases[id];
+      link.bases[base.id] = { mark, snap: canonical({ n: base.name, s: base.settings }), usedAt: Date.now() };
+      // 比較対象の保存も公開の回数を進める。この端末が最新を読んでいたときだけ、記録も進める
+      // （ほかの端末の公開を読む前なら、表示画面を開いたときに読み直せるよう、そのままにする）
+      if ((link.pubOp || 0) === (op.series.opCount || 0)) {
+        if (link.basedOn === link.pubOp) link.basedOn = op.n;
+        link.pubOp = op.n;
+      }
+      link.lastCmp = mark;
+      saveData();
+    };
+    await op.commit(apply);
+    apply();
+    return mark;
+  } catch (e) {
+    throw await classifyOpError(link, e);
+  }
+}
+
+// ---- 削除 ----
+// サーバーにあるシリーズを削除する。1回目（作成者の確認）で「削除済み」の印を付け、2回目以降で片付ける
+async function deleteSeriesOnServer(sid, password) {
+  let s = await fetchSeries(sid);
+  if (!s) return;
+  if (!s.deleted) {
+    const op = await prepareSeriesOp({ seriesId: sid, password }, batch => {
+      batch.delete(fbDb.collection('series_passwords').doc(sid));
+      const del = firebase.firestore.FieldValue.delete();
+      return { deleted: true, name: del, history: del };
+    });
+    await op.commit();
+    s = await fetchSeries(sid);
+    if (!s) return;
+  }
+  const shareIds = s.shareIds || [];
+  const refs = shareIds.map(id => fbDb.collection('shared_rules').doc(id));
+  for (const seq of (s.hlSeqs || [])) if (shareIds[seq - 1]) refs.push(fbDb.collection('ver_hl').doc(shareIds[seq - 1]));
+  for (const m of (s.baseKeys || [])) refs.push(fbDb.collection('series_bases').doc(sid + '_' + m));
+  for (let i = 1; i <= (s.opCount || 0); i++) refs.push(fbDb.collection('series_ops').doc(sid + '_' + i));
+  for (let i = 0; i < refs.length; i += 400) {
+    const chunk = refs.slice(i, i + 400);
+    const batch = fbDb.batch();
+    chunk.forEach(r => batch.delete(r));
+    try {
+      await commitBatch(batch);
+    } catch (e) {
+      if (e && e.verCode === 'offline') throw e;
+      // 前のやり直しで既に消したものがあると、まとめての削除は断られる。1件ずつ消す
+      for (const r of chunk) { try { await withTimeout(r.delete(), 10000); } catch (e2) {} }
+    }
+  }
+  await withTimeout(seriesRef(sid).delete(), 15000);
+}
+
+// ---- verのリンクの画面（シート・帯・ポップアップ） ----
+function openVerSheet(html, onClose) {
+  closeVerSheet();
+  const overlay = document.createElement('div');
+  overlay.id = 'ver-sheet-overlay';
+  overlay.className = 'sheet-overlay';
+  overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  overlay._onClose = onClose;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeVerSheet(true); });
+  document.body.appendChild(overlay);
+  return overlay;
+}
+// byUser：キャンセル・背景を押して閉じたとき（呼び出し元に戻る処理をする）
+function closeVerSheet(byUser) {
+  const el = document.getElementById('ver-sheet-overlay');
+  if (!el) return;
+  const cb = el._onClose;
+  el.remove();
+  if (byUser && cb) cb();
+}
+function verSheetHead(title, extra) {
+  return `<div class="sheet-head"><div class="sheet-title">${esc(title)}${extra || ''}</div>
+    <button class="sheet-close" onclick="closeVerSheet(true)" aria-label="閉じる">✕</button></div>`;
+}
+function setVerSheetBusy(btn, busy, text) {
+  if (!btn) return;
+  if (busy) { btn._label = btn.textContent; btn.textContent = text || '通信中…'; btn.disabled = true; }
+  else { btn.textContent = btn._label || btn.textContent; btn.disabled = false; }
+}
+function showVerSheetError(id, msg) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = msg; el.hidden = !msg; }
+}
+// 「OK」だけのボタンを作らないよう、閉じるボタンの付いたお知らせを出す
+function showVerMessage(text) {
+  openVerSheet(`${verSheetHead('お知らせ')}<div class="sheet-body"><p class="ver-msg">${esc(text)}</p></div>
+    <div class="sheet-foot"><button class="sheet-done" onclick="closeVerSheet()">閉じる</button></div>`);
+}
+
+// 比較対象の候補。編集画面の比較対象と同じ並び（お気に入り → 自分のルール → プリセット）
+function baseCandidates(rule) {
+  let favs = [];
+  try { favs = JSON.parse(localStorage.getItem(rule.mode === '四麻' ? 'mahjong_default_base_4ma' : 'mahjong_default_base_3ma')) || []; } catch (e) {}
+  if (!Array.isArray(favs)) favs = [];
+  const t = s => { const v = Date.parse(String(s || '').replace(/\//g, '-')); return isNaN(v) ? 0 : v; };
+  return appData.rules
+    .filter(r => r.mode === rule.mode && r.id !== rule.id && r.id !== rule.origin_id && !isTemporarySharedRule(r))
+    .sort((a, b) => {
+      const fa = favs.includes(a.id), fb = favs.includes(b.id);
+      if (fa !== fb) return fa ? -1 : 1;
+      const pa = a.presetOrder !== undefined, pb = b.presetOrder !== undefined;
+      if (pa !== pb) return pa ? 1 : -1;
+      if (pa && pb) return a.presetOrder - b.presetOrder;
+      return t(b.date) - t(a.date);
+    });
+}
+// 送るときの比較対象の選択（初期値は今見ている比較対象）
+function cmpSelectHtml(rule, selected) {
+  const sel = selected !== undefined ? selected : (rule.base_rule || '');
+  const others = baseCandidates(rule).map(r => `<option value="${esc(r.id)}" ${r.id === sel ? 'selected' : ''}>${esc(r.name)}</option>`).join('');
+  const vers = verOptionsOf(rule).map(v => `<option value="${esc(v.id)}" ${v.id === sel ? 'selected' : ''}>ver${esc(v.label)}${v.latest ? '（最新）' : ''}</option>`).join('');
+  return `<div class="sheet-label">比較対象</div>
+    <select id="ver-cmp" class="sheet-input"><option value="" ${sel ? '' : 'selected'}>なし</option>`
+    + (vers ? `<optgroup label="― このルールの別のver ―">${vers}</optgroup><optgroup label="― ほかのルール ―">${others}</optgroup>` : others) + '</select>';
+}
+function selectedCmp() {
+  const el = document.getElementById('ver-cmp');
+  return el ? el.value : '';
+}
+
+// 「共有」→「リンクで送る」
+function onSendLinkButton() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  if (isSharedMode) return sendViewingLink(rule);
+  // プリセットは今と同じ固定のリンクで送る（リンクを作るルールではないため）
+  if (isPresetRule(rule)) return shareRule(rule.id);
+  saveData();
+  if (!hasLink(rule)) return showCreateLinkSheet(rule);
+  if (!canPublish(rule)) {
+    if (hasDraft(rule)) return showDraftSendSheet(rule);
+    // 新しい比較対象は保存できないので、保存済みの比較対象のうち最後に使ったもので送る
+    return deliverLink(verUrl(rule.link.pubShareId, rule.link.lastCmp || ''), rule.name, rule.link.pubLabel, false);
+  }
+  if (hasDraft(rule)) return showDraftSendSheet(rule);
+  showSendSheet(rule);
+}
+// 自分が作成していないルール：開いたURLと同じ比較対象のまま、見ているverのURLを渡す
+function sendViewingLink(rule) {
+  const v = rule.sharedVer;
+  if (v) return deliverLink(verUrl(v.viewShareId, v.cmp), rule.name, rule.verLabel, false);
+  if (rule.sharedFixedId) return deliverLink(verUrl(rule.sharedFixedId, ''), rule.name, '', false);
+  shareRule(rule.id);
+}
+
+// リンクを渡す。スマホでは共有シート、使えないときはコピー。
+// 通信を待った後（waited）は共有シート・コピーができないことがあるので、そのときは「リンクができました［送る］」を出す
+function deliverLink(url, title, label, waited) {
+  const done = () => showSnack(label ? 'ver' + label + ' のリンクをコピーしました' : '🔗 共有リンクをコピーしました');
+  const ready = () => showLinkReadySheet(url, title, label);
+  const isTouchDevice = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (isTouchDevice && navigator.share) {
+    navigator.share({ title: title || '雀カルテ', url }).catch(e => {
+      if (e && e.name === 'AbortError') return;
+      if (waited) return ready();
+      copyText(url).then(done, ready);
+    });
+    return;
+  }
+  copyText(url).then(done, waited ? ready : () => {});
+}
+function copyText(text) {
+  return new Promise((resolve, reject) => {
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      ok ? resolve() : reject();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(resolve, fallback);
+    else fallback();
+  });
+}
+let _readyLink = null;
+function showLinkReadySheet(url, title, label) {
+  _readyLink = { url, title, label };
+  openVerSheet(`${verSheetHead('リンクができました')}
+    <div class="sheet-foot"><button class="sheet-done" onclick="closeVerSheet(); deliverLink(_readyLink.url, _readyLink.title, _readyLink.label, false)">送る</button>
+    <button class="sheet-cancel" onclick="closeVerSheet()">キャンセル</button></div>`);
+}
+
+// 比較対象を決めてから送る。保存が要るときは保存を待ってから送る
+async function sendWithCmp(rule, baseId, btn, errId, waitedBefore) {
+  const plan = planSendCmp(rule, baseId);
+  if (!plan.needsSave) {
+    if (plan.saved) plan.saved.usedAt = Date.now();
+    rule.link.lastCmp = plan.cmp;
+    saveData();
+    closeVerSheet();
+    deliverLink(verUrl(rule.link.pubShareId, plan.cmp), rule.name, rule.link.pubLabel, !!waitedBefore);
+    return true;
+  }
+  setVerSheetBusy(btn, true);
+  try {
+    const mark = await saveSendBase(rule, plan.base);
+    closeVerSheet();
+    deliverLink(verUrl(rule.link.pubShareId, mark), rule.name, rule.link.pubLabel, true);
+    return true;
+  } catch (e) {
+    setVerSheetBusy(btn, false);
+    if (e.verCode === 'deleted') { closeVerSheet(); unlinkRule(rule); rerenderIfViewing(rule); return false; }
+    showVerSheetError(errId, '通信できる場所で、もう一度送ってください');
+    return false;
+  }
+}
+
+// まだリンクがないルール：「ver1.0 のリンクを作ります」
+function showCreateLinkSheet(rule) {
+  const needVer = !rule.verLabel;
+  const label = rule.verLabel || INITIAL_VER_LABEL;
+  openVerSheet(`${verSheetHead('ver' + label + ' のリンクを作ります')}
+    <div class="sheet-body">
+      <p class="ver-text">ルールを変更して公開すると、このリンクを開いた人に新しいverがあることを知らせます。</p>
+      ${needVer ? `<div class="sheet-label">ver</div><div class="ver-input-row"><span>ver</span><input type="text" id="ver-new-label" class="sheet-input" value="${esc(label)}" oninput="onCreateLinkVerInput(this)"></div>` : ''}
+      ${cmpSelectHtml(rule)}
+      ${isLoggedIn() ? '' : '<p class="sheet-note">Googleでログインすると、ほかの端末からも公開できます。ログインしないまま、ブラウザのデータを消したり機種を変えたりすると、公開できなくなります。</p>'}
+      <div class="sheet-error" id="ver-sheet-error" hidden></div>
+    </div>
+    <div class="sheet-foot"><button class="sheet-done" id="ver-sheet-ok" onclick="onCreateLinkSubmit()">リンクを作って送る</button>
+    <button class="sheet-cancel" onclick="closeVerSheet(true)">キャンセル</button></div>`);
+}
+function onCreateLinkVerInput(input) {
+  const t = document.querySelector('#ver-sheet-overlay .sheet-title');
+  if (t) t.textContent = 'ver' + (normalizeVerLabel(input.value) || '') + ' のリンクを作ります';
+  showVerSheetError('ver-sheet-error', '');
+}
+async function onCreateLinkSubmit() {
+  const rule = getRule(editingId);
+  if (!rule || hasLink(rule)) return;
+  const btn = document.getElementById('ver-sheet-ok');
+  const verInput = document.getElementById('ver-new-label');
+  const label = verInput ? normalizeVerLabel(verInput.value) : rule.verLabel;
+  if (!label) return showVerSheetError('ver-sheet-error', 'verの名前を入力してください');
+  if (charCount(label) > VER_LABEL_MAX) return showVerSheetError('ver-sheet-error', 'verの名前を' + VER_LABEL_MAX + '文字以内にしてください');
+  if (charCount(String(rule.name || '').trim()) > RULE_NAME_MAX) return showVerSheetError('ver-sheet-error', 'ルール名を' + RULE_NAME_MAX + '文字以内にしてください');
+  const baseId = selectedCmp();
+  setVerSheetBusy(btn, true);
+  try {
+    await createVerLink(rule, label);
+  } catch (e) {
+    setVerSheetBusy(btn, false);
+    return showVerSheetError('ver-sheet-error', '通信できる場所で、もう一度送ってください');
+  }
+  setVerSheetBusy(btn, false);
+  rerenderIfViewing(rule);
+  await sendWithCmp(rule, baseId, btn, 'ver-sheet-error', true);
+}
+
+// リンクあり・下書きなし：「ver1.1 のリンクを送る」
+function showSendSheet(rule, selected) {
+  openVerSheet(`${verSheetHead(pubVerText(rule) + ' のリンクを送る')}
+    <div class="sheet-body">${cmpSelectHtml(rule, selected)}<div class="sheet-error" id="ver-sheet-error" hidden></div></div>
+    <div class="sheet-foot"><button class="sheet-done" id="ver-sheet-ok" onclick="sendWithCmp(getRule(editingId), selectedCmp(), this, 'ver-sheet-error')">リンクを送る</button>
+    <button class="sheet-cancel" onclick="closeVerSheet(true)">キャンセル</button></div>`);
+}
+
+// リンクあり・下書きあり：「下書きがあります」
+function showDraftSendSheet(rule, selected) {
+  const can = canPublish(rule);
+  const v = pubVerText(rule);
+  openVerSheet(`${verSheetHead('下書きがあります', ' <span class="draft-badge">下書きあり</span>')}
+    <div class="sheet-body">
+      <p class="ver-text">${can ? '下書きの変更は、まだリンクに出ていません。' : 'この端末からは公開できません。リンクを作った端末で公開してください'}</p>
+      <div class="ver-rows"><div><span>相手に表示されるver</span><b>${esc(v)}（公開中）</b></div><div><span>下書き</span><b>未公開</b></div></div>
+      ${can ? cmpSelectHtml(rule, selected) : ''}
+      <div class="sheet-error" id="ver-sheet-error" hidden></div>
+    </div>
+    <div class="sheet-foot">
+      ${can ? `<button class="sheet-done" id="ver-sheet-ok" onclick="onPublishThenSend()">下書きを公開してから送る</button>` : ''}
+      <button class="${can ? 'sheet-second' : 'sheet-done'}" id="ver-sheet-skip" onclick="onSendWithoutDraft(${can})">下書きは出さずに ${esc(v)} を送る</button>
+      <button class="sheet-cancel" onclick="closeVerSheet(true)">キャンセル</button></div>`);
+}
+function onSendWithoutDraft(can) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  if (!can) { closeVerSheet(); return deliverLink(verUrl(rule.link.pubShareId, rule.link.lastCmp || ''), rule.name, rule.link.pubLabel, false); }
+  sendWithCmp(rule, selectedCmp(), document.getElementById('ver-sheet-skip'), 'ver-sheet-error');
+}
+// 「下書きを公開してから送る」：公開した後に、先に選んだ比較対象で送る。
+// 公開の途中でキャンセル・下書き保存したときは、送らずに「下書きがあります」に戻る
+function onPublishThenSend() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const baseId = selectedCmp();
+  closeVerSheet();
+  startPublish(rule, {
+    onDone: (published) => {
+      const r = getRule(rule.id);
+      if (!r || !hasLink(r)) return;
+      if (published) {
+        openVerSheet(`${verSheetHead(pubVerText(r) + ' のリンクを送る')}<div class="sheet-body"><div class="sheet-error" id="ver-sheet-error" hidden></div></div>
+          <div class="sheet-foot"><button class="sheet-done" id="ver-sheet-ok">送る</button><button class="sheet-cancel" onclick="closeVerSheet()">キャンセル</button></div>`);
+        // 公開の通信を待った後なので、送るボタンをもう一度押してもらう（共有シートを出せるようにするため）
+        document.getElementById('ver-sheet-ok').onclick = () => sendWithCmp(r, baseId, document.getElementById('ver-sheet-ok'), 'ver-sheet-error');
+      } else if (hasDraft(r)) {
+        showDraftSendSheet(r, baseId);
+      }
+    }
+  });
+}
+
+// ---- 保存して公開 ----
+// opts.fromEdit：編集画面から（まだ端末に保存していない）。opts.onDone(公開したか)
+async function startPublish(rule, opts) {
+  opts = opts || {};
+  const done = ok => { if (opts.onDone) opts.onDone(ok); };
+  if (!canPublish(rule)) {
+    if (opts.fromEdit) commitEditToView();
+    showSnack('この端末からは公開できません。リンクを作った端末で公開してください');
+    return done(false);
+  }
+  if (charCount(String(rule.name || '').trim()) > RULE_NAME_MAX) {
+    alert('ルール名を' + RULE_NAME_MAX + '文字以内にしてください');
+    return done(false);
+  }
+  // ほかの端末の公開の後に、この端末で直した内容は、設定が変わっていなくても公開の画面で確かめてもらう
+  const d = pubDiff(rule);
+  if (d.settings || (isOtherDevicePublished(rule) && anyDiff(d))) return showPublishSheet(rule, opts);
+  if (!anyDiff(d)) {
+    if (opts.fromEdit) commitEditToView();
+    showSnack('変更はありません（公開中：' + pubVerText(rule) + '）');
+    return done(false);
+  }
+  // 名前・強調だけ：画面は出さずに、verを変えずにすぐ公開する
+  if (opts.fromEdit) commitEditToView();
+  try {
+    await publishNameHl(rule, d);
+    showSnack(d.name && d.hl ? '名前と強調の変更を公開しました（verは変わりません）'
+      : d.name ? '作成したリンクの名前を変更しました（verは変わりません）' : '強調の変更を公開しました（verは変わりません）');
+    rerenderIfViewing(rule);
+    return done(true);
+  } catch (e) {
+    handlePublishError(rule, e, d);
+    return done(false);
+  }
+}
+function handlePublishError(rule, e, d) {
+  if (e.verCode === 'deleted') { unlinkRule(rule); rerenderIfViewing(rule); return; }
+  if (e.verCode === 'conflict' && d) {
+    const what = d.name && d.hl ? '名前と強調は' : d.name ? '名前は' : '強調は';
+    showSnack('別の端末で ver' + latestLabelOf(e.series) + ' が公開されています。' + what + '下書きに残しました');
+    refreshLinkState(rule);
+    return;
+  }
+  showSnack('保存しましたが、公開に失敗しました。通信できる場所で、もう一度公開してください');
+  rerenderIfViewing(rule);
+}
+// 編集画面の内容を保存して、表示画面に切り替える（入力の確認は済んでいること）
+function commitEditToView() {
+  if (isViewMode) { saveData(); return; }
+  if (!saveData(true)) { alertSaveFailed(); return; }
+  _isNewlyCreated = false;
+  takeEditSnapshot(getRule(editingId));
+  const anchor = captureEditScrollAnchor();
+  goViewMode();
+  restoreEditScrollAnchor(anchor);
+}
+
+let _publishCtx = null;
+async function showPublishSheet(rule, opts, notice) {
+  let s;
+  try { s = await fetchSeries(rule.link.seriesId); }
+  catch (e) {
+    if (opts.fromEdit) commitEditToView();
+    showSnack('保存しましたが、公開に失敗しました。通信できる場所で、もう一度公開してください');
+    return opts.onDone && opts.onDone(false);
+  }
+  if (!s || s.deleted) {
+    if (opts.fromEdit) commitEditToView();
+    unlinkRule(rule); rerenderIfViewing(rule);
+    return opts.onDone && opts.onDone(false);
+  }
+  const latest = latestLabelOf(s);
+  _publishCtx = { ruleId: rule.id, opts, series: s };
+  // 別の端末が先に公開していた（この端末が覚えている最新と違う）
+  if (!notice && s.latestSeq !== rule.link.pubSeq) notice = '別の端末で ver' + latest + ' が公開されています。この端末の内容で公開すると ver' + (nextVerLabel(latest) || '…') + ' になります。';
+  const pubName = String((rule.link.pubSnapshot || {}).name || s.name || '');
+  const curName = String(rule.name || '').trim();
+  const stale = isOtherDevicePublished(rule)
+    ? `<p class="ver-warn">この端末の内容は ver${esc(rule.link.basedOnLabel || '')} をもとにしています。公開すると、ほかの端末で公開した ver${esc(latest)} の変更は消えます</p>` : '';
+  openVerSheet(`${verSheetHead('新しいverとして公開します')}
+    <div class="sheet-body">
+      ${notice ? `<p class="ver-warn">${esc(notice)}</p>` : ''}${stale}
+      <div class="ver-rows"><div><span>現在のver</span><b>ver${esc(latest)}</b></div>
+      ${pubName !== curName && s.name !== curName ? `<div><span>ルール名</span><b>${esc(s.name || pubName)} → ${esc(curName)}</b></div>` : ''}</div>
+      <div class="sheet-label">新しいver</div>
+      <div class="ver-input-row"><span>ver</span><input type="text" id="pub-ver" class="sheet-input" value="${esc(nextVerLabel(latest))}" oninput="showVerSheetError('pub-ver-error','')" autocomplete="off"></div>
+      <div class="sheet-error" id="pub-ver-error" hidden></div>
+      <div class="sheet-label">変更内容（任意）</div>
+      <textarea id="pub-note" class="sheet-input ver-note" rows="4" placeholder="例：赤ドラを3枚に変更。ウマを10-30に変更。" oninput="onPubNoteInput(this)"></textarea>
+      <div class="ver-count" id="pub-note-count">0 / ${VER_NOTE_MAX}</div>
+      <div class="sheet-error" id="pub-error" hidden></div>
+    </div>
+    <div class="sheet-foot"><button class="sheet-done" id="pub-ok" onclick="onPublishSubmit()">公開する</button>
+      <button class="sheet-second" onclick="onPublishSaveDraft()">下書き保存</button>
+      <button class="sheet-cancel" onclick="closeVerSheet(true)">キャンセル</button></div>`, () => {
+    // キャンセル：何も保存せず、元の画面に戻る（編集画面なら編集した内容は残る）
+    if (opts.onDone) opts.onDone(false);
+  });
+}
+function onPubNoteInput(ta) {
+  if (charCount(ta.value) > VER_NOTE_MAX) ta.value = truncateChars(ta.value, VER_NOTE_MAX);
+  document.getElementById('pub-note-count').textContent = charCount(ta.value) + ' / ' + VER_NOTE_MAX;
+}
+function onPublishSaveDraft() {
+  const ctx = _publishCtx;
+  closeVerSheet();
+  if (!ctx) return;
+  const rule = getRule(ctx.ruleId);
+  if (ctx.opts.fromEdit) commitEditToView(); else saveData();
+  showSnack(draftSavedMessage(rule));
+  if (ctx.opts.onDone) ctx.opts.onDone(false);
+}
+async function onPublishSubmit() {
+  const ctx = _publishCtx;
+  if (!ctx) return;
+  const rule = getRule(ctx.ruleId);
+  const label = normalizeVerLabel(document.getElementById('pub-ver').value);
+  const note = truncateChars(String(document.getElementById('pub-note').value || '').trim(), VER_NOTE_MAX);
+  if (!label) return showVerSheetError('pub-ver-error', 'verの名前を入力してください');
+  if (charCount(label) > VER_LABEL_MAX) return showVerSheetError('pub-ver-error', 'verの名前を' + VER_LABEL_MAX + '文字以内にしてください');
+  if (isVerLabelUsed(label, ctx.series.history)) return showVerSheetError('pub-ver-error', 'この名前は既に使っています');
+  const btn = document.getElementById('pub-ok');
+  setVerSheetBusy(btn, true);
+  // 端末に保存してから、まとめて書き込む
+  if (ctx.opts.fromEdit) { commitEditToView(); ctx.opts.fromEdit = false; } else saveData();
+  try {
+    await publishNewVer(rule, label, note, ctx.series.latestSeq);
+    closeVerSheet();
+    showSnack('ver' + label + ' として公開しました');
+    rerenderIfViewing(rule);
+    if (ctx.opts.onDone) ctx.opts.onDone(true);
+  } catch (e) {
+    setVerSheetBusy(btn, false);
+    if (e.verCode === 'conflict') {
+      // 画面を最新の状態で出し直し、もう一度選んでもらう
+      return showPublishSheet(rule, ctx.opts);
+    }
+    closeVerSheet();
+    handlePublishError(rule, e);
+    if (ctx.opts.onDone) ctx.opts.onDone(false);
+  }
+}
+function draftSavedMessage(rule) {
+  return rule && hasDraft(rule) ? '下書き保存しました。下書きの変更は、まだリンクに出ていません（相手に表示されるのは ' + pubVerText(rule) + '）' : '保存しました';
+}
+
+// 編集画面の「下書き保存」「保存して公開」
+function onSaveDraftButton() {
+  if (!confirmSaveEditingRule()) return;
+  const rule = getRule(editingId);
+  commitEditToView();
+  showSnack(draftSavedMessage(rule));
+}
+function onSavePublishButton() {
+  if (!confirmSaveEditingRule()) return;
+  startPublish(getRule(editingId), { fromEdit: true });
+}
+// 表示画面の帯の「公開する」
+function onBannerPublish() {
+  const rule = getRule(editingId);
+  if (rule) startPublish(rule, {});
+}
+function rerenderIfViewing(rule) {
+  if (rule && editingId === rule.id && document.getElementById('screen-edit').classList.contains('active')) renderEdit();
+}
+
+// ---- 表示画面を開いたとき：ほかの端末の公開を読み直す ----
+let _refreshing = {};
+async function refreshLinkState(rule) {
+  if (!hasLink(rule) || _refreshing[rule.id]) return;
+  const link = rule.link;
+  // 手元の中身が公開中の内容と同じなら、もとにしている公開を最新にする（クラウド同期で届いたリンクなど）
+  if (isOtherDevicePublished(rule) && !anyDiff(pubDiff(rule))) { link.basedOn = link.pubOp || 0; link.basedOnLabel = link.pubLabel; saveData(); }
+  if (navigator.onLine === false) return;
+  _refreshing[rule.id] = true;
+  try {
+    const s = await fetchSeries(link.seriesId);
+    if (!getRule(rule.id) || !hasLink(rule)) return;
+    if (!s || s.deleted) { unlinkRule(rule); rerenderIfViewing(rule); return; }
+    // 比較対象の「このルールの別のver」に使う
+    if ((link.history || []).length !== (s.history || []).length || canonical(link.hlSeqs) !== canonical(s.hlSeqs)) {
+      link.history = s.history || []; link.hlSeqs = s.hlSeqs || []; saveData(); rerenderIfViewing(rule);
+    }
+    if ((s.opCount || 0) <= (link.pubOp || 0)) return;
+    const editedBefore = anyDiff(pubDiff(rule));
+    const vd = await fetchServerDoc(fbDb.collection('shared_rules').doc(s.latestShareId));
+    if (!vd.exists) return;
+    const parsed = JSON.parse(vd.data().data);
+    let hl = null;
+    if ((s.hlSeqs || []).includes(s.latestSeq)) {
+      const h = await fetchServerDoc(fbDb.collection('ver_hl').doc(s.latestShareId));
+      if (h.exists) hl = JSON.parse(h.data().hl);
+    }
+    const settings = hl ? settingsFromPub(parsed.s, hl) : (parsed.s || {});
+    const snap = pubPartsOf({ name: s.name, settings });
+    const samePub = s.latestSeq === link.pubSeq && canonical(snap) === canonical(link.pubSnapshot);
+    const wasCurrent = !isOtherDevicePublished(rule);
+    Object.assign(link, { pubSeq: s.latestSeq, pubLabel: latestLabelOf(s) || vd.data().label, pubShareId: s.latestShareId, pubOp: s.opCount, pubSnapshot: snap });
+    rule.verLabel = link.pubLabel;
+    // 公開の内容が変わっていない（比較対象の保存だけ）か、手元が公開中と同じなら、帯は出さない
+    if ((samePub && wasCurrent) || !anyDiff(pubDiff(rule))) { link.basedOn = s.opCount; link.basedOnLabel = link.pubLabel; }
+    else link.staleEdited = editedBefore;
+    saveData();
+    rerenderIfViewing(rule);
+  } catch (e) {
+    // 通信できないときは、覚えている内容のまま表示する
+  } finally {
+    delete _refreshing[rule.id];
+  }
+}
+// ［公開中の内容を読み込む］
+function loadPublishedContent() {
+  const rule = getRule(editingId);
+  if (!rule || !hasLink(rule)) return;
+  if (rule.link.staleEdited && !confirm('この端末の下書きは消えます。公開中の内容を読み込みますか？')) return;
+  const snap = rule.link.pubSnapshot;
+  rule.name = snap.name;
+  rule.settings = settingsFromPub(snap.settings, snap.hl);
+  Object.assign(rule.link, { basedOn: rule.link.pubOp || 0, basedOnLabel: rule.link.pubLabel, staleEdited: false });
+  takeEditSnapshot(rule);
+  saveData();
+  renderEdit();
+  showSnack('公開中の内容を読み込みました');
+}
+
+// ---- 表示画面の帯 ----
+let _verBanner = null;  // リンクを開いたときの帯（{ruleId, type, ...}）
+function verBannerHtml(rule) {
+  if (!isViewMode && !isSharedMode) return '';
+  const b = _verBanner && _verBanner.ruleId === rule.id ? _verBanner : null;
+  if (b && b.type === 'unchecked') return '<div class="ver-banner">最新のverかどうか確認できませんでした</div>';
+  if (b && b.type === 'kept') return `<div class="ver-banner">最新ではありません（最新：ver${esc(b.latestLabel)}）　<button onclick="showLatestSharedVer()">最新を見る</button></div>`;
+  if (b && b.type === 'own') return `<div class="ver-banner">開いたリンクは ver${esc(b.openedLabel)} です。表示しているのは自分のルール（公開中：${esc(pubVerText(rule))}）です</div>`;
+  if (!hasLink(rule) || isSharedMode) return '';
+  if (isOtherDevicePublished(rule)) {
+    const extra = rule.link.staleEdited ? '。この端末の下書きは ver' + esc(rule.link.basedOnLabel || '') + ' をもとにしています' : '';
+    return `<div class="ver-banner">ほかの端末で ${esc(pubVerText(rule))} が公開されています${extra}　<button onclick="loadPublishedContent()">公開中の内容を読み込む</button></div>`;
+  }
+  if (hasDraft(rule)) {
+    return `<div class="ver-banner">下書きの変更は、まだリンクに出ていません（相手に表示されるのは ${esc(pubVerText(rule))}）。${canPublish(rule) ? '　<button onclick="onBannerPublish()">公開する</button>' : ''}</div>`;
+  }
+  return '';
+}
+
+// ---- verのリンクを開いたとき ----
+function loadKeepVer() { try { return JSON.parse(localStorage.getItem(KEEP_VER_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function saveKeepVer(m) { try { localStorage.setItem(KEEP_VER_KEY, JSON.stringify(m)); } catch (e) {} }
+
+// URLの比較対象（cmp）を、開いたルールの比較対象にする。印のときは、保存された中身で比較専用の仮ルールを作る
+async function applyUrlCmp(rule, cmp, sid) {
+  rule.base_rule = '';
+  if (!cmp) return;
+  if (cmp.startsWith('p:')) {
+    const p = getRule(cmp.slice(2));
+    if (p && isPresetRule(p) && p.mode === rule.mode) rule.base_rule = p.id;
+    return;
+  }
+  if (cmp.startsWith('v:')) return applyVerCmp(rule, cmp.slice(2), sid);
+  try {
+    const snap = await fetchServerDoc(fbDb.collection('series_bases').doc(sid + '_' + cmp));
+    if (!snap.exists) return;
+    const b = snap.data();
+    const own = appData.rules.find(r => r.id === b.baseId && !isTemporarySharedRule(r));
+    if (!own) {
+      // 前に受け取った同じルールの写しが残っていても、送ったときの中身で置き換える
+      appData.rules = appData.rules.filter(r => !(r.id === b.baseId && r.isSharedPhantom));
+      appData.rules.push({ id: b.baseId, mode: rule.mode, name: b.name || '比較対象ルール', settings: JSON.parse(b.settings || '{}'), date: nowDateStr(), readonly: true, isSharedPhantom: true });
+    }
+    rule.base_rule = b.baseId;
+  } catch (e) {
+    // 読めないときは比較対象なしで表示する
+  }
+}
+// ---- 別のverと比べる ----
+// 比べるverは、比較専用の仮ルール（ID は「ver:URLのID」）として一覧に入れ、今の比較対象の仕組み（base_rule）をそのまま使う。
+// 手で直した強調も、今の仕組みで「ver:URLのID」に対して保存される
+const VER_OPTIONS_MAX = 10;
+let _showAllVers = false;
+function verPhantomId(shareId) { return 'ver:' + shareId; }
+function isVerBaseId(id) { return String(id || '').startsWith('ver:'); }
+// このルールのverの一覧（新しい順）。共有されたルールは見ているverを除く
+function verOptionsOf(rule) {
+  let hist = [], latestSeq = 0, exclude = null;
+  if (rule.sharedVer) { hist = rule.sharedVer.history || []; latestSeq = rule.sharedVer.latestSeq; exclude = rule.sharedVer.seq; }
+  else if (hasLink(rule)) { hist = rule.link.history || []; latestSeq = rule.link.pubSeq; }
+  return [...hist].filter(h => h.seq !== exclude && h.shareId).sort((a, b) => b.seq - a.seq)
+    .map(h => ({ id: verPhantomId(h.shareId), shareId: h.shareId, label: h.label, latest: h.seq === latestSeq }));
+}
+function verOptionsHtml(rule, selected) {
+  const list = verOptionsOf(rule);
+  if (!list.length) return '';
+  const shown = _showAllVers || list.length <= VER_OPTIONS_MAX ? list : list.slice(0, VER_OPTIONS_MAX);
+  return `<optgroup label="― このルールの別のver ―">`
+    + shown.map(v => `<option value="${esc(v.id)}" ${v.id === selected ? 'selected' : ''}>ver${esc(v.label)}${v.latest ? '（最新）' : ''}</option>`).join('')
+    + (shown.length < list.length ? '<option value="__more__">もっと見る…</option>' : '') + '</optgroup>';
+}
+// verの中身を読み、比較専用の仮ルールを作る（強調だけを公開したverは、その強調も読む）
+async function loadVerPhantom(rule, shareId) {
+  const id = verPhantomId(shareId);
+  if (getRule(id)) return getRule(id);
+  const doc = await fetchServerDoc(fbDb.collection('shared_rules').doc(shareId));
+  if (!doc.exists) throw verError('missing');
+  const d = doc.data();
+  let settings = JSON.parse(d.data).s || {};
+  const hlSeqs = (rule.sharedVer && rule.sharedVer.hlSeqs) || (rule.link && rule.link.hlSeqs) || [];
+  if (hlSeqs.includes(d.seq)) {
+    const h = await fetchServerDoc(fbDb.collection('ver_hl').doc(shareId));
+    if (h.exists) settings = settingsFromPub(settings, JSON.parse(h.data().hl));
+  }
+  const phantom = { id, mode: rule.mode, name: 'ver' + d.label, settings, date: nowDateStr(), readonly: true, isSharedPhantom: true, verOf: d.seriesId };
+  appData.rules.push(phantom);
+  return phantom;
+}
+// URLの cmp=v:URLのID
+async function applyVerCmp(rule, shareId, sid) {
+  try {
+    const p = await loadVerPhantom(rule, shareId);
+    if (p.verOf === sid) rule.base_rule = p.id;
+  } catch (e) {
+    // 読めないときは比較対象なしで表示する
+  }
+}
+// 比較対象の欄の表示名。「最新のルールを見る」の後に自動で選んだ、開いたverには「（開いたver）」を付ける
+function baseDisplayName(rule) {
+  const name = getBaseRuleName(rule.base_rule) || '-';
+  const v = rule.sharedVer;
+  return v && rule.base_rule === verPhantomId(v.openedShareId) && v.seq !== v.openedSeq ? name + '（開いたver）' : name;
+}
+
+// ---- 手で直した項目の「手動」の印 ----
+// 今の比較対象に対して、手で強調する・しないを決めた項目か（決めていなければ undefined）
+function manualOverrideOf(rule, itemId, legacyId) {
+  const forBase = (rule.settings.highlight_overrides || {})[highlightBaseId(rule)] || {};
+  const o = itemId in forBase ? forBase[itemId] : (legacyId ? forBase[legacyId] : undefined);
+  return typeof o === 'boolean' ? o : undefined;
+}
+function manualMarkHtml(itemId, legacyId) {
+  return `<button class="manual-mark" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation(); askRevertManual('${esc(itemId)}', '${esc(legacyId || '')}')">手動</button>`;
+}
+let _revertCtx = null;
+// 「手動」を押したとき：自動に戻したときにどうなるかを書いて確かめる
+function askRevertManual(itemId, legacyId) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const cur = manualOverrideOf(rule, itemId, legacyId);
+  if (cur === undefined) return;
+  const base = rule.base_rule ? (getBaseRules(rule.mode)[rule.base_rule] || null) : null;
+  let label = itemLabel(rule.settings, itemId), baseVal = base ? (base[itemId] ?? '') : '';
+  const m = itemId.match(/^custom:(.*):([^:]*)$/);
+  if (m) {
+    const item = (rule.settings['custom_' + m[1]] || []).find(x => (x.id || x.name || '') === m[2]);
+    label = item ? item.name : label;
+    const bItem = item && base && (base['custom_' + m[1]] || []).find(x => (x.name || '') === (item.name || ''));
+    baseVal = bItem ? (bItem.value || '') : '';
+  }
+  const auto = autoItemDiff(rule, itemId);
+  const baseName = rule.base_rule ? baseDisplayName(rule) : '';
+  const after = !base ? '自動に戻すと、比較対象がないので強調しません。'
+    : '自動に戻すと、' + baseName + '（' + (baseVal === '' ? 'なし' : baseVal) + '）と' + (auto ? '違うので強調します。' : '同じなので強調しません。');
+  _revertCtx = { itemId, legacyId };
+  openVerSheet(`${verSheetHead(label + 'の強調を自動に戻しますか？')}
+    <div class="sheet-body"><p class="ver-text">今は、手動で「${cur ? '強調する' : '強調しない'}」にしています。${esc(after)}</p></div>
+    <div class="sheet-foot"><button class="sheet-done" onclick="revertManual()">自動に戻す</button>
+    <button class="sheet-cancel" onclick="closeVerSheet()">キャンセル</button></div>`);
+}
+function revertManual() {
+  const rule = getRule(editingId);
+  closeVerSheet();
+  if (!rule || !_revertCtx) return;
+  const all = { ...(rule.settings.highlight_overrides || {}) };
+  const forBase = { ...(all[highlightBaseId(rule)] || {}) };
+  delete forBase[_revertCtx.itemId];
+  if (_revertCtx.legacyId) delete forBase[_revertCtx.legacyId];
+  all[highlightBaseId(rule)] = forBase;
+  rule.settings.highlight_overrides = all;
+  _revertCtx = null;
+  _editDirty = true;
+  saveData();
+  renderEdit();
+}
+
+// ver付きのリンクを開く。表示したら true
+async function openVerLink(shareId, sd, parsed, cmp) {
+  const sid = sd.seriesId;
+  let series = null, unchecked = false;
+  try { series = await fetchSeries(sid); } catch (e) { unchecked = true; }
+  if (!unchecked && (!series || series.deleted)) {
+    showVerMessage('このルールは作成者が削除しました。');
+    return false;
+  }
+  // 作成者が自分のリンクを開いたとき：自分のルールの表示画面を開く（比較対象はその場だけ）
+  const own = appData.rules.find(r => hasLink(r) && r.link.seriesId === sid && !isTemporarySharedRule(r));
+  if (own) {
+    editRule(own.id);
+    _tempBase = { ruleId: own.id, orig: own.base_rule || '' };
+    const savedBase = Object.entries((own.link.bases || {})).find(([, b]) => b.mark === cmp);
+    if (savedBase && getRule(savedBase[0])) own.base_rule = savedBase[0];
+    else await applyUrlCmp(own, cmp, sid);
+    if (sd.seq !== own.link.pubSeq) _verBanner = { ruleId: own.id, type: 'own', openedLabel: sd.label };
+    renderEdit();
+    return true;
+  }
+  let settings = parsed.s || {};
+  if (series && (series.hlSeqs || []).includes(sd.seq)) {
+    try {
+      const h = await fetchServerDoc(fbDb.collection('ver_hl').doc(shareId));
+      if (h.exists) settings = settingsFromPub(settings, JSON.parse(h.data().hl));
+    } catch (e) {}
+  }
+  const rule = makeSharedRule(parsed, settings);
+  rule.name = series ? series.name : (parsed.n || '共有ルール');
+  rule.verLabel = sd.label;
+  rule.sharedVer = {
+    seriesId: sid, viewShareId: shareId, openedShareId: shareId, seq: sd.seq, openedSeq: sd.seq, openedLabel: sd.label, cmp: cmp || '',
+    latestSeq: series ? series.latestSeq : sd.seq, latestShareId: series ? series.latestShareId : shareId,
+    latestLabel: series ? latestLabelOf(series) : sd.label, history: series ? (series.history || []) : [], hlSeqs: series ? (series.hlSeqs || []) : []
+  };
+  await applyUrlCmp(rule, cmp, sid);
+  rule.shared_base_rule_id = rule.base_rule;
+  showSharedRule(rule);
+  if (unchecked) { _verBanner = { ruleId: rule.id, type: 'unchecked' }; renderEdit(); return true; }
+  if (sd.seq < series.latestSeq) {
+    const keep = loadKeepVer()[sid];
+    if (keep && keep >= series.latestSeq) { _verBanner = { ruleId: rule.id, type: 'kept', latestLabel: rule.sharedVer.latestLabel }; renderEdit(); }
+    else showOldVerPopup(rule);
+  }
+  return true;
+}
+// 共有されたルール（一時的に表示するもの）を作る
+function makeSharedRule(parsed, settings) {
+  return {
+    id: 'shared_' + Date.now(),
+    mode: parsed.m || '四麻',
+    name: parsed.n || '共有ルール',
+    base_rule: parsed.b || '',
+    date: nowDateStr(),
+    settings: settings || parsed.s || {},
+    readonly: true,
+    // 共有元で設定されていた比較対象ルールのID（ドロップダウンでの強調表示用）
+    shared_base_rule_id: parsed.b || '',
+    // 共有元のルール自身のID（同じ端末で自分が共有したリンクを開いた際、
+    // 元のルールが自分自身の比較対象リストに重複して出てこないようにするため）
+    origin_id: parsed.o || null
+  };
+}
+function showSharedRule(rule) {
+  appData.rules.push(rule);
+  isSharedMode = true;
+  isViewMode = true;
+  editingId = rule.id;
+  renderEdit();
+  showScreen('edit');
+}
+
+// 過去のverのリンクを開いたときのポップアップ（変更履歴の表）
+function showOldVerPopup(rule) {
+  const v = rule.sharedVer;
+  const rows = [...v.history].sort((a, b) => b.seq - a.seq).map(h => {
+    const cls = h.seq > v.openedSeq ? 'newer' : h.seq === v.openedSeq ? 'opened' : '';
+    return `<tr class="${cls}"><td class="nowrap">ver${esc(h.label)}</td><td class="nowrap">${esc(h.date || '')}</td><td class="note">${h.note ? esc(h.note) : '—'}</td></tr>`;
+  }).join('');
+  openVerSheet(`${verSheetHead('このルールは新しいverに更新されています')}
+    <div class="sheet-body">
+      <div class="ver-rows"><div><span>開いたリンク</span><b>ver${esc(v.openedLabel)}</b></div><div><span>最新</span><b>ver${esc(v.latestLabel)}</b></div></div>
+      <div class="sheet-label">変更履歴（すべて）</div>
+      <div class="ver-history"><table><thead><tr><th>ver</th><th>公開日</th><th>変更内容</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="sheet-note">色の付いた行が、開いたverの後に変わったところ。多いときは表の中をスクロール</p>
+    </div>
+    <div class="sheet-foot"><button class="sheet-done" onclick="closeVerSheet(); showLatestSharedVer()">最新のルールを見る</button>
+      <button class="sheet-second" onclick="closeVerSheet(); keepOpenedVer()">ver${esc(v.openedLabel)} のまま見る</button></div>`, () => keepOpenedVer());
+}
+// 「ver1.0 のまま見る」：それより新しいverが出るまでは、同じルールを開いてもポップアップを出さない
+function keepOpenedVer() {
+  const rule = getRule(editingId);
+  if (!rule || !rule.sharedVer) return;
+  const m = loadKeepVer();
+  m[rule.sharedVer.seriesId] = rule.sharedVer.latestSeq;
+  saveKeepVer(m);
+  _verBanner = { ruleId: rule.id, type: 'kept', latestLabel: rule.sharedVer.latestLabel };
+  renderEdit();
+}
+// 「最新のルールを見る」：最新のverを読み込んで表示する
+async function showLatestSharedVer() {
+  const rule = getRule(editingId);
+  if (!rule || !rule.sharedVer) return;
+  const v = rule.sharedVer;
+  try {
+    const vd = await fetchServerDoc(fbDb.collection('shared_rules').doc(v.latestShareId));
+    if (!vd.exists) throw new Error('missing');
+    const parsed = JSON.parse(vd.data().data);
+    let settings = parsed.s || {};
+    if ((v.hlSeqs || []).includes(v.latestSeq)) {
+      const h = await fetchServerDoc(fbDb.collection('ver_hl').doc(v.latestShareId));
+      if (h.exists) settings = settingsFromPub(settings, JSON.parse(h.data().hl));
+    }
+    const openedSettings = rule.settings;
+    rule.settings = settings;
+    rule.verLabel = v.latestLabel;
+    Object.assign(v, { viewShareId: v.latestShareId, seq: v.latestSeq });
+    _verBanner = null;
+    onLatestShown(rule, openedSettings);
+    renderEdit();
+  } catch (e) {
+    showSnack('最新のverを読み込めませんでした。通信できる場所で、もう一度開いてください');
+  }
+}
+// 最新を表示した後：開いたverを比較対象に自動で選び、変わった項目を最初から強調する
+function onLatestShown(rule, openedSettings) {
+  const v = rule.sharedVer;
+  const id = verPhantomId(v.openedShareId);
+  if (!getRule(id)) appData.rules.push({ id, mode: rule.mode, name: 'ver' + v.openedLabel, settings: openedSettings, date: nowDateStr(), readonly: true, isSharedPhantom: true, verOf: v.seriesId });
+  rule.base_rule = id;
+}
+// ルール名の横のver（共有されたルールで最新なら「（最新）」を付ける）
+function verBadgeText(rule) {
+  const t = verText(rule);
+  if (!t) return '';
+  return rule.sharedVer && rule.sharedVer.seq === rule.sharedVer.latestSeq && rule.sharedVer.history.length ? t + '（最新）' : t;
 }
 
 function getBaseRuleName(k) {
@@ -1938,13 +3340,26 @@ function createCustomBaseRule(mode) {
 
 let _isNewlyCreated = false;
 
+// 作成者が自分のリンクを開いたときに、その場だけ選んだ比較対象（保存しない）
+let _tempBase = null;
+function restoreTempBase() {
+  if (!_tempBase) return false;
+  const r = getRule(_tempBase.ruleId);
+  if (r) r.base_rule = _tempBase.orig;
+  _tempBase = null;
+  return true;
+}
+
 function goHome() {
+  const restored = restoreTempBase();
+  _verBanner = null;
+  closeVerSheet();
   // 共有リンクから一時的に表示したルール（共有ルール・比較用の仮ルール）は、
   // 自分のルールの比較対象になっていなければ片付ける
   const before = appData.rules.length;
   appData.rules = appData.rules.filter(r => !isTemporarySharedRule(r) || appData.rules.some(o => !isTemporarySharedRule(o) && o.base_rule === r.id));
   editingId = null;
-  if (appData.rules.length !== before) saveData();
+  if (appData.rules.length !== before || restored) saveData();
   _editSnapshot = null;
   _editNameSnapshot = null;
   _isNewlyCreated = false;
@@ -1981,8 +3396,7 @@ function goHomeWithConfirm() {
   if (confirm('保存せずに戻りますか？\n変更内容は破棄されます。')) {
     const ruleToRestore = getRule(editingId);
     if (ruleToRestore) {
-      if (_editSnapshot) ruleToRestore.settings = JSON.parse(_editSnapshot);
-      if (_editNameSnapshot !== null) ruleToRestore.name = _editNameSnapshot;
+      restoreEditSnapshot(ruleToRestore);
       // リバート時はdateを更新しない（editingIdを一時null化）
       const savedEditingId = editingId;
       editingId = null;
@@ -2011,13 +3425,8 @@ function saveAndGoView() {
   if (!confirmSaveEditingRule()) return;
   if (!saveData(true)) { alertSaveFailed(); return; }
   _isNewlyCreated = false;
-  _editDirty = false;
   // スナップショットを更新
-  const rule = getRule(editingId);
-  if (rule) {
-    _editSnapshot = JSON.stringify(rule.settings);
-    _editNameSnapshot = rule.name;
-  }
+  takeEditSnapshot(getRule(editingId));
   // 編集画面で見ていた場所を、保存して表示画面に切り替えた後もそのまま表示し続ける
   const anchor = captureEditScrollAnchor();
   goViewMode();
@@ -2042,12 +3451,24 @@ function goEditMode() {
   // 表示画面で見ていた場所を、編集画面に切り替えた後もそのまま表示し続ける
   const anchor = captureEditScrollAnchor();
   isViewMode = false;
-  _editSnapshot = JSON.stringify(rule.settings);
-  _editNameSnapshot = rule.name;
-  _editDirty = false;
+  takeEditSnapshot(rule);
   renderEdit();
   showScreen('edit');
   restoreEditScrollAnchor(anchor);
+}
+
+// 表示画面の「編集」。自分が作成していないルール（共有されたルール・プリセット）は、確認してからコピーを編集する
+function onEditButton() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  if (rule.readonly || isSharedMode) {
+    document.getElementById('modal-copy-edit').classList.add('show');
+    return;
+  }
+  goEditMode();
+}
+function closeCopyEditConfirm() {
+  document.getElementById('modal-copy-edit').classList.remove('show');
 }
 
 // 表示画面と編集画面では表示される項目が違う（表示画面は空の項目を隠す・編集画面は追加ボタンがある）ため、
@@ -2110,18 +3531,17 @@ function copySharedRule() {
   const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
   const copy = JSON.parse(JSON.stringify(rule));
   copy.id = newId;
-  copy.name = uniqueCopyName(rule.name, rule.mode);
+  const v = rule.sharedVer;
+  // 過去のverのコピーは、新しい名前と古い設定の組み合わせにならないよう、名前にverを入れる
+  const isPastVer = v && v.seq < v.latestSeq;
+  copy.name = uniqueCopyName(rule.name, rule.mode, isPastVer ? 'ver' + rule.verLabel + 'のコピー' : undefined);
   delete copy.readonly;
+  // 新しいルールなので、verは「1.0」から始める（元のルールのverは引き継がない）
+  initCopiedRule(copy, rule.origin_id || rule.id);
+  if (v) copy.copiedFrom = { seriesId: v.seriesId, shareId: v.viewShareId, seq: v.seq };
   // 比較対象のルールのデフォルトを、コピー元のルールにしておく
   copy.base_rule = rule.id;
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const h = String(now.getHours()).padStart(2, '0');
-  const min = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
-  copy.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
+  copy.date = nowDateStr();
   appData.rules.push(copy);
   // ここでは保存しない。新規作成ルールと同じ扱いにし、編集画面で「保存」を
   // 押した時点で初めて保存する（保存せず戻った場合はこのコピーは破棄される）
@@ -2129,9 +3549,7 @@ function copySharedRule() {
   isViewMode = false;
   _isNewlyCreated = true;
   editingId = newId;
-  _editSnapshot = JSON.stringify(copy.settings);
-  _editNameSnapshot = copy.name;
-  _editDirty = false;
+  takeEditSnapshot(copy);
   renderEdit();
   showScreen('edit');
   // ルール名欄にフォーカスし、カーソルを末尾に置く（スマホでは自動的にキーボードが開く）
@@ -2139,9 +3557,81 @@ function copySharedRule() {
   showSnack('ルールをコピーしました。保存するまでは反映されません。');
 }
 
+// ---- 別のルールとして保存 ----
+// 編集画面で今見えている内容（保存していない変更を含む）を新しいルールとして保存し、元のルールは最後に保存した状態のまま残す
+function showSaveAsDialog() {
+  const rule = getRule(editingId);
+  if (!rule || _isNewlyCreated) return;
+  closeSaveAsDialog();
+  const origName = _editNameSnapshot !== null && _editNameSnapshot !== undefined ? _editNameSnapshot : rule.name;
+  const overlay = document.createElement('div');
+  overlay.id = 'save-as-overlay';
+  overlay.className = 'sheet-overlay';
+  overlay.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <div class="sheet-title">別のルールとして保存</div>
+      <button class="sheet-close" onclick="closeSaveAsDialog()" aria-label="閉じる">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div class="sheet-label">ルール名</div>
+      <input type="text" id="save-as-name" class="sheet-input" value="${esc(uniqueCopyName(origName, rule.mode))}" oninput="onSaveAsNameInput(this)" onkeydown="if(isEnterKey(event))saveAsNewRule()">
+      <div class="sheet-error" id="save-as-error" hidden></div>
+    </div>
+    <div class="sheet-foot">
+      <button class="sheet-done" onclick="saveAsNewRule()">保存</button>
+      <button class="sheet-cancel" onclick="closeSaveAsDialog()">キャンセル</button>
+    </div>
+  </div>`;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSaveAsDialog(); });
+  document.body.appendChild(overlay);
+  focusInputAtEnd(document.getElementById('save-as-name'));
+}
+function closeSaveAsDialog() {
+  const el = document.getElementById('save-as-overlay');
+  if (el) el.remove();
+}
+function onSaveAsNameInput(input) {
+  if (charCount(input.value) > RULE_NAME_MAX) input.value = truncateChars(input.value, RULE_NAME_MAX);
+  document.getElementById('save-as-error').hidden = true;
+}
+function saveAsNewRule() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const input = document.getElementById('save-as-name');
+  const errEl = document.getElementById('save-as-error');
+  const showErr = (msg) => { errEl.textContent = msg; errEl.hidden = false; input.focus(); };
+  const name = (input.value || '').trim();
+  if (!name) return showErr('ルール名を入力してください');
+  if (charCount(name) > RULE_NAME_MAX) return showErr('ルール名を' + RULE_NAME_MAX + '文字以内にしてください');
+  // 元のルールの名前も含め、同じモード（四麻／三麻）のルールと同じ名前では保存できない
+  const usedNames = appData.rules.filter(r => r.mode === rule.mode && !isTemporarySharedRule(r)).map(r => (r.id === rule.id ? _editNameSnapshot : r.name) || '');
+  if (usedNames.some(n => n.trim() === name)) return showErr('「' + name + '」という名前のルールがすでにあります。別の名前にしてください');
+
+  // 新しいルール：今見えている内容（比較対象・手で直した強調も）をそのまま使い、verは「1.0」から始める
+  const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const copy = JSON.parse(JSON.stringify(rule));
+  copy.id = newId;
+  copy.name = name;
+  delete copy.readonly;
+  initCopiedRule(copy, rule.id);
+  copy.date = nowDateStr();
+  // 元のルールは、最後に保存した状態に戻す
+  restoreEditSnapshot(rule);
+  appData.rules.push(copy);
+  editingId = newId;
+  _isNewlyCreated = false;
+  if (!saveData(true)) { alertSaveFailed(); }
+  closeSaveAsDialog();
+  takeEditSnapshot(copy);
+  goViewMode();
+  showSnack('「' + name + '」として保存しました。元のルールは変わっていません');
+}
+
 // ルール名の入力欄にフォーカスし、カーソルを文字列の末尾に移動する
 function focusNameInputAtEnd() {
-  const input = document.getElementById('edit-name');
+  focusInputAtEnd(document.getElementById('edit-name'));
+}
+function focusInputAtEnd(input) {
   if (!input) return;
   input.focus();
   const len = input.value.length;
@@ -2176,28 +3666,38 @@ function shareRule(id) {
   const rule = getRule(id);
   if (!rule) return;
   
-  const exportData = {
-    m: rule.mode,
-    n: rule.name,
-    b: rule.base_rule,
-    s: rule.settings,
-    o: rule.id
-  };
-
   // 比較対象ルールの名前・設定も一緒に埋め込む。
   // 受け取った端末にそのルールが存在しなくても、比較表示（差分ハイライト）ができるようにするため。
-  if (rule.base_rule) {
-    const baseRuleObj = getRule(rule.base_rule);
-    if (baseRuleObj) {
-      exportData.bn = baseRuleObj.name;
-      exportData.bs = baseRuleObj.settings;
-    }
-  }
+  const exportData = ruleExportData(rule);
   
-  // IDを生成しURLを即座にクリップボードへ（ユーザー操作文脈を維持するため先にコピー）
+  // IDを生成し、URLを即座に渡す（ユーザー操作文脈を維持するため、保存を待たずに先に渡す）
   const shareId = generateShareId();
   const url = window.location.origin + window.location.pathname + '?share=' + shareId;
+  sendLinkUrl(url, rule.name);
   
+  // Firestoreに共有データをバックグラウンド保存
+  fbDb.collection('shared_rules').doc(shareId).set({
+    data: JSON.stringify(exportData),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(e => {
+    console.error("shareRule Firestore Error:", e);
+  });
+}
+
+// リンクを渡す。スマホでは共有シート（LINEなどを選ぶ画面）を出し、使えないとき（PCのブラウザなど）はコピーする
+function sendLinkUrl(url, title) {
+  const isTouchDevice = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  if (isTouchDevice && navigator.share) {
+    navigator.share({ title: title || '雀カルテ', url }).catch(e => {
+      // 共有シートを閉じただけのときは何もしない。それ以外で出せなかったときはコピーする
+      if (e && e.name === 'AbortError') return;
+      copyLinkUrl(url);
+    });
+    return;
+  }
+  copyLinkUrl(url);
+}
+function copyLinkUrl(url) {
   navigator.clipboard.writeText(url).then(() => {
     showSnack('🔗 共有リンクをコピーしました');
   }).catch(() => {
@@ -2211,41 +3711,35 @@ function shareRule(id) {
     document.body.removeChild(ta);
     showSnack('🔗 共有リンクをコピーしました');
   });
-  
-  // Firestoreに共有データをバックグラウンド保存
-  fbDb.collection('shared_rules').doc(shareId).set({
-    data: JSON.stringify(exportData),
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(e => {
-    console.error("shareRule Firestore Error:", e);
-  });
 }
 
 // 短いランダムIDを生成（8文字、英数字）
 function generateShareId() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  let id = '';
-  for (let i = 0; i < 8; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
-  return id;
+  return randomToken(8, 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789');
 }
 
 async function checkSharedRule() {
   const urlParams = new URLSearchParams(window.location.search);
   const shareData = urlParams.get('share');
+  const cmpParam = urlParams.get('cmp') || '';
   if (!shareData) return false;
   
   try {
     let parsed = null;
+    let fixedId = null;
     
     if (shareData.length <= 20) {
       // 短いID → Firestoreから取得
       const doc = await fbDb.collection('shared_rules').doc(shareData).get();
+      window.history.replaceState({}, document.title, window.location.pathname);
       if (!doc.exists) {
-        alert('共有ルールが見つかりません。リンクが無効か期限切れです。');
-        window.history.replaceState({}, document.title, window.location.pathname);
+        showVerMessage('このリンクのルールは見つかりません。作成者が削除したか、リンクが間違っています。');
         return false;
       }
       parsed = JSON.parse(doc.data().data);
+      // ver付きのリンク（シリーズに属するもの）
+      if (doc.data().seriesId) return await openVerLink(shareData, doc.data(), parsed, cmpParam);
+      fixedId = shareData;
     } else {
       // レガシー: 長いLZString圧縮データ（後方互換性）
       let jsonStr = null;
@@ -2283,30 +3777,13 @@ async function checkSharedRule() {
       }
     }
 
-    const sharedRule = {
-      id: id,
-      mode: parsed.m || '四麻',
-      name: parsed.n || '共有ルール',
-      base_rule: parsed.b || '',
-      date: sharedDate,
-      settings: parsed.s || {},
-      readonly: true,
-      // 共有元で設定されていた比較対象ルールのID（ドロップダウンでの強調表示用）
-      shared_base_rule_id: parsed.b || '',
-      // 共有元のルール自身のID（同じ端末で自分が共有したリンクを開いた際、
-      // 元のルールが自分自身の比較対象リストに重複して出てこないようにするため）
-      origin_id: parsed.o || null
-    };
-    
-    appData.rules.push(sharedRule); 
+    const sharedRule = makeSharedRule(parsed);
+    sharedRule.id = id;
+    sharedRule.date = sharedDate;
+    // 固定のリンク。「リンクで送る」では、このリンクをそのまま渡す
+    if (fixedId) sharedRule.sharedFixedId = fixedId;
     window.history.replaceState({}, document.title, window.location.pathname);
-    
-    isSharedMode = true;
-    isViewMode = true;
-    editingId = id;
-    
-    renderEdit();
-    showScreen('edit');
+    showSharedRule(sharedRule);
     return true;
   } catch (e) {
     console.error("checkSharedRule Error:", e);
@@ -2359,14 +3836,13 @@ function createRule(mode) {
     name: '新規ルール',
     base_rule: '',
     date: `${y}/${m}/${d} ${h}:${min}:${s}`,
-    settings: initSettings
+    settings: initSettings,
+    verLabel: INITIAL_VER_LABEL
   };
   appData.rules.push(rule);
-  
+
   // 新規作成時は保存せずスナップショットだけ撮る
-  _editSnapshot = JSON.stringify(rule.settings);
-  _editNameSnapshot = rule.name;
-  _editDirty = false;
+  takeEditSnapshot(rule);
   _isNewlyCreated = true;
   isSharedMode = false;
   isViewMode = false;
@@ -2375,10 +3851,9 @@ function createRule(mode) {
 }
 
 function editRule(id) {
-  const ruleForSnap = appData.rules.find(r => r.id === id);
-  _editSnapshot = ruleForSnap ? JSON.stringify(ruleForSnap.settings) : null;
-  _editNameSnapshot = ruleForSnap ? ruleForSnap.name : null;
-  _editDirty = false;
+  if (restoreTempBase()) saveData();
+  _verBanner = null;
+  takeEditSnapshot(appData.rules.find(r => r.id === id));
   const rule = getRule(id);
   // 全ルールでまず表示画面（閲覧専用）に遷移
   isSharedMode = false;
@@ -2386,7 +3861,9 @@ function editRule(id) {
 
   // 前回選択した比較対象のルールを引き継ぐ。
   // ただし、比較対象にしていたルールが削除されている場合は初期状態（未選択）に戻す。
-  if (rule && rule.base_rule) {
+  if (rule && isVerBaseId(rule.base_rule) && !getRule(rule.base_rule) && hasLink(rule)) {
+    loadVerPhantom(rule, rule.base_rule.slice(4)).then(() => rerenderIfViewing(rule)).catch(() => {});
+  } else if (rule && rule.base_rule) {
     const baseStillExists = appData.rules.some(r => r.id === rule.base_rule && r.mode === rule.mode);
     if (!baseStillExists) {
       rule.base_rule = '';
@@ -2396,6 +3873,7 @@ function editRule(id) {
 
   editingId = id;
   goEdit();
+  if (hasLink(rule)) refreshLinkState(rule);
 }
 
 function askDelete(id) {
@@ -2403,7 +3881,17 @@ function askDelete(id) {
   const target = getRule(id);
   if (!target || target.readonly) return;
   deleteTargetId = id;
+  document.getElementById('modal-delete-text').textContent = deleteConfirmText(target);
   document.getElementById('modal-delete').classList.add('show');
+}
+// 削除確認の文面。リンクを作ったルールは、作成したリンクも削除されることを書く
+function deleteConfirmText(rule) {
+  if (!hasLink(rule)) return 'このルールを削除しますか？';
+  const head = '「' + rule.name + '」を削除しますか？\n';
+  if (!canPublish(rule)) return head + 'この端末からは作成したリンクを削除できません。リンクは開けるまま残ります。リンクも削除するには、リンクを作った端末で削除してください。';
+  const n = rule.link.pubSeq || 1;
+  const vers = n === 1 ? pubVerText(rule) : 'ver' + (rule.link.firstLabel || '') + '～' + pubVerText(rule) + ' の' + n + '件';
+  return head + '作成したリンク（' + vers + '）も削除され、リンクを受け取った人は開けなくなります。元に戻せません。';
 }
 function closeModal() {
   document.getElementById('modal-delete').classList.remove('show');
@@ -2411,15 +3899,19 @@ function closeModal() {
 }
 function confirmDelete() {
   const target = deleteTargetId && getRule(deleteTargetId);
+  let msg = 'ルールを削除しました';
   if (target && !target.readonly) {
-    // クラウドからも削除
-    if (typeof deleteRuleFromCloud === 'function') deleteRuleFromCloud(deleteTargetId);
+    // クラウドからも削除し、別の端末の同期で戻らないよう削除したことを記録する。
+    // リンクを作ったルールは、サーバーのシリーズ（すべてのverのリンク）も削除する（この端末に作成者パスワードがあるときだけ）
+    const series = canPublish(target) ? { seriesId: target.link.seriesId, password: target.link.password } : null;
+    if (series && navigator.onLine === false) msg = 'ルールを削除しました。作成したリンクは、通信できるようになってから削除します';
+    if (typeof recordCloudDelete === 'function') recordCloudDelete(deleteTargetId, series);
     appData.rules = appData.rules.filter(r => r.id !== deleteTargetId);
     saveData();
   }
   closeModal();
   renderHome();
-  showSnack('ルールを削除しました');
+  showSnack(msg);
 }
 
 let _lastDuplicateAt = 0;
@@ -2435,14 +3927,9 @@ function duplicateRule(id) {
   copy.id = newId;
   copy.name = uniqueCopyName(src.name, src.mode);
   delete copy.readonly;
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const h = String(now.getHours()).padStart(2, '0');
-  const min = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
-  copy.date = `${y}/${m}/${d} ${h}:${min}:${s}`;
+  // 新しいルールなので、verは「1.0」から始める（元のルールのverは引き継がない）
+  initCopiedRule(copy, src.id);
+  copy.date = nowDateStr();
   appData.rules.push(copy);
   saveData();
   renderHome();
@@ -2475,34 +3962,61 @@ function renderEdit() {
   nameInput.value = rule.name;
   nameInput.disabled = isReadonlyView;
 
+  // ver：表示画面ではルール名の横にラベル、編集画面では入力欄を出す
+  const verBadge = document.getElementById('edit-ver-badge');
+  const verField = document.getElementById('edit-ver-field');
+  const verErr = document.getElementById('edit-ver-error');
+  if (verBadge) {
+    verBadge.textContent = verBadgeText(rule);
+    verBadge.classList.toggle('hidden', !isReadonlyView || !verText(rule));
+  }
+  const draftBadge = document.getElementById('edit-draft-badge');
+  if (draftBadge) draftBadge.classList.toggle('hidden', !isReadonlyView || isSharedMode || !hasDraft(rule));
+  const bannerEl = document.getElementById('edit-banner');
+  if (bannerEl) bannerEl.innerHTML = verBannerHtml(rule);
+  if (verField) {
+    verField.classList.toggle('hidden', isReadonlyView);
+    const linked = hasLink(rule);
+    const verInput = document.getElementById('edit-ver');
+    if (verInput && document.activeElement !== verInput) verInput.value = rule.verLabel || '';
+    document.getElementById('edit-ver-input-wrap').classList.toggle('hidden', linked);
+    const verStatic = document.getElementById('edit-ver-static');
+    const verNote = document.getElementById('edit-ver-note');
+    verStatic.classList.toggle('hidden', !linked);
+    verNote.classList.toggle('hidden', !linked);
+    if (linked) {
+      verStatic.textContent = '公開中：' + pubVerText(rule);
+      verNote.textContent = canPublish(rule) ? '新しいverは「保存して公開」のときに付けます' : 'この端末からは公開できません（リンクを作った端末で公開してください）';
+    }
+  }
+  if (verErr && isReadonlyView) verErr.classList.add('hidden');
+
   // ボトムバーの動的生成
   const bottomBarContent = document.getElementById('bottom-bar-content');
+  const bottomBarSub = document.getElementById('bottom-bar-sub');
   if (isViewMode || isSharedMode) {
-    // 表示画面のボトムバー: 編集 / コピーして編集 / 共有・出力 の3つを常に表示する
-    // （アイコンは表示せず、テキストラベルのみ）
-    const isRuleReadonly = !!(rule.readonly) || isSharedMode;
-    // 3つのボタンの大きさを完全に揃えるため、色違いでも同じ構造のクラス（border込み）を使う
+    // 表示画面のボトムバー: どのルールでも「編集」「共有」の2つ（アイコンは表示せず、テキストラベルのみ）
+    // 自分が作成していないルールの「編集」は、確認してからコピーを編集する（onEditButton）
+    // 2つのボタンの大きさを揃えるため、色違いでも同じ構造のクラス（border込み）を使う
     const btnBase = 'flex-1 py-3 rounded-xl font-semibold text-[14px] border flex justify-center items-center transition-all';
     const btnPrimary = btnBase + ' bg-theme-primary text-white border-transparent shadow-sm active:scale-95';
-    const btnSecondary = btnBase + ' bg-theme-surface text-theme-text border-theme-border active:bg-gray-50';
-    const btnDisabled = btnBase + ' bg-theme-surface text-theme-textMuted border-theme-border opacity-60 cursor-not-allowed';
-    let btns = '';
-    if (isRuleReadonly) {
-      // 編集不可のルール: 編集ボタンはグレーアウトし、押しても編集できないようにする
-      btns += `<button class="${btnDisabled}" disabled>編集</button>`;
-    } else {
-      btns += `<button class="${btnPrimary}" onclick="goEditMode()">編集</button>`;
-    }
-    // 「コピーして編集」は常に主要アクション（青色）として表示する
-    btns += `<button class="${btnPrimary}" onclick="copySharedRule()">コピーして編集</button>`;
-    btns += `<button class="${btnSecondary}" onclick="openActionSheet()">共有・出力</button>`;
-    bottomBarContent.innerHTML = btns;
+    const btnSecondary = btnBase + ' bg-theme-surface text-theme-primary border-theme-border active:bg-gray-50';
+    bottomBarContent.innerHTML = `<button class="${btnSecondary}" onclick="onEditButton()">編集</button>`
+      + `<button class="${btnPrimary}" onclick="openActionSheet()">共有</button>`;
+    if (bottomBarSub) bottomBarSub.innerHTML = '';
   } else {
-    // 編集画面のボトムバー: 保存のみ
+    // 編集画面のボトムバー: リンクを作ったルールは「下書き保存」「保存して公開」、それ以外は保存のみ
     // 新規作成したルールの保存後はホーム画面へ、既存ルールの編集後はそのルールの表示画面へ戻る
-    bottomBarContent.innerHTML = `<button class="flex-1 bg-theme-primary text-white py-3 rounded-xl font-semibold shadow-sm active:scale-95 flex justify-center items-center gap-1 transition-all" onclick="${_isNewlyCreated ? 'saveAndGoHome()' : 'saveAndGoView()'}">
+    const btnBase = 'flex-1 py-3 rounded-xl font-semibold text-[14px] border flex justify-center items-center transition-all';
+    if (hasLink(rule)) bottomBarContent.innerHTML = `<button class="${btnBase} bg-theme-surface text-theme-primary border-theme-border active:bg-gray-50" onclick="onSaveDraftButton()">下書き保存</button>`
+      + `<button class="${btnBase} bg-theme-primary text-white border-transparent shadow-sm active:scale-95" onclick="onSavePublishButton()">保存して公開</button>`;
+    else bottomBarContent.innerHTML = `<button class="flex-1 bg-theme-primary text-white py-3 rounded-xl font-semibold shadow-sm active:scale-95 flex justify-center items-center gap-1 transition-all" onclick="${_isNewlyCreated ? 'saveAndGoHome()' : 'saveAndGoView()'}">
         <span class="material-symbols-outlined text-[20px]">save</span> 保存
     </button>`;
+    // 「別のルールとして保存」は押し間違えないよう小さな文字のボタンにする。
+    // 新規作成でまだ保存していないルールでは出さない（元のルールがないため）
+    if (bottomBarSub) bottomBarSub.innerHTML = _isNewlyCreated ? ''
+      : `<button class="w-full text-center mt-2 text-[13px] text-theme-primary font-semibold active:opacity-50" onclick="showSaveAsDialog()">別のルールとして保存</button>`;
   }
 
   const brSelect = document.getElementById('base-rule-select');
@@ -2531,7 +4045,7 @@ function renderEdit() {
 
     const sameModeRules = appData.rules
       // 共有元のルール自身（自分の端末に残っている場合）は比較対象の候補から除外する
-      .filter(r => r.mode === rule.mode && r.id !== rule.id && r.id !== rule.origin_id)
+      .filter(r => r.mode === rule.mode && r.id !== rule.id && r.id !== rule.origin_id && !isVerBaseId(r.id))
       .sort((a, b) => {
         // 共有時に設定されていた比較対象ルールは常に最上位に表示する
         const aIsSharedOrigin = !!(sharedOriginId && a.id === sharedOriginId);
@@ -2554,13 +4068,16 @@ function renderEdit() {
     
     // Update dropdown options（先頭に「-」を追加、全ルールを表示。
     // 共有時に設定されていた比較対象ルールは（）で囲み、灰色で表示）
-    brSelect.innerHTML = `<option value="" ${rule.base_rule===''?'selected':''}>-</option>` 
-      + sameModeRules.map(r => {
+    // このルールの別のver（verの履歴があるときだけ）を先頭に、その下にほかのルールを並べる
+    const verGroup = verOptionsHtml(rule, rule.base_rule);
+    const otherOpts = sameModeRules.map(r => {
           const isSharedOrigin = !!(sharedOriginId && r.id === sharedOriginId);
           const label = isSharedOrigin ? `（${r.name}）` : r.name;
           const optStyle = isSharedOrigin ? 'style="color: var(--color-text-muted);"' : '';
           return `<option value="${esc(r.id)}" ${rule.base_rule===r.id?'selected':''} ${optStyle}>${esc(label)}</option>`;
         }).join('');
+    brSelect.innerHTML = `<option value="" ${rule.base_rule===''?'selected':''}>-</option>` 
+      + (verGroup ? verGroup + `<optgroup label="― ほかのルール ―">${otherOpts}</optgroup>` : otherOpts);
     
     // Always show base rule selector, even in read-only mode, to allow diff comparison
     const brChevron = brSection.querySelector('.material-symbols-outlined');
@@ -2570,7 +4087,7 @@ function renderEdit() {
     if (displaySpan) displaySpan.classList.add('pr-6');
     
     // Update standard-rule-display text
-    if (displaySpan) displaySpan.innerText = rule.base_rule ? (getBaseRuleName(rule.base_rule) || '-') : '-';
+    if (displaySpan) displaySpan.innerText = rule.base_rule ? baseDisplayName(rule) : '-';
   } else {
     brSection.classList.add('hidden');
   }
@@ -2598,6 +4115,7 @@ function renderEdit() {
   }
 
   let catDisplayNum = 0;
+  let manualCount = 0;  // 「手動」の印を付けた項目の数
   let prevCatKey = null; // 直前に表示した大項目（大項目の間に置く追加ボタン用）
   // 大項目と大項目の間（および最後）に置く「大項目を追加」ボタン。押すとその位置に追加される
   const insertCatButton = (afterKey) => `<div class="flex items-center gap-2 -my-3 px-2">
@@ -2649,6 +4167,9 @@ function renderEdit() {
         if (deletedKeys.has(k)) continue;
         const val = rule.settings[k] ?? '';
         const isDiff = applyHighlightOverride(rule, k, isItemDiff(rule.settings, base, k, val));
+        // 手で強調を直した項目には、編集画面で「手動」の印を付ける
+        const manual = !isReadonlyView && manualOverrideOf(rule, k) !== undefined;
+        if (manual) manualCount++;
 
         if (k.endsWith('_custom')) {
           const parentKey = k.replace('_custom', '');
@@ -2709,6 +4230,7 @@ function renderEdit() {
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
                         <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0">
                             <span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(itemLabel(rule.settings, k))}</span>
+                            ${manual ? manualMarkHtml(k) : ''}
                         </span>
                         
                         <div class="item-value-area relative flex-1 flex justify-end items-center min-w-0 h-full" ${!isReadonlyView ? `onclick="openValueSelect(event, this)"` : ''}>
@@ -2747,6 +4269,8 @@ function renderEdit() {
         const baseCustomItems = (base && base['custom_' + catKey]) || [];
         const bItem = baseCustomItems.find(x => x.name === itemName);
         const isDiff = applyHighlightOverride(rule, customItemId(catKey, customItems[i]), base && (!bItem || cVal !== String(bItem.value || "")), legacyCustomItemId(catKey, customItems[i]));
+        const cManual = !isReadonlyView && manualOverrideOf(rule, customItemId(catKey, customItems[i]), legacyCustomItemId(catKey, customItems[i])) !== undefined;
+        if (cManual) manualCount++;
         
         let cValSizeClass = "text-[15px]";
         if (cVal && cVal.length > 15) cValSizeClass = "text-[13px]";
@@ -2772,7 +4296,8 @@ function renderEdit() {
                 
                 <div class="swipe-content" ${!isReadonlyView ? 'onpointerdown="handleTouchStart(event)" onpointermove="handleTouchMove(event)" onpointerup="handleTouchEnd(event)" onpointercancel="handleTouchEnd(event)"' : ''}>
                     <div class="flex items-center justify-between w-full gap-3 relative min-h-[24px]">
-                        <span class="text-[15px] item-label leading-tight shrink-0 max-w-[60%] whitespace-normal break-words">${esc(itemName)}</span>
+                        <span class="flex items-center gap-1 shrink-0 max-w-[60%] min-w-0"><span class="text-[15px] item-label leading-tight whitespace-normal break-words">${esc(itemName)}</span>
+                        ${cManual ? manualMarkHtml(customItemId(catKey, customItems[i]), legacyCustomItemId(catKey, customItems[i])) : ''}</span>
                         
                         <!-- 既存の項目と同じく、選択肢(select)は右端だけに置き、値の部分はタップで選択肢を開く。
                              値の部分全体をselectで覆うと、そこを長押ししても並べ替えが始まらないため -->
@@ -2871,6 +4396,8 @@ function renderEdit() {
     </div>` + html;
   }
 
+  // 手で直した項目が1つでもあれば、項目の一覧の上に印の意味を出す
+  if (manualCount) html = `<div class="manual-note"><span class="manual-mark">手動</span>：強調表示を手動で設定した項目</div>` + html;
   fields.innerHTML = html;
 }
 
@@ -3178,14 +4705,37 @@ function onCategoryDragEnd(e) {
 function onNameChange(val) {
   const rule = getRule(editingId);
   if (rule) {
+      // ルール名は100文字まで（見た目の文字数で数える）
+      if (charCount(val) > RULE_NAME_MAX) {
+        val = truncateChars(val, RULE_NAME_MAX);
+        document.getElementById('edit-name').value = val;
+      }
       rule.name = val;
       _editDirty = true;
   }
 }
+function onVerChange(val) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  rule.verLabel = val;
+  _editDirty = true;
+  const err = document.getElementById('edit-ver-error');
+  if (err) err.classList.add('hidden');
+}
 function onBaseRuleChange(val) {
   const rule = getRule(editingId);
+  if (val === '__more__') { _showAllVers = true; renderEdit(); return; }
+  // 別のverを選んだときは、そのverの中身を読み込んでから比べる
+  if (rule && isVerBaseId(val) && !getRule(val)) {
+    loadVerPhantom(rule, val.slice(4)).then(() => onBaseRuleChange(val)).catch(() => {
+      showSnack('verを読み込めませんでした。通信できる場所で、もう一度選んでください');
+      renderEdit();
+    });
+    return;
+  }
   if (rule) {
     rule.base_rule = val;
+    if (_tempBase && _tempBase.ruleId === rule.id) _tempBase = null;
     // 表示画面での比較対象選択は次回開いたときも引き継げるよう保存する。
     // ただし共有モードは一時的な閲覧データのため保存しない。
     if (!isSharedMode) saveData();
@@ -3993,7 +5543,7 @@ async function exportImage() {
 
   let html = `
       <div style="margin-top: 10px; margin-bottom: 30px;">
-          <h1 style="font-size: 32px; font-weight: bold; border-bottom: 3px solid #000; padding-bottom: 12px; margin: 0; text-align: center;">${esc(ruleName)}</h1>
+          <h1 style="font-size: 32px; font-weight: bold; border-bottom: 3px solid #000; padding-bottom: 12px; margin: 0; text-align: center;">${esc(ruleName)}${exportVerText(rule) ? `<span style="font-size: 20px; font-weight: 600; margin-left: 12px;">${esc(exportVerText(rule))}</span>` : ''}</h1>
       </div>
   `;
 
@@ -4186,7 +5736,7 @@ async function exportPDF() {
 
   let html = `
       <div style="margin-top: 30px; margin-bottom: 30px;">
-          <h1 style="font-size: 26px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin: 0; text-align: center;">${esc(ruleName)}</h1>
+          <h1 style="font-size: 26px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 10px; margin: 0; text-align: center;">${esc(ruleName)}${exportVerText(rule) ? `<span style="font-size: 16px; font-weight: 600; margin-left: 10px;">${esc(exportVerText(rule))}</span>` : ''}</h1>
       </div>
   `;
 
@@ -4442,11 +5992,37 @@ window.toggleDefaultBaseRule = function(mode, id) {
 // =====================================================================
 // アプリ起動 (全ての変数・関数の定義後に実行)
 // =====================================================================
+// ---- 変わった点のお知らせ ----
+// 更新した後に初めてホームを開いたときに1回だけ出す。自分のルールがない人（初めて使う人）には出さない
+// link.ruleId と違うルールが持つ link（前のアプリでコピーしたときに写ったもの）を外す
+function stripForeignLinks() {
+  let changed = false;
+  for (const r of appData.rules) if (r.link && r.link.ruleId !== r.id) { delete r.link; changed = true; }
+  if (changed) saveData();
+}
+const NOTICE_KEY = 'mahjong_notice_ver1';
+function showNoticeIfNeeded() {
+  try {
+    if (localStorage.getItem(NOTICE_KEY)) return;
+    const hasOwnRules = appData.rules.some(r => !isPresetRule(r) && !isTemporarySharedRule(r));
+    if (!hasOwnRules) { localStorage.setItem(NOTICE_KEY, '1'); return; }
+  } catch (e) { return; }
+  document.getElementById('modal-notice').classList.add('show');
+}
+function closeNotice() {
+  document.getElementById('modal-notice').classList.remove('show');
+  try { localStorage.setItem(NOTICE_KEY, '1'); } catch (e) {}
+}
+
 loadData();
+stripForeignLinks();
+// 通信できなかったときに削除待ちにした、サーバーのシリーズの削除をやり直す（ログインしていなくても行う）
+processPendingCloudDeletes();
 (async () => {
   if (!await checkSharedRule()) {
     showScreen('home');
     renderHome();
+    showNoticeIfNeeded();
   }
 })();
 </script>
@@ -4468,8 +6044,8 @@ loadData();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v5.11", 
-    deployDate: "2026-10-27 20:25",
+    appVersion: "v6.00", 
+    deployDate: "2026-10-31 17:19",
   };
 
   // ==========================================
@@ -4596,9 +6172,17 @@ loadData();
                   >
                     {!isReadOnly ? (
                       <>
-                        <h2 className="text-base font-semibold text-theme-text truncate">
-                          {rule.name}
-                        </h2>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h2 className="text-base font-semibold text-theme-text truncate">
+                            {rule.name}
+                          </h2>
+                          {window.verText(rule) && (
+                            <span className="shrink-0 text-[11px] font-semibold text-theme-primary bg-theme-highlightBg rounded-full px-2 py-0.5">{window.verText(rule)}</span>
+                          )}
+                          {window.hasDraft(rule) && (
+                            <span className="shrink-0 draft-badge draft-badge-sm">下書きあり</span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 mt-1 text-theme-textMuted">
                           <span className="material-symbols-outlined text-[14px]">calendar_today</span>
                           <p className="text-xs">更新: {rule.date || "2026/03/16"}</p>
