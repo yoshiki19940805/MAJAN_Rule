@@ -12,11 +12,14 @@ catch (e) { ({ chromium } = require(path.join(process.env.HOME, 'node_modules', 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PORT = 8790 + Math.floor(Math.random() * 100);
 const NEW_APP = '/src/index.html';
-const OLD_APP = process.env.OLD_APP || '/docs/index.html';  // 前のアプリ（今の本番）
+// 前のアプリ（ver管理を出す前の v5.11。切り戻し用のタグ before-ver のものを /old/ で配る）
+const { serveOldApp, oldAppExists, oldAppHtml, OLD_APP_PATH } = require('./old_app');
+const OLD_APP = process.env.OLD_APP || OLD_APP_PATH;
 const STORAGE_KEY = 'mahjong_rules_pwa_v1';
 
 function appVersion(file) {
-  const m = fs.readFileSync(path.join(ROOT, file), 'utf8').match(/const currentVersion = "(v[\d.]+)"/);
+  const html = '/' + file.replace(/^\//, '') === OLD_APP_PATH && !process.env.OLD_APP ? oldAppHtml() : fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const m = html.match(/const currentVersion = "(v[\d.]+)"/);
   return m ? m[1] : '';
 }
 
@@ -24,6 +27,7 @@ function appVersion(file) {
 function startServer() {
   const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };
   const server = http.createServer((req, res) => {
+    if (!process.env.OLD_APP && serveOldApp(req, res, types)) return;
     const p = decodeURIComponent(req.url.split('?')[0]);
     const file = path.join(ROOT, p);
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
@@ -397,7 +401,7 @@ async function run() {
 
     // ---- V-114（1回目の部分） 前のアプリで開いても、足した項目が消えない ----
     {
-      const oldExists = fs.existsSync(path.join(ROOT, OLD_APP.slice(1)));
+      const oldExists = process.env.OLD_APP ? fs.existsSync(path.join(ROOT, OLD_APP.slice(1))) : oldAppExists();
       if (!oldExists) {
         check('V-114', '前のアプリで開いても足した項目が消えない', false, OLD_APP + ' がない');
       } else {
@@ -410,7 +414,7 @@ async function run() {
         await page.evaluate(() => editRule('r1'));
         const badge = await page.textContent('#edit-ver-badge');
         const ok = afterOld.name === '通常ルール改' && afterOld.verLabel === '2025秋' && afterOld.copiedFrom && badge === 'ver2025秋';
-        check('V-114', '前のアプリ（docs/index.html）で編集・保存しても、verが端末から消えない（リンクの部分は2回目）', ok, JSON.stringify({ name: afterOld.name, ver: afterOld.verLabel, badge }));
+        check('V-114', '前のアプリ（before-ver の v5.11）で編集・保存しても、verが端末から消えない（リンクの部分は2回目）', ok, JSON.stringify({ name: afterOld.name, ver: afterOld.verLabel, badge }));
         await page.context().close();
       }
     }

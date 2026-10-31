@@ -1,11 +1,11 @@
 {
-  "at": "2026-10-31T08:09:35.287Z",
+  "at": "2026-10-31T12:54:15.644Z",
   "results": [
     {
       "id": "V-03",
       "name": "ログインせずにリンクを作ると、ログインを勧める一文付きの画面が出て、ver1.0 のURL（比較対象の印入り）がコピーされる",
       "ok": true,
-      "detail": "{\"createSheet\":\"ver1.0 のリンクを作ります ✕ ルールを変更して公開すると、このリンクを開いた人に新しいverがあることを知らせます。 比較対象 なし比較用ルール例雀魂天鳳Mリーグ Googleでログインすると、ほかの端末からも公開できます。ログインしないまま、ブラウザのデータを消したり機種を変えたりすると、公開できなくなります。 リンクを作って送る キャンセル\",\"url1\":\"http://localhost:9053/src/index.html?share=Gn23ipKU&cmp=vdGv\",\"series\":true,\"snack\":\"ver1.0 のリンクをコピーしました\"}"
+      "detail": "{\"createSheet\":\"ver1.0 のリンクを作ります ✕ ルールを変更して公開すると、このリンクを開いた人に新しいverがあることを知らせます。 比較対象 なし比較用ルール例雀魂天鳳Mリーグ Googleでログインすると、ほかの端末からも公開できます。ログインしないまま、ブラウザのデータを消したり機種を変えたりすると、公開できなくなります。 リンクを作って送る キャンセル\",\"url1\":\"http://localhost:9071/src/index.html?share=yvBNA4Zy&cmp=H4qB\",\"series\":true,\"snack\":\"ver1.0 のリンクをコピーしました\"}"
     },
     {
       "id": "S2-01",
@@ -29,13 +29,13 @@
       "id": "V-05",
       "name": "下書きがないリンク付きのルールで「リンクで送る」：「ver1.0 のリンクを送る」で、比較対象の初期値は表示画面のもの。同じverのURLが、保存済みの印のままコピーされる（保存し直さない）",
       "ok": true,
-      "detail": "{\"sendSheet\":\"ver1.0 のリンクを送る ✕ 比較対象 なしver1.0（最新）比較用ルール例雀魂天鳳Mリーグ リンクを送る キャンセル\",\"sendDefault\":\"b1\",\"url1b\":\"http://localhost:9053/src/index.html?share=Gn23ipKU&cmp=vdGv\"}"
+      "detail": "{\"sendSheet\":\"ver1.0 のリンクを送る ✕ 比較対象 なしver1.0（最新）比較用ルール例雀魂天鳳Mリーグ リンクを送る キャンセル\",\"sendDefault\":\"b1\",\"url1b\":\"http://localhost:9071/src/index.html?share=yvBNA4Zy&cmp=H4qB\"}"
     },
     {
       "id": "V-108",
       "name": "プリセットを選んで送ると cmp=p:プリセットのID（保存しない）",
       "ok": true,
-      "detail": "http://localhost:9053/src/index.html?share=Gn23ipKU&cmp=p%3Apreset_g0yy_4"
+      "detail": "http://localhost:9071/src/index.html?share=yvBNA4Zy&cmp=p%3Apreset_g0yy_4"
     },
     {
       "id": "V-27/V-29",
@@ -71,7 +71,7 @@
       "id": "V-06a",
       "name": "下書きがあるときの「リンクで送る」：「下書きがあります」画面が出て、「下書きは出さずに ver1.0 を送る」で ver1.0 のURL",
       "ok": true,
-      "detail": "{\"draftSheet\":\"下書きがあります 下書きあり ✕ 下書きの変更は、まだリンクに出ていません。 相手に表示されるverver1.0（公開中）下書き未公開 比較対象 なしver1.0（最新）比較用ルール例雀魂天鳳Mリーグ 下書きを公開してから送る 下書きは出さずに ver1.0 を送る キャンセル\",\"urlDraftSkip\":\"http://localhost:9053/src/index.html?share=Gn23ipKU&cmp=p%3Apreset_g0yy_4\"}"
+      "detail": "{\"draftSheet\":\"下書きがあります 下書きあり ✕ 下書きの変更は、まだリンクに出ていません。 相手に表示されるverver1.0（公開中）下書き未公開 比較対象 なしver1.0（最新）比較用ルール例雀魂天鳳Mリーグ 下書きを公開してから送る 下書きは出さずに ver1.0 を送る キャンセル\",\"urlDraftSkip\":\"http://localhost:9071/src/index.html?share=yvBNA4Zy&cmp=p%3Apreset_g0yy_4\"}"
     },
     {
       "id": "V-97",
@@ -89,7 +89,7 @@
       "id": "V-06b/V-22",
       "name": "「下書きを公開してから送る」：ver1.1 が公開され、公開後のURLに先に選んだ比較対象が入る",
       "ok": true,
-      "detail": "{\"sendAfter\":\"ver1.1 のリンクを送る ✕ 送るキャンセル\",\"url2\":\"http://localhost:9053/src/index.html?share=uwg3LjJr&cmp=vdGv\",\"latestSeq\":\"2\"}"
+      "detail": "{\"sendAfter\":\"ver1.1 のリンクを送る ✕ 送るキャンセル\",\"url2\":\"http://localhost:9071/src/index.html?share=pfLEwzD9&cmp=H4qB\",\"latestSeq\":\"2\"}"
     },
     {
       "id": "V-22b",
@@ -113,7 +113,7 @@
       "id": "V-07",
       "name": "作成者でない人の「リンクで送る」：画面は出ずに、開いたURLと同じ比較対象のまま、見ているverのURL",
       "ok": true,
-      "detail": "http://localhost:9053/src/index.html?share=Gn23ipKU&cmp=vdGv"
+      "detail": "http://localhost:9071/src/index.html?share=yvBNA4Zy&cmp=H4qB"
     },
     {
       "id": "V-61",

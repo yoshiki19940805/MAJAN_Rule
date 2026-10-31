@@ -16,21 +16,17 @@ const FS_EMU = 'http://localhost:8080';
 const PROJECT = 'majan-rule';
 const VERSION = (fs.readFileSync(path.join(ROOT, 'src/index.html'), 'utf8').match(/const currentVersion = "(v[\d.]+)"/) || [])[1];
 const APP = `http://localhost:${PORT}/src/index.html`;
-// 前のアプリ（今の本番）。切り戻した状態・更新前のアプリとして使う
-const OLD_APP_FILE = path.join(ROOT, 'docs', 'index.html');
-const OLD_APP = `http://localhost:${PORT}/docs/index.html`;
+// 前のアプリ（ver管理を出す前の v5.11。切り戻し用のタグ before-ver のもの）。切り戻した状態・更新前のアプリとして使う
+const { serveOldApp, OLD_APP_PATH } = require('./old_app');
+const OLD_APP = `http://localhost:${PORT}${OLD_APP_PATH}`;
 
 function startServer() {
   const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };
   const server = http.createServer((req, res) => {
+    if (serveOldApp(req, res, types, { emulator: true })) return;
     const file = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]));
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
-    if (file === OLD_APP_FILE) {
-      res.end(fs.readFileSync(file, 'utf8').replace('const fbDb = firebase.firestore();',
-        "const fbDb = firebase.firestore(); fbDb.useEmulator('localhost', 8080); fbAuth.useEmulator('http://localhost:9099');"));
-      return;
-    }
     fs.createReadStream(file).pipe(res);
   });
   return new Promise(r => server.listen(PORT, () => r(server)));
@@ -190,7 +186,7 @@ async function block(name, fn) {
       await publishVer(A, '<b>x</b>', '');
       await A.evaluate(() => { goEditMode(); onSettingChange('kuitan_atoduke', 'なし'); });
       await publishVer(A, '2025秋', '最後');
-      const badge = await A.evaluate(() => { goViewMode(); return document.getElementById('edit-ver-badge').textContent; });
+      const badge = await A.evaluate(() => { goViewMode(); return document.getElementById('edit-ver-badge').textContent.replace(/ ▼$/, ''); });
       check('V-14', 'verの名前に絵文字20文字・記号・「2025秋」を使って公開でき（Firestoreに断られない）、そのまま表示される',
         emojiSnack.includes('ver' + emoji + ' として公開しました') && badge === 'ver2025秋', JSON.stringify({ emojiSnack, badge }));
       // 途中のver（絵文字のver）のリンクを開く
@@ -229,7 +225,7 @@ async function block(name, fn) {
       const latest = (await ruleOf(A, 'r1')).link.pubShareId;
       await open(B, `&share=${latest}`);
       await B.waitForTimeout(1500);
-      check('V-51', '最新verのリンクを開くと、ポップアップは出ず「（最新）」付きで表示される', (await sheet(B)) === '' && (await text(B, '#edit-ver-badge')) === 'ver2026春（最新）', await text(B, '#edit-ver-badge'));
+      check('V-51', '最新verのリンクを開くと、ポップアップは出ず「（最新）」付きで表示される', (await sheet(B)) === '' && (await text(B, '#edit-ver-badge')) === 'ver2026春（最新） ▼', await text(B, '#edit-ver-badge'));
       // パスワードがどこにも入らない
       const pw = (await ruleOf(A, 'r1')).link.password;
       const bStore = await B.evaluate(() => JSON.stringify(Object.assign({}, localStorage)));
@@ -783,4 +779,6 @@ async function block(name, fn) {
   console.log(`\n${results.length - bad.length} 件成功 / ${bad.length} 件失敗`);
   fs.writeFileSync(path.join(__dirname, 'last_result_ver_rest.json'), JSON.stringify({ at: new Date().toISOString(), results }, null, 2));
   process.exitCode = bad.length ? 1 : 0;
-})().catch(e => { console.error(e); process.exitCode = 1; });
+})().catch(e => { console.error(e); process.exitCode = 1; })
+  // 終わった後に通信などが残ってプロセスが抜けないことがあるので、結果を書いたら強制的に終える
+  .finally(() => setTimeout(() => process.exit(process.exitCode || 0), 1000));

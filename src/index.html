@@ -769,7 +769,7 @@
 <!-- 他人のルール・プリセットで「編集」を押したときの確認 -->
 <div class="modal-overlay" id="modal-copy-edit">
   <div class="modal-box">
-    <p>このルールは他の人が作ったものなので、そのままでは編集できません。コピーして、自分のルールとして編集しますか？</p>
+    <p id="modal-copy-edit-text">このルールは他の人が作ったものなので、そのままでは編集できません。コピーして、自分のルールとして編集しますか？</p>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="closeCopyEditConfirm()">やめる</button>
       <button class="btn btn-primary" onclick="closeCopyEditConfirm(); copySharedRule();">コピーして編集</button>
@@ -2832,6 +2832,7 @@ function verBannerHtml(rule) {
   const b = _verBanner && _verBanner.ruleId === rule.id ? _verBanner : null;
   if (b && b.type === 'unchecked') return '<div class="ver-banner">最新のverかどうか確認できませんでした</div>';
   if (b && b.type === 'kept') return `<div class="ver-banner">最新ではありません（最新：ver${esc(b.latestLabel)}）　<button onclick="showLatestSharedVer()">最新を見る</button></div>`;
+  if (b && b.type === 'ownPast') return `<div class="ver-banner">ver${esc(rule.verLabel)} を表示しています（最新：ver${esc(rule.sharedVer.latestLabel)}）　<button onclick="backToOwnerRule()">最新に戻る</button></div>`;
   if (b && b.type === 'own') return `<div class="ver-banner">開いたリンクは ver${esc(b.openedLabel)} です。表示しているのは自分のルール（公開中：${esc(pubVerText(rule))}）です</div>`;
   if (!hasLink(rule) || isSharedMode) return '';
   if (isOtherDevicePublished(rule)) {
@@ -3113,6 +3114,92 @@ function onLatestShown(rule, openedSettings) {
   if (!getRule(id)) appData.rules.push({ id, mode: rule.mode, name: 'ver' + v.openedLabel, settings: openedSettings, date: nowDateStr(), readonly: true, isSharedPhantom: true, verOf: v.seriesId });
   rule.base_rule = id;
 }
+// ---- 表示画面で過去のverを見る ----
+// 自分のルールの過去のverは、書き換えられない一時的なルール（ownerRuleId に元のルールのID）として表示する
+function ownerOf(rule) { return rule && rule.ownerRuleId ? getRule(rule.ownerRuleId) : (hasLink(rule) && !isSharedMode ? rule : null); }
+// このルールのverの履歴（新しい順）
+function verHistoryOf(rule) {
+  const owner = ownerOf(rule);
+  const hist = owner ? (owner.link.history || []) : (rule && rule.sharedVer ? rule.sharedVer.history || [] : []);
+  return [...hist].filter(h => h.shareId).sort((a, b) => b.seq - a.seq);
+}
+function shownSeqOf(rule) {
+  if (rule.sharedVer) return rule.sharedVer.seq;
+  return hasLink(rule) ? rule.link.pubSeq : 0;
+}
+// ver のラベルを押したとき：verの履歴
+function showVerHistory() {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const owner = ownerOf(rule);
+  const latestSeq = owner ? owner.link.pubSeq : rule.sharedVer.latestSeq;
+  const shown = shownSeqOf(rule);
+  const rows = verHistoryOf(rule).map(h => `<tr class="pick ${h.seq === shown ? 'opened' : ''}" onclick="selectHistoryVer(${h.seq})">
+      <td class="nowrap">ver${esc(h.label)}${h.seq === latestSeq ? '（最新）' : ''}</td><td class="nowrap">${esc(h.date || '')}</td><td class="note">${h.note ? esc(h.note) : '—'}</td></tr>`).join('');
+  openVerSheet(`${verSheetHead('verの履歴')}
+    <div class="sheet-body">
+      <div class="ver-history"><table><thead><tr><th>ver</th><th>公開日</th><th>変更内容</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="sheet-note">見たいverを押してください。太字が今表示しているver</p>
+    </div>
+    <div class="sheet-foot"><button class="sheet-cancel" onclick="closeVerSheet()">閉じる</button></div>`);
+}
+// verの中身（強調だけを公開したverは、その強調も）を読む
+async function fetchVerContent(shareId, seq, hlSeqs) {
+  const doc = await fetchServerDoc(fbDb.collection('shared_rules').doc(shareId));
+  if (!doc.exists) throw verError('missing');
+  let settings = JSON.parse(doc.data().data).s || {};
+  if ((hlSeqs || []).includes(seq)) {
+    const h = await fetchServerDoc(fbDb.collection('ver_hl').doc(shareId));
+    if (h.exists) settings = settingsFromPub(settings, JSON.parse(h.data().hl));
+  }
+  return settings;
+}
+async function selectHistoryVer(seq) {
+  const rule = getRule(editingId);
+  if (!rule) return;
+  const h = verHistoryOf(rule).find(x => x.seq === seq);
+  closeVerSheet();
+  if (!h || seq === shownSeqOf(rule)) return;
+  const owner = ownerOf(rule);
+  // 自分のルールで最新のverを選んだときは、いつもの表示（下書きを含む手元の内容）に戻る
+  if (owner && seq === owner.link.pubSeq) return backToOwnerRule();
+  let settings;
+  try { settings = await fetchVerContent(h.shareId, h.seq, owner ? owner.link.hlSeqs : rule.sharedVer.hlSeqs); }
+  catch (e) { showSnack('verを読み込めませんでした。通信できる場所で、もう一度選んでください'); return; }
+  if (owner) return showOwnerPastVer(owner, h, settings);
+  // リンクを開いた人：表示を選んだverに切り替える（「まま見る」の記録は変えない）
+  const v = rule.sharedVer;
+  rule.settings = settings;
+  rule.verLabel = h.label;
+  Object.assign(v, { viewShareId: h.shareId, seq: h.seq });
+  _verBanner = h.seq < v.latestSeq ? { ruleId: rule.id, type: 'kept', latestLabel: v.latestLabel } : null;
+  renderEdit();
+}
+function showOwnerPastVer(owner, h, settings) {
+  const link = owner.link;
+  // 「リンクで送る」の比較対象：今の比較対象を保存しなくてよいときはそれ、保存が要るときは最後に使ったもの
+  const plan = planSendCmp(owner, owner.base_rule || '');
+  appData.rules = appData.rules.filter(r => !r.ownerRuleId);
+  const past = makeSharedRule({ m: owner.mode, n: (link.pubSnapshot || {}).name || owner.name, b: owner.base_rule || '', s: settings, o: owner.id }, settings);
+  Object.assign(past, {
+    id: 'shared_past_' + Date.now(), verLabel: h.label, ownerRuleId: owner.id, shared_base_rule_id: '',
+    sharedVer: { seriesId: link.seriesId, viewShareId: h.shareId, openedShareId: h.shareId, seq: h.seq, openedSeq: h.seq, openedLabel: h.label,
+      cmp: plan.needsSave ? (link.lastCmp || '') : plan.cmp, latestSeq: link.pubSeq, latestShareId: link.pubShareId, latestLabel: link.pubLabel,
+      history: link.history || [], hlSeqs: link.hlSeqs || [] }
+  });
+  showSharedRule(past);
+  _verBanner = { ruleId: past.id, type: 'ownPast' };
+  renderEdit();
+}
+// ［最新に戻る］：自分のルールの表示に戻る
+function backToOwnerRule() {
+  const rule = getRule(editingId);
+  const ownerId = rule && rule.ownerRuleId ? rule.ownerRuleId : (rule && rule.id);
+  appData.rules = appData.rules.filter(r => !r.ownerRuleId);
+  isSharedMode = false;
+  editRule(ownerId);
+}
+
 // ルール名の横のver（共有されたルールで最新なら「（最新）」を付ける）
 function verBadgeText(rule) {
   const t = verText(rule);
@@ -3368,6 +3455,9 @@ function goHome() {
 }
 
 function goHomeWithConfirm() {
+  // 自分のルールの過去のverを見ているときは、自分のルールの表示に戻る
+  const shownRule = getRule(editingId);
+  if (isSharedMode && shownRule && shownRule.ownerRuleId && getRule(shownRule.ownerRuleId)) return backToOwnerRule();
   if (isViewMode) {
       // 表示画面からの「戻る」→ ホームへ
       goHome();
@@ -3462,6 +3552,10 @@ function onEditButton() {
   const rule = getRule(editingId);
   if (!rule) return;
   if (rule.readonly || isSharedMode) {
+    // 自分のルールの過去のverは、コピーして別のルールとして編集する
+    document.getElementById('modal-copy-edit-text').textContent = rule.ownerRuleId
+      ? '過去のverは編集できません。このverの内容をコピーして、別のルールとして編集しますか？'
+      : 'このルールは他の人が作ったものなので、そのままでは編集できません。コピーして、自分のルールとして編集しますか？';
     document.getElementById('modal-copy-edit').classList.add('show');
     return;
   }
@@ -3967,8 +4061,11 @@ function renderEdit() {
   const verField = document.getElementById('edit-ver-field');
   const verErr = document.getElementById('edit-ver-error');
   if (verBadge) {
-    verBadge.textContent = verBadgeText(rule);
+    const canPick = isReadonlyView && verHistoryOf(rule).length > 0;
+    verBadge.textContent = verBadgeText(rule) + (canPick ? ' ▼' : '');
     verBadge.classList.toggle('hidden', !isReadonlyView || !verText(rule));
+    verBadge.classList.toggle('ver-badge-pick', canPick);
+    verBadge.onclick = canPick ? showVerHistory : null;
   }
   const draftBadge = document.getElementById('edit-draft-badge');
   if (draftBadge) draftBadge.classList.toggle('hidden', !isReadonlyView || isSharedMode || !hasDraft(rule));

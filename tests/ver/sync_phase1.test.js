@@ -179,4 +179,6 @@ const localRules = page => page.evaluate(k => JSON.parse(localStorage.getItem(k)
   console.log(`\n${results.length - bad.length} 件成功 / ${bad.length} 件失敗`);
   fs.writeFileSync(path.join(__dirname, 'last_result_sync_phase1.json'), JSON.stringify({ at: new Date().toISOString(), results }, null, 2));
   process.exitCode = bad.length ? 1 : 0;
-})().catch(e => { console.error(e); process.exitCode = 1; });
+})().catch(e => { console.error(e); process.exitCode = 1; })
+  // 終わった後に通信などが残ってプロセスが抜けないことがあるので、結果を書いたら強制的に終える
+  .finally(() => setTimeout(() => process.exit(process.exitCode || 0), 1000));

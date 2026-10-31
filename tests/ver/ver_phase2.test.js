@@ -261,7 +261,7 @@ const cmpOf = url => decodeURIComponent((url.match(/cmp=([^&]+)/) || [])[1] || '
       keptBanner.includes('最新ではありません（最新：ver1.1）') && popup2 === '' && banner2.includes('最新ではありません'), JSON.stringify({ keptBanner, popup2, banner2 }));
     await B.evaluate(() => showLatestSharedVer());
     await B.waitForTimeout(1200);
-    const latestBadge = await text(B, '#edit-ver-badge');
+    const latestBadge = (await text(B, '#edit-ver-badge')).replace(/ ▼$/, '');  // 履歴を開ける印「▼」は除いて比べる
     const latestUma = await B.evaluate(() => getRule(editingId).settings.uma);
     check('V-53', '「最新を見る」で最新のverが表示され、ルール名の横に「ver1.1（最新）」', latestBadge === 'ver1.1（最新）' && latestUma === '10-30', JSON.stringify({ latestBadge, latestUma }));
     const homeAfter = await B.evaluate(() => { goHome(); return appData.rules.filter(r => String(r.id).startsWith('shared_')).length; });
@@ -458,4 +458,6 @@ const cmpOf = url => decodeURIComponent((url.match(/cmp=([^&]+)/) || [])[1] || '
   console.log(`\n${results.length - bad.length} 件成功 / ${bad.length} 件失敗`);
   fs.writeFileSync(path.join(__dirname, 'last_result_ver_phase2.json'), JSON.stringify({ at: new Date().toISOString(), results }, null, 2));
   process.exitCode = bad.length ? 1 : 0;
-})().catch(e => { console.error(e); process.exitCode = 1; });
+})().catch(e => { console.error(e); process.exitCode = 1; })
+  // 終わった後に通信などが残ってプロセスが抜けないことがあるので、結果を書いたら強制的に終える
+  .finally(() => setTimeout(() => process.exit(process.exitCode || 0), 1000));

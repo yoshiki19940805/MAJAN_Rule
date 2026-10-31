@@ -27,7 +27,7 @@ if [ "$1" != "--auto" ]; then
   FIREBASE="firebase"; command -v firebase >/dev/null 2>&1 || FIREBASE="npx -y firebase-tools@14"
   [ -d node_modules ] || npm install --no-audit --no-fund || FAIL=1
   (cd ../.. && $FIREBASE emulators:exec --only firestore,auth --project majan-rule \
-    "node tests/ver/rules_phase1.test.js && node tests/ver/rules_phase2.test.js && node tests/ver/sync_phase1.test.js && node tests/ver/ver_phase2.test.js && node tests/ver/ver_phase3.test.js && node tests/ver/ver_rest.test.js") || FAIL=1
+    "node tests/ver/rules_phase1.test.js && node tests/ver/rules_phase2.test.js && node tests/ver/sync_phase1.test.js && node tests/ver/ver_phase2.test.js && node tests/ver/ver_phase3.test.js && node tests/ver/ver_rest.test.js && node tests/ver/ver_history.test.js") || FAIL=1
 fi
 
 echo ""

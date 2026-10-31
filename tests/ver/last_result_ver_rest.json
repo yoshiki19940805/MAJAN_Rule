@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-31T08:14:56.815Z",
+  "at": "2026-10-31T13:04:44.791Z",
   "results": [
     {
       "id": "V-17",
@@ -59,7 +59,7 @@
       "id": "V-51",
       "name": "最新verのリンクを開くと、ポップアップは出ず「（最新）」付きで表示される",
       "ok": true,
-      "detail": "ver2026春（最新）"
+      "detail": "ver2026春（最新） ▼"
     },
     {
       "id": "V-80",
@@ -125,7 +125,7 @@
       "id": "V-97",
       "name": "（残り）強調だけの下書きは、verが変わらず同じverのURLが送られる。公開の画面で［下書き保存］を押すと「下書きがあります」に戻り、選んだ比較対象が残る",
       "ok": true,
-      "detail": "{\"after97\":\"ver1.2 のリンクを送る ✕ 送るキャンセル\",\"url97\":\"http://localhost:9269/src/index.html?share=HCCt6ZeH&cmp=p%3Apreset_g0yy_4\",\"before\":\"HCCt6ZeH\",\"back97\":\"下書きがあります 下書きあり ✕ 下書き\",\"backCmp\":\"b2\"}"
+      "detail": "{\"after97\":\"ver1.2 のリンクを送る ✕ 送るキャンセル\",\"url97\":\"http://localhost:9216/src/index.html?share=NxEK8nmu&cmp=p%3Apreset_g0yy_4\",\"before\":\"NxEK8nmu\",\"back97\":\"下書きがあります 下書きあり ✕ 下書き\",\"backCmp\":\"b2\"}"
     },
     {
       "id": "V-31",
@@ -143,7 +143,7 @@
       "id": "V-36",
       "name": "比較対象を「なし」にして送ると、URLに印が入らず、開くと比較対象なし",
       "ok": true,
-      "detail": "{\"urlNone\":\"http://localhost:9269/src/index.html?share=ihBRs9PF\",\"baseNone\":\"-\"}"
+      "detail": "{\"urlNone\":\"http://localhost:9216/src/index.html?share=2Cbn8EdU\",\"baseNone\":\"-\"}"
     },
     {
       "id": "V-35",
@@ -161,7 +161,7 @@
       "id": "V-37",
       "name": "比較対象の中身を変えてから同じ比較対象で送ると、中身が保存し直される（印は同じ）",
       "ok": true,
-      "detail": "{\"mark\":\"6dyr\"}"
+      "detail": "{\"mark\":\"8R3c\"}"
     },
     {
       "id": "V-39",
@@ -173,13 +173,13 @@
       "id": "V-38",
       "name": "通信できない状態で、初めての比較対象は「通信できる場所で、もう一度送ってください」で送れず、保存済みで中身が同じものは送れる",
       "ok": true,
-      "detail": "{\"err38\":\"通信できる場所で、もう一度送ってください\",\"url38\":\"http://localhost:9269/src/index.html?share=ihBRs9PF&cmp=6dyr\"}"
+      "detail": "{\"err38\":\"通信できる場所で、もう一度送ってください\",\"url38\":\"http://localhost:9216/src/index.html?share=2Cbn8EdU&cmp=8R3c\"}"
     },
     {
       "id": "V-108",
       "name": "（残り）プリセットは通信できない状態でも送れ、開くと開いた人のアプリの天鳳ルールと比べる",
       "ok": true,
-      "detail": "{\"urlP\":\"http://localhost:9269/src/index.html?share=ihBRs9PF&cmp=p%3Apreset_g0yy_4\",\"baseP\":\"天鳳\"}"
+      "detail": "{\"urlP\":\"http://localhost:9216/src/index.html?share=2Cbn8EdU&cmp=p%3Apreset_g0yy_4\",\"baseP\":\"天鳳\"}"
     },
     {
       "id": "V-44",
@@ -209,7 +209,7 @@
       "id": "V-50",
       "name": "作成者パスワードがない端末の「リンクで送る」：画面は出ず、最後に使った比較対象で最新verのURLがコピーされる",
       "ok": true,
-      "detail": "{\"url50\":\"http://localhost:9269/src/index.html?share=stDBPAUz&cmp=SdGB\",\"sheet50\":\"\"}"
+      "detail": "{\"url50\":\"http://localhost:9216/src/index.html?share=tbVDNm7W&cmp=Ismn\",\"sheet50\":\"\"}"
     },
     {
       "id": "V-79",
@@ -221,7 +221,7 @@
       "id": "V-98",
       "name": "作成者パスワードがない端末で下書きがあるとき：「下書きがあります」に「この端末からは公開できません」、ボタンは［下書きは出さずに ver1.0 を送る］［キャンセル］だけで、最新verのURLが送られる",
       "ok": true,
-      "detail": "{\"btns98\":[\"下書きは出さずに ver1.0 を送る\",\"キャンセル\"],\"hasSelect\":false,\"url98\":\"http://localhost:9269/src/index.html?share=stDBPAUz&cmp=SdGB\"}"
+      "detail": "{\"btns98\":[\"下書きは出さずに ver1.0 を送る\",\"キャンセル\"],\"hasSelect\":false,\"url98\":\"http://localhost:9216/src/index.html?share=tbVDNm7W&cmp=Ismn\"}"
     },
     {
       "id": "V-106",
@@ -329,7 +329,7 @@
       "id": "V-101",
       "name": "100verあるシリーズのリンクを開いても、verが少ないときと比べて目立って遅くならない（2倍＋1秒以内）",
       "ok": true,
-      "detail": "{\"tMany\":1030,\"tFew\":984}"
+      "detail": "{\"tMany\":1020,\"tFew\":993}"
     },
     {
       "id": "V-95",
