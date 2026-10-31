@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-31T08:07:18.539Z",
+  "results": [
+    {
+      "id": "R1-rule_ext",
+      "name": "rule_ext：本人だけが読み書きでき、ほかの人・ログインしていない人はできない",
+      "ok": true,
+      "detail": "{\"own\":[true,true,true],\"others\":[true,true,true,true]}"
+    },
+    {
+      "id": "R1-deleted_rules",
+      "name": "deleted_rules：本人だけが読み書きでき、ほかの人・ログインしていない人はできない",
+      "ok": true,
+      "detail": "{\"own\":[true,true,true],\"others\":[true,true,true,true]}"
+    },
+    {
+      "id": "R1-今まで",
+      "name": "クラウド同期・固定のリンクの作成は今までどおりで、ほかの場所は書き込めない",
+      "ok": true,
+      "detail": "{\"rulesOwn\":true,\"rulesOther\":true,\"sharedCreate\":true,\"sharedUpdate\":true,\"otherCol\":true}"
+    }
+  ]
+}

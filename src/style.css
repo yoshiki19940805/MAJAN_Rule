@@ -334,6 +334,8 @@ select:disabled, input:disabled, textarea:disabled {
 .modal-box p { margin-bottom: 20px; font-size: 0.95rem; font-weight: 500; }
 .modal-box .modal-btns { display: flex; gap: 10px; }
 .modal-box .modal-btns .btn { flex: 1; }
+.modal-box .notice-title { margin-bottom: 12px; font-size: 1rem; font-weight: 700; }
+.modal-box .notice-list { text-align: left; font-size: 0.85rem; line-height: 1.7; margin: 0 0 20px; padding-left: 1.2em; list-style: disc; }
 
 /* --- 項目の編集シート（下からせり出す） --- */
 .sheet-overlay {
@@ -412,6 +414,12 @@ select:disabled, input:disabled, textarea:disabled {
   font-family: inherit; cursor: pointer; transition: background var(--transition);
 }
 .sheet-done:active { background: var(--accent-hover); }
+.sheet-error { font-size: 0.75rem; color: var(--highlight); margin-top: 6px; }
+.sheet-error[hidden] { display: none; }
+.sheet-cancel {
+  width: 100%; padding: 12px; margin-top: 8px; border: none; background: none;
+  color: var(--text-sub); font-size: 0.9rem; font-family: inherit; cursor: pointer;
+}
 
 /* --- PWA install banner --- */
 .install-banner {
@@ -482,3 +490,49 @@ select:disabled, input:disabled, textarea:disabled {
   .header { padding-top: calc(14px + env(safe-area-inset-top)); }
   .export-btns { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 }
+
+/* --- verのリンク（下書き・公開・送る・過去のver） --- */
+.snackbar { white-space: normal; width: max-content; max-width: min(90vw, 480px); line-height: 1.5; }
+.draft-badge {
+  display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px;
+  color: #B45309; background: #FEF3C7; vertical-align: middle;
+}
+.draft-badge-sm { font-size: 11px; padding: 2px 8px; }
+.sheet-title .draft-badge { margin-left: 6px; }
+.ver-banner {
+  margin-bottom: 16px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.6;
+  color: #92400E; background: #FEF3C7;
+}
+.ver-banner button { color: var(--accent); font-weight: 700; background: none; border: none; padding: 0; cursor: pointer; }
+.ver-text { font-size: 0.85rem; line-height: 1.7; margin: 4px 0 8px; }
+.ver-msg { font-size: 0.95rem; line-height: 1.7; margin: 8px 0; }
+.ver-warn { font-size: 0.8rem; line-height: 1.6; margin: 4px 0 8px; padding: 8px 10px; border-radius: 8px; color: #92400E; background: #FEF3C7; }
+.ver-pre { white-space: pre-line; }
+.ver-rows { background: var(--bg); border-radius: var(--radius-sm); padding: 4px 14px; margin: 8px 0; }
+.ver-rows > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+.ver-rows > div:last-child { border-bottom: none; }
+.ver-rows span { color: var(--text-sub); flex-shrink: 0; }
+.ver-rows b { text-align: right; overflow-wrap: anywhere; }
+.ver-input-row { display: flex; align-items: center; gap: 6px; }
+.ver-input-row span { color: var(--text-sub); font-size: 0.9rem; }
+.ver-note { resize: vertical; min-height: 6.5em; line-height: 1.5; }
+.ver-count { text-align: right; font-size: 0.72rem; color: var(--text-sub); margin-top: 4px; }
+.sheet-second {
+  width: 100%; padding: 13px; margin-top: 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--accent); font-size: 0.9rem; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.sheet-done:disabled, .sheet-second:disabled { opacity: 0.6; }
+.ver-history { max-height: 40vh; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.ver-history table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.ver-history th { position: sticky; top: 0; background: var(--bg); text-align: left; padding: 6px 8px; font-weight: 600; color: var(--text-sub); }
+.ver-history td { padding: 6px 8px; border-top: 1px solid var(--border); vertical-align: top; }
+.ver-history td.nowrap { white-space: nowrap; }
+.ver-history td.note { white-space: pre-line; overflow-wrap: anywhere; }
+.ver-history tr.newer td { background: #FEF3C7; }
+.ver-history tr.opened td { font-weight: 700; }
+/* 手で直した強調の印（色は「下書きあり」と同じ） */
+.manual-mark {
+  display: inline-block; flex-shrink: 0; font-size: 10px; font-weight: 700; line-height: 1; border-radius: 999px; padding: 3px 6px;
+  color: #B45309; background: #FEF3C7; border: none; cursor: pointer;
+}
+.manual-note { font-size: 12px; color: var(--text-sub); margin: 0 4px -12px; }

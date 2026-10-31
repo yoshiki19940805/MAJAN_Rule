@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-31T08:07:51.465Z",
+  "results": [
+    {
+      "id": "S-01",
+      "name": "verが rule_ext に保存され、同じアカウントの別の端末に届く",
+      "ok": true,
+      "detail": "{\"ext\":[\"r1\"],\"onB\":\"2025秋\"}"
+    },
+    {
+      "id": "V-90",
+      "name": "スマホで削除すると、同じアカウントのPCの同期でPCからも消え、クラウドにも戻らない",
+      "ok": true,
+      "detail": "{\"pcHadIt\":true,\"pc\":[\"r2\"],\"cloud\":[\"r2\"],\"deleted\":[\"r1\"]}"
+    },
+    {
+      "id": "V-91",
+      "name": "ログアウト中に削除したルールは、ログインしても戻らず、クラウドからも消える",
+      "ok": true,
+      "detail": "{\"pending\":[{\"ruleId\":\"r1\",\"uid\":\"WQ7AloP4OtUvDBtSPyKh9l3ZEiTh\"}],\"back\":false,\"cloud\":[],\"pendingAfter\":[]}"
+    },
+    {
+      "id": "S-02",
+      "name": "別のアカウントでログインしたときは、前のアカウントのクラウドから消さない（削除待ちに残る）",
+      "ok": true,
+      "detail": "{\"cloudA\":[\"r1\"],\"pending\":[{\"ruleId\":\"r1\",\"uid\":\"0gxPH0QCsZWOZQ6hEfvyJCA5gmDC\"}]}"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "majan-rule-ver-tests",
+  "private": true,
+  "description": "雀カルテ ver管理のテスト（tests/ver/README.md）。Playwright はホームフォルダーのもの（~/node_modules）を使う",
+  "scripts": {
+    "test": "bash run_all.sh"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.12.0"
+  }
+}

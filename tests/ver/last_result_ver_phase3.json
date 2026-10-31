@@ -1,0 +1,107 @@
+{
+  "at": "2026-10-31T08:10:26.119Z",
+  "results": [
+    {
+      "id": "V-43",
+      "name": "強調を手で直すと「手動」の印と一覧の上の説明が出る。押すと自動に戻したときの強調が書かれた確認が出て、「自動に戻す」で印・説明・「下書きあり」が消える",
+      "ok": true,
+      "detail": "{\"mark\":true,\"note\":\"手動：強調表示を手動で設定した項目\",\"confirmText\":\"ウマの強調を自動に戻しますか？ ✕ 今は、手動で「強調しない」にしています。自動に戻すと、天鳳（10-20）と違うので強調します。 自動に戻す キャンセル\",\"markAfter\":false,\"noteAfter\":\"\",\"draftAfterRevert\":false}"
+    },
+    {
+      "id": "V-40a",
+      "name": "2つの比較対象に対して強調を直して「保存して公開」：画面は出ず、verは変わらず「強調の変更を公開しました（verは変わりません）」",
+      "ok": true,
+      "detail": "{\"hlSnack\":\"強調の変更を公開しました（verは変わりません）\",\"hlDoc\":true}"
+    },
+    {
+      "id": "V-40b",
+      "name": "最新verのリンクでは、どちらの比較対象でも直した強調で表示される",
+      "ok": true,
+      "detail": "{\"bUma\":false,\"autoUma\":true,\"bAka\":false,\"aAka\":false}"
+    },
+    {
+      "id": "V-40c",
+      "name": "名前も一緒に変えたときは「名前と強調の変更を公開しました（verは変わりません）」",
+      "ok": true,
+      "detail": "名前と強調の変更を公開しました（verは変わりません）"
+    },
+    {
+      "id": "V-47",
+      "name": "ver1.0 で強調だけを公開した後に ver1.1 を公開しても、ver1.0 のリンクは強調だけを公開したときの強調で表示される",
+      "ok": true,
+      "detail": "{\"bUmaOld\":false,\"autoUma\":true}"
+    },
+    {
+      "id": "V-111",
+      "name": "強調だけを公開したことがないverでは ver_hl を読まない。あるverでは読む",
+      "ok": true,
+      "detail": "{\"colsNew\":[\"shared_rules\",\"rule_series\"],\"colsOld\":[\"shared_rules\",\"rule_series\",\"ver_hl\"]}"
+    },
+    {
+      "id": "V-52",
+      "name": "「最新のルールを見る」：比較対象に「ver1.0（開いたver）」が選ばれ、変わった項目が強調される",
+      "ok": true,
+      "detail": "{\"autoBase\":\"ver1.0（開いたver）\",\"umaChangedVsOpened\":true}"
+    },
+    {
+      "id": "V-65",
+      "name": "ver1.1 のリンクを開くと、比較対象の選択肢の先頭に「このルールの別のver」として ver2025秋（最新）と ver1.0 が並び、ver1.1 は出ない",
+      "ok": true,
+      "detail": "[\"― このルールの別のver ―:ver2025秋（最新）|ver1.0\",\"― ほかのルール ―:例|雀魂|天鳳|Mリーグ\"]"
+    },
+    {
+      "id": "V-66a",
+      "name": "リンクを開いた人が比較対象に ver1.0 を選ぶと、ver1.0 と違う項目が強調表示される",
+      "ok": true,
+      "detail": "true"
+    },
+    {
+      "id": "V-66b",
+      "name": "作成者が ver1.0 を選んで強調を手で直すと、ver1.0 に対して保存され、「手動」の印が付き、「下書きあり」になる（選んだだけでは下書きにならない）",
+      "ok": true,
+      "detail": "{\"aVsV10\":true,\"draftByChoose\":false,\"markVer\":true,\"stored\":false,\"draftByHl\":true}"
+    },
+    {
+      "id": "V-67",
+      "name": "作成者が比較対象に公開中のverを選ぶと、手元の内容（下書き）と公開中の違いが強調され、次に開いたときも選んだverが引き継がれる",
+      "ok": true,
+      "detail": "{\"kuitanVsPub\":true,\"kept\":\"ver:k7QA4f75\"}"
+    },
+    {
+      "id": "V-48a",
+      "name": "ver1.0 と比べて見ている状態で「リンクで送る」：初期値が ver1.0、URLに cmp=v: が入り、通信できなくても送れる",
+      "ok": true,
+      "detail": "{\"sendDefault\":\"ver:rqKPJHtV\",\"vUrl\":\"http://localhost:9114/src/index.html?share=k7QA4f75&cmp=v%3ArqKPJHtV\"}"
+    },
+    {
+      "id": "V-48b",
+      "name": "cmp=v: のURLを開くと、ver1.0 との差分が表示される",
+      "ok": true,
+      "detail": "ver1.0"
+    },
+    {
+      "id": "V-68",
+      "name": "verが11件以上あると新しい方から10件と「もっと見る」、押すと残りも出る。リンクのないルールでは「このルールの別のver」が出ない",
+      "ok": true,
+      "detail": "{\"many\":[\"verx12\",\"verx11\",\"verx10\",\"verx9\",\"verx8\",\"verx7\",\"verx6\",\"verx5\",\"verx4\",\"verx3（最新）\",\"もっと見る…\"],\"manyAll\":12,\"noGroup\":0}"
+    },
+    {
+      "id": "V-104",
+      "name": "PCで強調だけを公開した後に、同じルールを持つ別の端末で開くと、公開している内容の控えが新しくなる（ほかの端末で公開された帯が出て、「下書きあり」は誤って出ない）",
+      "ok": true,
+      "detail": "{\"aPub\":\"強調の変更を公開しました（verは変わりません）\",\"cDraft\":false,\"cBanner\":\"ほかの端末で ver2025秋 が公開されています 公開中の内容を読み込む\"}"
+    },
+    {
+      "id": "V-104b",
+      "name": "（続き）別の端末では「下書きあり」が出ない",
+      "ok": true,
+      "detail": "{\"cDraft\":false,\"cBanner\":\"ほかの端末で ver2025秋 が公開されています 公開中の内容を読み込む\"}"
+    },
+    {
+      "id": "V-ERR3",
+      "name": "画面の操作でエラーが出ない",
+      "ok": true,
+      "detail": "[]"
+    }
+  ]
+}

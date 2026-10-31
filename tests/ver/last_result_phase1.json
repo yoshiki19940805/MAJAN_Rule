@@ -1,0 +1,113 @@
+{
+  "at": "2026-10-31T08:07:13.476Z",
+  "results": [
+    {
+      "id": "V-01",
+      "name": "表示画面のボタンは「編集」「共有」の2つで、「共有」が青",
+      "ok": true,
+      "detail": "{\"own\":[\"編集\",\"共有\"],\"preset\":[\"編集\",\"共有\"],\"shared\":[\"編集\",\"共有\"],\"shareIsBlue\":true}"
+    },
+    {
+      "id": "V-10",
+      "name": "ホームの一覧と表示画面のルール名の横に「ver2025秋」が出る（リンクの部分は2回目）",
+      "ok": true,
+      "detail": "{\"homeBadge\":[\"ver2025秋\"],\"viewBadge\":\"ver2025秋\"}"
+    },
+    {
+      "id": "V-02",
+      "name": "「共有」で「リンクで送る／画像で送る／PDFで送る」が出て、画像が作れる（見出しにver）",
+      "ok": true,
+      "detail": "{\"items\":[\"リンクで送る\",\"画像で送る\",\"PDFで送る\",\"キャンセル\"],\"title\":true,\"hasVer\":true}"
+    },
+    {
+      "id": "V-09",
+      "name": "新規作成でverの欄の初期値は「1.0」、空欄では保存できない",
+      "ok": true,
+      "detail": "{\"fieldShown\":true,\"initial\":\"1.0\",\"err\":\"verの名前を入力してください\",\"errShown\":true,\"stillEditing\":true,\"saved\":false,\"noHint\":true}"
+    },
+    {
+      "id": "V-11",
+      "name": "コピー・コピーして編集・別のルールとして保存で、新しいルールのverは「1.0」",
+      "ok": true,
+      "detail": "{\"dup\":\"1.0\",\"presetCopy\":\"1.0\",\"saveAs\":\"1.0\"}"
+    },
+    {
+      "id": "V-12",
+      "name": "この機能より前のルールはverが表示されず、空欄のまま保存できる（リンクの部分は2回目）",
+      "ok": true,
+      "detail": "{\"homeNoBadge\":true,\"badgeHidden\":true,\"empty\":\"\",\"viewAgain\":true}"
+    },
+    {
+      "id": "V-15",
+      "name": "「ver1.2」「Ｖｅｒ１.２」「VER1.2」は「1.2」として保存され「ver1.2」と表示される",
+      "ok": true,
+      "detail": "{\"ver1.2\":{\"saved\":\"1.2\",\"badge\":\"ver1.2\"},\"Ｖｅｒ１.２\":{\"saved\":\"1.2\",\"badge\":\"ver1.2\"},\"VER1.2\":{\"saved\":\"1.2\",\"badge\":\"ver1.2\"},\"  1.2  \":{\"saved\":\"1.2\",\"badge\":\"ver1.2\"},\"2025秋\":{\"saved\":\"2025秋\",\"badge\":\"ver2025秋\"}}"
+    },
+    {
+      "id": "V-16",
+      "name": "verの名前が21文字以上では保存できず、絵文字20文字は保存できる（使用済みの判定は2回目）",
+      "ok": true,
+      "detail": "{\"err21\":\"verの名前を20文字以内にしてください\",\"emoji\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}"
+    },
+    {
+      "id": "V-19",
+      "name": "ルール名の入力欄は100文字で止まる（既に長いルールの扱いは2回目）",
+      "ok": true,
+      "detail": "len=100"
+    },
+    {
+      "id": "V-69",
+      "name": "別のルールとして保存：新しいルールは編集した内容、元のルールは保存した状態のまま",
+      "ok": true,
+      "detail": "{\"dialog\":{\"inputs\":1,\"buttons\":[\"保存\",\"キャンセル\"],\"value\":\"通常ルール（コピー）\"},\"copyUma\":\"5-15\",\"origUma\":\"10-30\",\"view\":{\"isViewMode\":true,\"editingId\":\"f5989ab5-bf8f-4f13-b5bb-1f5c760132e8\",\"name\":\"ドラ多めルール\"},\"snack\":\"「ドラ多めルール」として保存しました。元のルールは変わっていません\"}"
+    },
+    {
+      "id": "V-70",
+      "name": "別のルールとして保存：同じ名前では保存できず、キャンセルでは何も保存されず編集内容は残る",
+      "ok": true,
+      "detail": "{\"errDup\":\"「大会用ルール」という名前のルールがすでにあります。別の名前にしてください\",\"errOrig\":\"「通常ルール」という名前のルールがすでにあります。別の名前にしてください\",\"closed\":true,\"count\":7,\"stillEdited\":true}"
+    },
+    {
+      "id": "V-72",
+      "name": "新規作成・保存前のコピーでは「別のルールとして保存」が出ず、保存した後の編集画面では出る",
+      "ok": true,
+      "detail": "{\"onNew\":false,\"onUnsavedCopy\":false,\"onSavedCopy\":true,\"onOwn\":true}"
+    },
+    {
+      "id": "V-73",
+      "name": "他人のルール・プリセットの「編集」で確認が出て、「コピーして編集」でコピー、「やめる」では何も起きない",
+      "ok": true,
+      "detail": "{\"modalShown\":true,\"afterCancel\":{\"isViewMode\":true,\"editingId\":\"preset_qhs2_4\",\"shown\":false},\"afterCopy\":{\"isViewMode\":false,\"isCopy\":true,\"name\":\"雀魂（コピー）\"},\"btns\":[\"save 保存\"],\"sharedModal\":true}"
+    },
+    {
+      "id": "V-93",
+      "name": "リンクを作っていないルールの削除確認は今の文面のまま",
+      "ok": true,
+      "detail": "{\"text\":\"このルールを削除しますか？\",\"gone\":true,\"pending\":null}"
+    },
+    {
+      "id": "V-112",
+      "name": "「リンクで送る」：PCではコピー、スマホでは共有シートでverのリンクを渡す",
+      "ok": true,
+      "detail": "{\"clip\":\"http://localhost:8877/src/index.html?share=Abcd2345\",\"snack\":\"ver1.0 のリンクをコピーしました\",\"shared\":{\"title\":\"通常ルール\",\"url\":\"http://localhost:8877/src/index.html?share=Abcd2345\"}}"
+    },
+    {
+      "id": "V-113",
+      "name": "お知らせは1回だけ出て、閉じた後は出ない（初めて使う人には出さない）",
+      "ok": true,
+      "detail": "{\"first\":true,\"second\":false,\"freshShown\":false}"
+    },
+    {
+      "id": "V-114",
+      "name": "前のアプリ（docs/index.html）で編集・保存しても、verが端末から消えない（リンクの部分は2回目）",
+      "ok": true,
+      "detail": "{\"name\":\"通常ルール改\",\"ver\":\"2025秋\",\"badge\":\"ver2025秋\"}"
+    },
+    {
+      "id": "V-エラー",
+      "name": "1回目の画面を操作しても、ページのエラーが出ない",
+      "ok": true,
+      "detail": "[]"
+    }
+  ]
+}

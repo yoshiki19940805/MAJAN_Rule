@@ -5,3 +5,4 @@ __pycache__/
 assets/fonts/
 .DS_Store
 assets/images/test_*.png
+firestore-debug.log

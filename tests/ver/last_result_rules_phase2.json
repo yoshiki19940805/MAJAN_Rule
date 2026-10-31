@@ -1,0 +1,59 @@
+{
+  "at": "2026-10-31T08:07:19.651Z",
+  "results": [
+    {
+      "id": "R2-01",
+      "name": "リンクの作成・新しいver・名前だけ・強調だけ・比較対象の保存が、正しいパスワードで通り、誰でも読める",
+      "ok": true,
+      "detail": "[true,true,true,true,true,true,true,true]"
+    },
+    {
+      "id": "V-82",
+      "name": "パスワードなし・違うパスワードでは、verの追加も名前の変更も断られる",
+      "ok": true,
+      "detail": "[true,true,true,true]"
+    },
+    {
+      "id": "V-83",
+      "name": "通し番号を飛ばす・一部だけ・記録の使い回し・余計な項目の変更は、どれも断られる",
+      "ok": true,
+      "detail": "[true,true,true,true,true,true,true,true,true,true,true]"
+    },
+    {
+      "id": "V-84",
+      "name": "series_passwords・series_ops・他人の deleted_rules は読めず、パスワードは書き換えられない",
+      "ok": true,
+      "detail": "[true,true,true,true,true]"
+    },
+    {
+      "id": "V-85",
+      "name": "パスワードなし・違うパスワードでは、比較対象を作る・書き換える・消すことができない",
+      "ok": true,
+      "detail": "[true,true,true,true]"
+    },
+    {
+      "id": "V-103",
+      "name": "比較対象の印を減らせるのは、ログインしていないときに30件以上から1件だけ",
+      "ok": true,
+      "detail": "[true,true,true,true,true]"
+    },
+    {
+      "id": "V-88",
+      "name": "パスワードなしでは削除済みにできず、印のないシリーズ・固定のリンクは消せない",
+      "ok": true,
+      "detail": "[true,true,true,true,true]"
+    },
+    {
+      "id": "V-88b",
+      "name": "正しいパスワードで削除済みにした後は、公開できず、誰でも最後まで片付けられる",
+      "ok": true,
+      "detail": "[true,true,true,true,true]"
+    },
+    {
+      "id": "R2-02",
+      "name": "クラウド同期・固定のリンクの作成は今までどおり",
+      "ok": true,
+      "detail": "[true,true,true]"
+    }
+  ]
+}

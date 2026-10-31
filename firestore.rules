@@ -6,19 +6,154 @@ service cloud.firestore {
     // 共有ルール (/shared_rules/{shareId})
     // 誰でもルールを共有・閲覧できる
     // ========================================
+    // ver管理で使う場所（計画書「データとFirestoreのルール」）
+    function seriesDoc(sid) { return /databases/$(database)/documents/rule_series/$(sid); }
+    function passwordDoc(sid) { return /databases/$(database)/documents/series_passwords/$(sid); }
+    function opDoc(sid, n) { return /databases/$(database)/documents/series_ops/$(sid + '_' + string(n)); }
+    function sharedDoc(id) { return /databases/$(database)/documents/shared_rules/$(id); }
+    // シリーズに「削除済み」の印があるか（書き込み前の値で確かめる。片付けの最後に rule_series を消す書き込みでも読める）
+    function seriesDeleted(sid) { return exists(seriesDoc(sid)) && get(seriesDoc(sid)).data.get('deleted', false) == true; }
+    // 同じ書き込みで、作成者の確認（公開の記録 series_ops）を伴ってシリーズの opCount が1つ進むか
+    function seriesOpAdvances(sid) {
+      return exists(seriesDoc(sid))
+          && getAfter(seriesDoc(sid)).data.opCount == get(seriesDoc(sid)).data.opCount + 1
+          && existsAfter(opDoc(sid, getAfter(seriesDoc(sid)).data.opCount));
+    }
+    function charsBetween(s, min, max) { return s is string && s.size() >= min && s.size() <= max; }
+
     match /shared_rules/{shareId} {
       // 読み取り: 誰でも可（共有URLからのアクセス）
       allow read: if true;
 
       // 作成: 誰でも可（ログイン不要で共有可能）
       // データ構造のバリデーションを実施
+      // seriesId のないもの（固定のリンク）は、前のアプリが残っている人のために作成の許可を残す。
+      // seriesId 付きのもの（ver）は、同じ書き込みでシリーズの最新がこのverを指すときだけ作れる
       allow create: if request.resource.data.keys().hasAll(['data', 'createdAt'])
                     && request.resource.data.data is string
                     && request.resource.data.data.size() > 0
-                    && request.resource.data.data.size() < 500000;
+                    && request.resource.data.data.size() < 500000
+                    && (!('seriesId' in request.resource.data) || (
+                          getAfter(seriesDoc(request.resource.data.seriesId)).data.latestShareId == shareId
+                          && getAfter(seriesDoc(request.resource.data.seriesId)).data.latestSeq == request.resource.data.seq
+                          && charsBetween(request.resource.data.label, 1, 40)
+                          && (!('note' in request.resource.data) || charsBetween(request.resource.data.note, 0, 400))
+                        ));
 
-      // 更新・削除は不可（共有ルールは不変）
-      allow update, delete: if false;
+      // 更新は不可（共有ルールは不変）。削除は、ver付きのものでシリーズに「削除済み」の印があるとき（片付け）だけ
+      allow update: if false;
+      allow delete: if 'seriesId' in resource.data && seriesDeleted(resource.data.seriesId);
+    }
+
+    // ========================================
+    // シリーズ (/rule_series/{seriesId})：ルール名と最新のver。誰でも読める
+    // 書き込みは、作成者パスワードを照合した公開の記録（series_ops）を同じ書き込みで作るときだけ
+    // ========================================
+    match /rule_series/{sid} {
+      allow read: if true;
+
+      // 初めてリンクを作るとき：同じ書き込みでパスワードの控えと通し番号1のverを作る
+      allow create: if request.resource.data.latestSeq == 1
+                    && request.resource.data.opCount == 0
+                    && charsBetween(request.resource.data.name, 1, 200)
+                    && request.resource.data.mode in ['四麻', '三麻']
+                    && !exists(passwordDoc(sid)) && existsAfter(passwordDoc(sid))
+                    && existsAfter(sharedDoc(request.resource.data.latestShareId))
+                    && request.resource.data.get('deleted', false) == false;
+
+      allow update: if resource.data.get('deleted', false) != true
+                    && request.resource.data.opCount == resource.data.opCount + 1
+                    && !exists(opDoc(sid, request.resource.data.opCount))
+                    && existsAfter(opDoc(sid, request.resource.data.opCount))
+                    && (isNewVer() || isNameHlOnly() || isBaseSave() || isDelete());
+
+      // 新しいverの公開：通し番号が1つだけ進み、同じ書き込みでそのverを作る（name も一緒に変えてよい）
+      function isNewVer() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['latestSeq', 'latestShareId', 'history', 'shareIds', 'opCount', 'updatedAt', 'name'])
+            && request.resource.data.latestSeq == resource.data.latestSeq + 1
+            && existsAfter(sharedDoc(request.resource.data.latestShareId))
+            && request.resource.data.history.size() == resource.data.history.size() + 1
+            && request.resource.data.shareIds.size() == resource.data.shareIds.size() + 1
+            && charsBetween(request.resource.data.name, 1, 200);
+      }
+      // 名前・強調だけの公開：hlSeqs は、前と同じか、最新の通し番号を1つ足したものだけ
+      function isNameHlOnly() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['name', 'opCount', 'updatedAt', 'hlSeqs'])
+            && charsBetween(request.resource.data.name, 1, 200)
+            && (request.resource.data.get('hlSeqs', []) == resource.data.get('hlSeqs', [])
+                || request.resource.data.get('hlSeqs', []) == resource.data.get('hlSeqs', []).concat([resource.data.latestSeq]));
+      }
+      // 比較対象の保存：印を減らせるのは、ログインしていないときに、30件以上ある状態から1件だけ
+      function isBaseSave() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['baseKeys', 'opCount', 'updatedAt'])
+            && request.resource.data.baseKeys is list
+            && (resource.data.get('baseKeys', []).toSet().difference(request.resource.data.baseKeys.toSet()).size() == 0
+                || (request.auth == null
+                    && resource.data.get('baseKeys', []).size() >= 30
+                    && resource.data.get('baseKeys', []).toSet().difference(request.resource.data.baseKeys.toSet()).size() == 1));
+      }
+      // 削除（1回目）：「削除済み」の印を付け、ルール名と変更履歴を消し、同じ書き込みでパスワードの控えを消す
+      function isDelete() {
+        return request.resource.data.deleted == true
+            && !('name' in request.resource.data) && !('history' in request.resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['deleted', 'name', 'history', 'opCount', 'updatedAt'])
+            && !existsAfter(passwordDoc(sid));
+      }
+
+      allow delete: if resource.data.get('deleted', false) == true;
+    }
+
+    // ========================================
+    // 作成者パスワードの控え (/series_passwords/{seriesId})：誰も読めず、書き換えできない
+    // ========================================
+    match /series_passwords/{sid} {
+      allow read, update: if false;
+      allow create: if charsBetween(request.resource.data.password, 32, 256)
+                    && !exists(seriesDoc(sid))
+                    && getAfter(seriesDoc(sid)).data.latestSeq == 1;
+      allow delete: if getAfter(seriesDoc(sid)).data.get('deleted', false) == true;
+    }
+
+    // ========================================
+    // 公開・削除の記録 (/series_ops/{seriesId}_{番号})：誰も読めず、書き換えできない
+    // 送ったパスワードが控えと一致するときだけ作れる（読み取りを禁止したドキュメントも、ルールの中では照合に使える）
+    // ========================================
+    match /series_ops/{opId} {
+      allow read, update: if false;
+      allow create: if request.resource.data.seriesId is string
+                    && opId == request.resource.data.seriesId + '_' + string(getAfter(seriesDoc(request.resource.data.seriesId)).data.opCount)
+                    && exists(passwordDoc(request.resource.data.seriesId))
+                    && request.resource.data.password == get(passwordDoc(request.resource.data.seriesId)).data.password;
+      allow delete: if seriesDeleted(resource.data.seriesId);
+    }
+
+    // ========================================
+    // 強調だけを公開したときの、そのverの強調 (/ver_hl/{shareId})：誰でも読める
+    // ========================================
+    match /ver_hl/{shareId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.seriesId is string
+                    && getAfter(seriesDoc(request.resource.data.seriesId)).data.latestShareId == shareId
+                    && seriesOpAdvances(request.resource.data.seriesId);
+      allow delete: if seriesDeleted(resource.data.seriesId);
+    }
+
+    // ========================================
+    // 送るときの比較対象の中身 (/series_bases/{seriesId}_{印})：誰でも読める
+    // ========================================
+    match /series_bases/{baseDocId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.seriesId is string
+                    && baseDocId == request.resource.data.seriesId + '_' + request.resource.data.mark
+                    && seriesOpAdvances(request.resource.data.seriesId)
+                    && request.resource.data.mark in getAfter(seriesDoc(request.resource.data.seriesId)).data.baseKeys;
+      allow delete: if seriesDeleted(resource.data.seriesId)
+                    || (seriesOpAdvances(resource.data.seriesId)
+                        && !(resource.data.mark in getAfter(seriesDoc(resource.data.seriesId)).data.baseKeys));
     }
 
     // ========================================
@@ -31,6 +166,18 @@ service cloud.firestore {
 
       match /rules/{ruleId} {
         // 読み書き: 認証済みかつ自分自身のデータのみ
+        allow read, write: if request.auth != null
+                          && request.auth.uid == uid;
+      }
+
+      // ルールに足す項目（verLabel・copiedFrom など）。古いアプリの同期で上書きされないよう rules とは別に置く
+      match /rule_ext/{ruleId} {
+        allow read, write: if request.auth != null
+                          && request.auth.uid == uid;
+      }
+
+      // 削除したルールの記録。別の端末の同期で、削除したルールがクラウドに戻らないようにする
+      match /deleted_rules/{ruleId} {
         allow read, write: if request.auth != null
                           && request.auth.uid == uid;
       }
