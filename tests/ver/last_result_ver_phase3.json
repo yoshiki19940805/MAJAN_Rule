@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-31T12:55:08.396Z",
+  "at": "2026-10-31T17:00:15.143Z",
   "results": [
     {
       "id": "V-43",
@@ -65,13 +65,13 @@
       "id": "V-67",
       "name": "作成者が比較対象に公開中のverを選ぶと、手元の内容（下書き）と公開中の違いが強調され、次に開いたときも選んだverが引き継がれる",
       "ok": true,
-      "detail": "{\"kuitanVsPub\":true,\"kept\":\"ver:RXG8NMqV\"}"
+      "detail": "{\"kuitanVsPub\":true,\"kept\":\"ver:EGY949TQ\"}"
     },
     {
       "id": "V-48a",
       "name": "ver1.0 と比べて見ている状態で「リンクで送る」：初期値が ver1.0、URLに cmp=v: が入り、通信できなくても送れる",
       "ok": true,
-      "detail": "{\"sendDefault\":\"ver:emkfmpdE\",\"vUrl\":\"http://localhost:9182/src/index.html?share=RXG8NMqV&cmp=v%3AemkfmpdE\"}"
+      "detail": "{\"sendDefault\":\"ver:d894urjV\",\"vUrl\":\"http://localhost:9182/src/index.html?share=EGY949TQ&cmp=v%3Ad894urjV\"}"
     },
     {
       "id": "V-48b",

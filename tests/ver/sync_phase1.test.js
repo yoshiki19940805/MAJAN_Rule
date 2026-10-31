@@ -66,7 +66,7 @@ async function device(browser, rules) {
 }
 async function open(page) {
   step('アプリを開く');
-  await page.goto(`http://localhost:${PORT}/src/index.html?v=${VERSION}&emu=1`);
+  await page.goto(`http://localhost:${PORT}/src/index.html?v=${VERSION}&emu=1`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window._renderReactHome && document.querySelector('#react-home-root h1'), null, { timeout: 30000 });
 }
 // エミュレーターのGoogleログイン（同じ sub なら同じアカウント）

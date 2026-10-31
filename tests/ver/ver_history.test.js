@@ -80,7 +80,7 @@ async function device(browser, rules) {
 }
 async function open(page, query) {
   step('アプリを開く ' + (query || ''));
-  await page.goto(`${APP}?v=${VERSION}&emu=1${query || ''}`);
+  await page.goto(`${APP}?v=${VERSION}&emu=1${query || ''}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window._renderReactHome && document.querySelector('#react-home-root'), null, { timeout: 30000 });
   await page.waitForTimeout(800);
 }

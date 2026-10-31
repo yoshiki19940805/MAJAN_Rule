@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-31T12:49:23.114Z",
+  "at": "2026-10-31T16:38:23.558Z",
   "results": [
     {
       "id": "V-01",
@@ -59,7 +59,7 @@
       "id": "V-69",
       "name": "別のルールとして保存：新しいルールは編集した内容、元のルールは保存した状態のまま",
       "ok": true,
-      "detail": "{\"dialog\":{\"inputs\":1,\"buttons\":[\"保存\",\"キャンセル\"],\"value\":\"通常ルール（コピー）\"},\"copyUma\":\"5-15\",\"origUma\":\"10-30\",\"view\":{\"isViewMode\":true,\"editingId\":\"2928d3a7-ad50-491c-88a5-d17b1e1185e7\",\"name\":\"ドラ多めルール\"},\"snack\":\"「ドラ多めルール」として保存しました。元のルールは変わっていません\"}"
+      "detail": "{\"dialog\":{\"inputs\":1,\"buttons\":[\"保存\",\"キャンセル\"],\"value\":\"通常ルール（コピー）\"},\"copyUma\":\"5-15\",\"origUma\":\"10-30\",\"view\":{\"isViewMode\":true,\"editingId\":\"e21b8c29-dfca-4775-9abe-d1cb128d7cd6\",\"name\":\"ドラ多めルール\"},\"snack\":\"「ドラ多めルール」として保存しました。元のルールは変わっていません\"}"
     },
     {
       "id": "V-70",
@@ -89,7 +89,7 @@
       "id": "V-112",
       "name": "「リンクで送る」：PCではコピー、スマホでは共有シートでverのリンクを渡す",
       "ok": true,
-      "detail": "{\"clip\":\"http://localhost:8874/src/index.html?share=Abcd2345\",\"snack\":\"ver1.0 のリンクをコピーしました\",\"shared\":{\"title\":\"通常ルール\",\"url\":\"http://localhost:8874/src/index.html?share=Abcd2345\"}}"
+      "detail": "{\"clip\":\"http://localhost:8855/src/index.html?share=Abcd2345\",\"snack\":\"ver1.0 のリンクをコピーしました\",\"shared\":{\"title\":\"通常ルール\",\"url\":\"http://localhost:8855/src/index.html?share=Abcd2345\"}}"
     },
     {
       "id": "V-113",

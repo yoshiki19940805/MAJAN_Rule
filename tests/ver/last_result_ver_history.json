@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-31T13:05:20.678Z",
+  "at": "2026-10-31T17:49:01.187Z",
   "results": [
     {
       "id": "V-117",
@@ -23,13 +23,13 @@
       "id": "V-120",
       "name": "リンクを開いた人が履歴から ver1.1 を選ぶと内容が変わり「最新ではありません」の帯、ver1.2 を選ぶと「（最新）」。「まま見る」の記録は変わらない",
       "ok": true,
-      "detail": "{\"mid\":{\"uma\":\"10-30\",\"badge\":\"ver1.1 ▼\",\"banner\":\"最新ではありません（最新：ver1.2）　最新を見る\"},\"top\":{\"uma\":\"10-20\",\"badge\":\"ver1.2（最新） ▼\",\"banner\":\"\"},\"keepBefore\":\"{\\\"ejmqDcZtnnFGALtfnS6P\\\":3}\",\"keepAfter\":\"{\\\"ejmqDcZtnnFGALtfnS6P\\\":3}\"}"
+      "detail": "{\"mid\":{\"uma\":\"10-30\",\"badge\":\"ver1.1 ▼\",\"banner\":\"最新ではありません（最新：ver1.2）　最新を見る\"},\"top\":{\"uma\":\"10-20\",\"badge\":\"ver1.2（最新） ▼\",\"banner\":\"\"},\"keepBefore\":\"{\\\"2JeiuJbGXPBDVUkVU1mV\\\":3}\",\"keepAfter\":\"{\\\"2JeiuJbGXPBDVUkVU1mV\\\":3}\"}"
     },
     {
       "id": "V-121",
       "name": "過去のver（ver1.1）を表示して「リンクで送る」でそのverのURL、画像・PDFにそのverが入る。通信できないときは「verを読み込めませんでした…」で表示は変わらない",
       "ok": true,
-      "detail": "{\"url\":\"http://localhost:9324/src/index.html?share=qZaTyWEq\",\"img\":\"ver1.1\",\"off\":{\"snack\":\"verを読み込めませんでした。通信できる場所で、もう一度選んでください\",\"id\":\"r1\"}}"
+      "detail": "{\"url\":\"http://localhost:9366/src/index.html?share=22Gc6XMp\",\"img\":\"ver1.1\",\"off\":{\"snack\":\"verを読み込めませんでした。通信できる場所で、もう一度選んでください\",\"id\":\"r1\"}}"
     },
     {
       "id": "V-ERR5",

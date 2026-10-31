@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v6.01";
+    const currentVersion = "v6.02";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -130,6 +130,9 @@
   firebase.initializeApp(firebaseConfig);
   const fbAuth = firebase.auth();
   const fbDb = firebase.firestore();
+  // iOS 26 の Safari は「高度なプライバシー保護」で Firestore の流し続ける通信（WebChannel）を止め、
+  // 共有リンクが開けなくなる。普通の通信（ロングポーリング）に固定して避ける
+  fbDb.settings({ experimentalForceLongPolling: true, useFetchStreams: false });
   // テスト用：手元（localhost）で ?emu=1 を付けて開いたときだけ、Firebaseのエミュレーターにつなぐ（tests/ver/README.md）
   if (location.hostname === 'localhost' && new URLSearchParams(location.search).get('emu') === '1') {
     fbDb.useEmulator('localhost', 8080);
@@ -684,6 +687,9 @@
             <div id="edit-banner"></div>
             <div class="flex items-center gap-2 mb-5">
                 <input type="text" id="edit-name" placeholder="ルール名を入力" class="flex-1 min-w-0 text-2xl font-bold bg-transparent border-none outline-none placeholder-theme-textMuted" oninput="onNameChange(this.value)">
+            </div>
+            <!-- verのラベルと「下書きあり」。スマホでルール名が切れないよう、ルール名の下の行に置く -->
+            <div id="edit-badges" class="hidden flex flex-wrap items-center gap-2 -mt-3 mb-5">
                 <span id="edit-ver-badge" class="hidden shrink-0 text-[12px] font-semibold text-theme-primary bg-theme-highlightBg rounded-full px-2.5 py-0.5"></span>
                 <span id="edit-draft-badge" class="hidden shrink-0 draft-badge">下書きあり</span>
             </div>
@@ -3824,7 +3830,15 @@ async function checkSharedRule() {
     
     if (shareData.length <= 20) {
       // 短いID → Firestoreから取得
-      const doc = await fbDb.collection('shared_rules').doc(shareData).get();
+      let doc;
+      try {
+        doc = await withTimeout(fbDb.collection('shared_rules').doc(shareData).get(), 15000);
+      } catch (err) {
+        // 通信が止められたときに、何も出ずにホームが表示されたままにならないようにする
+        console.error('checkSharedRule fetch:', err);
+        showVerMessage('リンクのルールを読み込めませんでした。通信できる場所で、もう一度リンクを開いてください。Safariで「高度なプライバシー保護」の案内が出ている場合は、［保護を緩和］を押すと開けます。');
+        return false;
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
       if (!doc.exists) {
         showVerMessage('このリンクのルールは見つかりません。作成者が削除したか、リンクが間違っています。');
@@ -4044,7 +4058,7 @@ function renderEdit() {
   const canReorder = !rule.readonly && !isSharedMode;
 
   const titleEl = document.getElementById('edit-mode-label');
-  if (isSharedMode) {
+  if (isSharedMode && !rule.ownerRuleId) {
     titleEl.innerHTML = '共有されたルール';
   } else if (isViewMode) {
     titleEl.innerHTML = 'ルール表示';
@@ -4069,6 +4083,8 @@ function renderEdit() {
   }
   const draftBadge = document.getElementById('edit-draft-badge');
   if (draftBadge) draftBadge.classList.toggle('hidden', !isReadonlyView || isSharedMode || !hasDraft(rule));
+  const badgesRow = document.getElementById('edit-badges');
+  if (badgesRow) badgesRow.classList.toggle('hidden', verBadge.classList.contains('hidden') && draftBadge.classList.contains('hidden'));
   const bannerEl = document.getElementById('edit-banner');
   if (bannerEl) bannerEl.innerHTML = verBannerHtml(rule);
   if (verField) {
@@ -6141,8 +6157,8 @@ processPendingCloudDeletes();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v6.01", 
-    deployDate: "2026-10-31 22:07",
+    appVersion: "v6.02", 
+    deployDate: "2026-11-01 02:51",
   };
 
   // ==========================================
@@ -6269,17 +6285,20 @@ processPendingCloudDeletes();
                   >
                     {!isReadOnly ? (
                       <>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <h2 className="text-base font-semibold text-theme-text truncate">
-                            {rule.name}
-                          </h2>
-                          {window.verText(rule) && (
-                            <span className="shrink-0 text-[11px] font-semibold text-theme-primary bg-theme-highlightBg rounded-full px-2 py-0.5">{window.verText(rule)}</span>
-                          )}
-                          {window.hasDraft(rule) && (
-                            <span className="shrink-0 draft-badge draft-badge-sm">下書きあり</span>
-                          )}
-                        </div>
+                        <h2 className="text-base font-semibold text-theme-text truncate">
+                          {rule.name}
+                        </h2>
+                        {/* verのラベルと「下書きあり」は、ルール名が切れないよう名前の下の行に置く */}
+                        {(window.verText(rule) || window.hasDraft(rule)) && (
+                          <div className="flex items-center gap-2 mt-1 min-w-0">
+                            {window.verText(rule) && (
+                              <span className="shrink-0 text-[11px] font-semibold text-theme-primary bg-theme-highlightBg rounded-full px-2 py-0.5">{window.verText(rule)}</span>
+                            )}
+                            {window.hasDraft(rule) && (
+                              <span className="shrink-0 draft-badge draft-badge-sm">下書きあり</span>
+                            )}
+                          </div>
+                        )}
                         <div className="flex items-center gap-1 mt-1 text-theme-textMuted">
                           <span className="material-symbols-outlined text-[14px]">calendar_today</span>
                           <p className="text-xs">更新: {rule.date || "2026/03/16"}</p>

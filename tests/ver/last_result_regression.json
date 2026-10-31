@@ -1,5 +1,5 @@
 {
-  "at": "2026-10-31T12:48:51.128Z",
+  "at": "2026-10-31T16:37:51.979Z",
   "app": "/src/index.html",
   "results": [
     {
@@ -30,13 +30,13 @@
       "id": "A-06",
       "name": "?v= が古いと最新のURLに切り替わり、繰り返し読み込まない",
       "ok": true,
-      "detail": "[\"http://localhost:9078/src/index.html?v=v0.01\",\"http://localhost:9078/src/index.html?v=v6.00\"]"
+      "detail": "[\"http://localhost:9026/src/index.html?v=v0.01\",\"http://localhost:9026/src/index.html?v=v6.01\"]"
     },
     {
       "id": "A-07",
       "name": "?v= の切り替えで、share が消えない",
       "ok": true,
-      "detail": "[\"http://localhost:9078/src/index.html?v=v0.01&share=ABCDEFGH\",\"http://localhost:9078/src/index.html?v=v6.00&share=ABCDEFGH\",\"http://localhost:9078/src/index.html\"]"
+      "detail": "[\"http://localhost:9026/src/index.html?v=v0.01&share=ABCDEFGH\",\"http://localhost:9026/src/index.html?v=v6.01&share=ABCDEFGH\"]"
     },
     {
       "id": "B-01",
@@ -306,7 +306,7 @@
       "id": "F-15",
       "name": "同じ名前の追加項目が2つあっても、強調は片方だけに効く",
       "ok": true,
-      "detail": "{\"ids\":[\"c:cmvweda9esxbi7\",\"c:cmvwedaa17zhn0\"],\"cls\":[\"swipe-item  reorder-handle-area\",\"swipe-item is-changed reorder-handle-area\"]}"
+      "detail": "{\"ids\":[\"c:cmvwmjsveqp52b\",\"c:cmvwmjsw0jttgr\"],\"cls\":[\"swipe-item  reorder-handle-area\",\"swipe-item is-changed reorder-handle-area\"]}"
     },
     {
       "id": "G-01",
@@ -384,7 +384,7 @@
       "id": "I-05",
       "name": "保存すると更新日時が新しくなる",
       "ok": true,
-      "detail": "[\"2026/10/01 10:00:00\",\"2026/10/31 21:48:38\"]"
+      "detail": "[\"2026/10/01 10:00:00\",\"2026/11/01 01:37:39\"]"
     },
     {
       "id": "I-02",

@@ -540,3 +540,7 @@ select:disabled, input:disabled, textarea:disabled {
 .ver-badge-pick { cursor: pointer; }
 .ver-history tr.pick { cursor: pointer; }
 .ver-history tr.pick:active td { background: var(--bg); }
+/* シートの見出しは、長くても切らずに折り返す（「このルールは新しいverに更新されています」など） */
+.sheet-title { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.4; }
+/* 画面の下のボタンの帯：背景が透けて後ろの項目と重ならないよう色を付け、PCでも本文と同じ幅（.app と同じ520px）にする */
+#bottom-bar { background-color: rgba(245, 245, 247, 0.96); max-width: 520px; }

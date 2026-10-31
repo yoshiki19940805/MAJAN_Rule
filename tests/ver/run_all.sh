@@ -15,6 +15,10 @@ echo ""
 echo "=== 段階1：画面（Firestoreを使わない） ==="
 node ver_phase1.test.js || FAIL=1
 
+echo ""
+echo "=== 見た目・使いやすさの修正（Firestoreを使わない） ==="
+node ui_fix.test.js || FAIL=1
+
 if [ "$1" != "--auto" ]; then
   if ! command -v java >/dev/null 2>&1 || ! java -version >/dev/null 2>&1; then
     echo ""
