@@ -1,0 +1,47 @@
+{
+  "at": "2026-11-01T03:47:02.663Z",
+  "results": [
+    {
+      "id": "V-122",
+      "name": "公開の画面で今のver（1.1）を入力すると「ver1.1 を上書きして公開します」［上書きして公開する］と注意が出て、公開するとverを上げずに ver1.1 の中身が変わる（URL・verの数は同じ、下書きなし）",
+      "ok": true,
+      "detail": "{\"first\":{\"title\":\"新しいverとして公開します\",\"ok\":\"公開する\",\"warn\":false,\"hint\":true,\"note\":\"\",\"err\":\"\"},\"over\":{\"title\":\"ver1.1 を上書きして公開します\",\"ok\":\"上書きして公開する\",\"warn\":true,\"hint\":false,\"note\":\"ウマを10-30に変更。\",\"err\":\"\"},\"sn\":\"ver1.1 の内容を上書きしました\",\"latestSeq\":\"2\",\"uma\":\"10-20\",\"pubShareId\":\"nMEgq78V\"}"
+    },
+    {
+      "id": "V-123",
+      "name": "上書きした ver1.1 のリンクを開くと、上書き後の中身が「ver1.1（最新）」で出る（前のアプリで開いても上書き後の中身）",
+      "ok": true,
+      "detail": "{\"b\":{\"uma\":\"10-20\",\"badge\":\"ver1.1（最新） ▼\",\"banner\":\"\",\"popup\":false},\"oldUma\":\"10-20\"}"
+    },
+    {
+      "id": "V-124",
+      "name": "最新より前のver（1.0）を入力すると、今までどおり「この名前は既に使っています」で公開しない（上書きできるのは最新のverだけ）",
+      "ok": true,
+      "detail": "{\"title\":\"新しいverとして公開します\",\"ok\":\"公開する\",\"warn\":false,\"hint\":true,\"note\":\"\",\"err\":\"この名前は既に使っています\"}"
+    },
+    {
+      "id": "V-125",
+      "name": "上書きのときは変更内容の欄に今のverの変更内容が入り（新しいverに戻すと空に戻る）、直すとそのverの変更内容が置き換わる。verの一覧（名前・日付・数）は変わらない",
+      "ok": true,
+      "detail": "{\"pre\":\"ウマを10-30に変更。\",\"back\":\"\",\"notes\":[\"\",\"ウマを5-15に変更。\"],\"labels\":[\"1.0\",\"1.1\"]}"
+    },
+    {
+      "id": "V-127",
+      "name": "強調だけを公開したことのある最新のverを上書きすると、強調（ver_hl）も上書き後のものになり、リンクを開くと上書き後の設定と強調で出る",
+      "ok": true,
+      "detail": "{\"hlSeqs\":[2],\"hl\":{\"highlight_overrides\":{\"_none_\":{\"aka_dora\":true}}},\"want\":{\"highlight_overrides\":{\"_none_\":{\"aka_dora\":true}}},\"b\":{\"aka\":\"4枚\",\"hl\":{\"highlight_overrides\":{\"_none_\":{\"aka_dora\":true}}}}}"
+    },
+    {
+      "id": "V-126",
+      "name": "Firestoreのルール：作成者パスワードのない人は最新のverを書き換えられず、作成者でも最新でないver（ver1.0）は書き換えられない",
+      "ok": true,
+      "detail": "{\"denied\":\"permission-denied\",\"oldVer\":\"permission-denied\"}"
+    },
+    {
+      "id": "V-ERR6",
+      "name": "画面の操作でエラーが出ない",
+      "ok": true,
+      "detail": "[]"
+    }
+  ]
+}

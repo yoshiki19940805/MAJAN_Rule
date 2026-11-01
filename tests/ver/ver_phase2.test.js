@@ -214,14 +214,14 @@ const cmpOf = url => decodeURIComponent((url.match(/cmp=([^&]+)/) || [])[1] || '
     // 公開画面：初期値・使用済み・空欄
     await clickInSheet(A, '下書きを公開してから送る');
     const initVer = await A.evaluate(() => document.getElementById('pub-ver').value);
-    await A.evaluate(() => { document.getElementById('pub-ver').value = '１.０'; });
-    await clickInSheet(A, '公開する');
-    const usedErr = await text(A, '#pub-ver-error');
-    await A.evaluate(() => { document.getElementById('pub-ver').value = ''; });
+    // 「１.０」は今の最新（1.0）と同じ名前なので、使用済みではなく上書きになる（2026-11-01 の仕様変更。最新より前のverの使用済みは ver_overwrite.test.js の V-124）
+    await A.evaluate(() => { const i = document.getElementById('pub-ver'); i.value = '１.０'; i.dispatchEvent(new Event('input')); });
+    const sameTitle = await text(A, '#ver-sheet-overlay .sheet-title');
+    await A.evaluate(() => { const i = document.getElementById('pub-ver'); i.value = ''; i.dispatchEvent(new Event('input')); });
     await clickInSheet(A, '公開する');
     const emptyErr = await text(A, '#pub-ver-error');
-    check('V-16/V-109/V-17', '公開の画面：初期値は「1.1」、「１.０」は使用済み、空欄は理由が出て公開されない',
-      initVer === '1.1' && usedErr === 'この名前は既に使っています' && emptyErr === 'verの名前を入力してください', JSON.stringify({ initVer, usedErr, emptyErr }));
+    check('V-16/V-109/V-17', '公開の画面：初期値は「1.1」、「１.０」は今の最新（1.0）と同じ名前として上書きになる、空欄は理由が出て公開されない',
+      initVer === '1.1' && sameTitle === 'ver1.0 を上書きして公開します' && emptyErr === 'verの名前を入力してください', JSON.stringify({ initVer, sameTitle, emptyErr }));
     await A.evaluate(() => { document.getElementById('pub-ver').value = '1.1'; const t = document.getElementById('pub-note'); t.value = '赤ドラを3枚に変更。\nウマを10-30に変更。'; onPubNoteInput(t); });
     await clickInSheet(A, '公開する');
     await A.waitForTimeout(500);

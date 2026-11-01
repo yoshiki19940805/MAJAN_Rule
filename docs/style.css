@@ -507,6 +507,7 @@ select:disabled, input:disabled, textarea:disabled {
 .ver-text { font-size: 0.85rem; line-height: 1.7; margin: 4px 0 8px; }
 .ver-msg { font-size: 0.95rem; line-height: 1.7; margin: 8px 0; }
 .ver-warn { font-size: 0.8rem; line-height: 1.6; margin: 4px 0 8px; padding: 8px 10px; border-radius: 8px; color: #92400E; background: #FEF3C7; }
+.ver-hint { font-size: 0.75rem; line-height: 1.5; margin: 4px 0 8px; color: #6B7280; }
 .ver-pre { white-space: pre-line; }
 .ver-rows { background: var(--bg); border-radius: var(--radius-sm); padding: 4px 14px; margin: 8px 0; }
 .ver-rows > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border); }

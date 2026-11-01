@@ -55,7 +55,7 @@
 <script>
   // 強制キャッシュクリア（リダイレクトループ対策付き）
   (function() {
-    const currentVersion = "v6.02";
+    const currentVersion = "v6.03";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('v') !== currentVersion) {
       // リダイレクト回数をチェック（ループ防止）
@@ -2224,6 +2224,36 @@ async function publishNewVer(rule, label, note, expectedSeq) {
   }
 }
 
+// verを上げずに、最新のverの中身を上書きする（URLは変わらない。verの一覧には何も残さない）。
+// 強調だけを公開したことのあるverは ver_hl の強調が優先されるので、そちらも書き換える
+async function publishOverwrite(rule, note, expectedSeq) {
+  const link = rule.link;
+  const cur = pubPartsOf(rule);
+  try {
+    const op = await prepareSeriesOp(link, (batch, s) => {
+      if (s.latestSeq !== expectedSeq) throw verError('conflict', { series: s });
+      batch.update(fbDb.collection('shared_rules').doc(s.latestShareId), { data: JSON.stringify(ruleExportData(rule)), note, updatedAt: fsNow() });
+      if ((s.hlSeqs || []).includes(s.latestSeq)) {
+        batch.set(fbDb.collection('ver_hl').doc(s.latestShareId), { seriesId: link.seriesId, hl: JSON.stringify(cur.hl), updatedAt: fsNow() });
+      }
+      const ch = { history: (s.history || []).map(h => h.seq === s.latestSeq ? Object.assign({}, h, { note }) : h) };
+      if (cur.name !== s.name) ch.name = cur.name;
+      return ch;
+    });
+    const s = op.series, n = op.n, label = latestLabelOf(s);
+    const apply = () => {
+      Object.assign(link, { pubSeq: s.latestSeq, pubLabel: label, pubShareId: s.latestShareId, pubOp: n, basedOn: n, basedOnLabel: label, pubSnapshot: cur,
+        history: (s.history || []).map(h => h.seq === s.latestSeq ? Object.assign({}, h, { note }) : h), hlSeqs: s.hlSeqs || [] });
+      rule.verLabel = label;
+      saveData();
+    };
+    await op.commit(apply);
+    apply();
+  } catch (e) {
+    throw await classifyOpError(link, e, expectedSeq);
+  }
+}
+
 // 名前・強調だけを、verを変えずに最新のverへ公開する。強調は ver_hl に書き、そのverを hlSeqs に足す
 async function publishNameHl(rule, d) {
   const link = rule.link;
@@ -2691,8 +2721,10 @@ async function showPublishSheet(rule, opts, notice) {
       <div class="ver-rows"><div><span>現在のver</span><b>ver${esc(latest)}</b></div>
       ${pubName !== curName && s.name !== curName ? `<div><span>ルール名</span><b>${esc(s.name || pubName)} → ${esc(curName)}</b></div>` : ''}</div>
       <div class="sheet-label">新しいver</div>
-      <div class="ver-input-row"><span>ver</span><input type="text" id="pub-ver" class="sheet-input" value="${esc(nextVerLabel(latest))}" oninput="showVerSheetError('pub-ver-error','')" autocomplete="off"></div>
+      <div class="ver-input-row"><span>ver</span><input type="text" id="pub-ver" class="sheet-input" value="${esc(nextVerLabel(latest))}" oninput="onPubVerInput()" autocomplete="off"></div>
       <div class="sheet-error" id="pub-ver-error" hidden></div>
+      <p class="ver-hint" id="pub-ver-hint">今のver（${esc(latest)}）を入力すると、verを上げずに内容だけを変えます</p>
+      <p class="ver-warn" id="pub-overwrite-warn" hidden>ver${esc(latest)} のまま、内容を上書きします。URLは変わらず、すでにリンクを開いた人にも変更後の内容が表示されます</p>
       <div class="sheet-label">変更内容（任意）</div>
       <textarea id="pub-note" class="sheet-input ver-note" rows="4" placeholder="例：赤ドラを3枚に変更。ウマを10-30に変更。" oninput="onPubNoteInput(this)"></textarea>
       <div class="ver-count" id="pub-note-count">0 / ${VER_NOTE_MAX}</div>
@@ -2704,6 +2736,28 @@ async function showPublishSheet(rule, opts, notice) {
     // キャンセル：何も保存せず、元の画面に戻る（編集画面なら編集した内容は残る）
     if (opts.onDone) opts.onDone(false);
   });
+}
+// 入力したverが今の最新と同じなら、上書きの公開に切り替える（題・ボタン・変更内容の欄）
+function isPubOverwrite() {
+  const ctx = _publishCtx, input = document.getElementById('pub-ver');
+  return !!(ctx && input && verLabelKey(input.value) && verLabelKey(input.value) === verLabelKey(latestLabelOf(ctx.series)));
+}
+function onPubVerInput() {
+  showVerSheetError('pub-ver-error', '');
+  const ctx = _publishCtx;
+  if (!ctx) return;
+  const over = isPubOverwrite();
+  const latest = latestLabelOf(ctx.series);
+  const cur = (ctx.series.history || []).find(h => h.seq === ctx.series.latestSeq) || {};
+  document.getElementById('pub-overwrite-warn').hidden = !over;
+  document.getElementById('pub-ver-hint').hidden = over;
+  document.querySelector('#ver-sheet-overlay .sheet-title').textContent = over ? 'ver' + latest + ' を上書きして公開します' : '新しいverとして公開します';
+  document.getElementById('pub-ok').textContent = over ? '上書きして公開する' : '公開する';
+  // 変更内容の欄：上書きのときは今のverの変更内容を出して直せるようにし、新しいverに戻したら空に戻す
+  const ta = document.getElementById('pub-note');
+  if (over && !ta.value && cur.note) { ta.value = cur.note; ctx.prefilledNote = cur.note; }
+  else if (!over && ctx.prefilledNote && ta.value === ctx.prefilledNote) { ta.value = ''; ctx.prefilledNote = null; }
+  onPubNoteInput(ta);
 }
 function onPubNoteInput(ta) {
   if (charCount(ta.value) > VER_NOTE_MAX) ta.value = truncateChars(ta.value, VER_NOTE_MAX);
@@ -2726,15 +2780,18 @@ async function onPublishSubmit() {
   const note = truncateChars(String(document.getElementById('pub-note').value || '').trim(), VER_NOTE_MAX);
   if (!label) return showVerSheetError('pub-ver-error', 'verの名前を入力してください');
   if (charCount(label) > VER_LABEL_MAX) return showVerSheetError('pub-ver-error', 'verの名前を' + VER_LABEL_MAX + '文字以内にしてください');
-  if (isVerLabelUsed(label, ctx.series.history)) return showVerSheetError('pub-ver-error', 'この名前は既に使っています');
+  // 今の最新と同じ名前は上書き。それより前のverの名前は使えない
+  const overwrite = isPubOverwrite();
+  if (!overwrite && isVerLabelUsed(label, ctx.series.history)) return showVerSheetError('pub-ver-error', 'この名前は既に使っています');
   const btn = document.getElementById('pub-ok');
   setVerSheetBusy(btn, true);
   // 端末に保存してから、まとめて書き込む
   if (ctx.opts.fromEdit) { commitEditToView(); ctx.opts.fromEdit = false; } else saveData();
   try {
-    await publishNewVer(rule, label, note, ctx.series.latestSeq);
+    if (overwrite) await publishOverwrite(rule, note, ctx.series.latestSeq);
+    else await publishNewVer(rule, label, note, ctx.series.latestSeq);
     closeVerSheet();
-    showSnack('ver' + label + ' として公開しました');
+    showSnack(overwrite ? 'ver' + latestLabelOf(ctx.series) + ' の内容を上書きしました' : 'ver' + label + ' として公開しました');
     rerenderIfViewing(rule);
     if (ctx.opts.onDone) ctx.opts.onDone(true);
   } catch (e) {
@@ -6157,8 +6214,8 @@ processPendingCloudDeletes();
       versionPrefix: "v",
       emptyRules: "ルールが作成されていません",
     },
-    appVersion: "v6.02", 
-    deployDate: "2026-11-01 02:51",
+    appVersion: "v6.03", 
+    deployDate: "2026-11-01 17:56",
   };
 
   // ==========================================

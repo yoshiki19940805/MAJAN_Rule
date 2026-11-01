@@ -40,8 +40,16 @@ service cloud.firestore {
                           && (!('note' in request.resource.data) || charsBetween(request.resource.data.note, 0, 400))
                         ));
 
-      // 更新は不可（共有ルールは不変）。削除は、ver付きのものでシリーズに「削除済み」の印があるとき（片付け）だけ
-      allow update: if false;
+      // 更新は、ver付きのもので、作成者がverを上げずに最新のverの中身を上書きするときだけ（固定のリンクは不変）。
+      // 削除は、ver付きのものでシリーズに「削除済み」の印があるとき（片付け）だけ
+      allow update: if 'seriesId' in resource.data
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data', 'note', 'updatedAt'])
+                    && request.resource.data.data is string
+                    && request.resource.data.data.size() > 0
+                    && request.resource.data.data.size() < 500000
+                    && (!('note' in request.resource.data) || charsBetween(request.resource.data.note, 0, 400))
+                    && getAfter(seriesDoc(resource.data.seriesId)).data.latestShareId == shareId
+                    && seriesOpAdvances(resource.data.seriesId);
       allow delete: if 'seriesId' in resource.data && seriesDeleted(resource.data.seriesId);
     }
 
@@ -65,7 +73,7 @@ service cloud.firestore {
                     && request.resource.data.opCount == resource.data.opCount + 1
                     && !exists(opDoc(sid, request.resource.data.opCount))
                     && existsAfter(opDoc(sid, request.resource.data.opCount))
-                    && (isNewVer() || isNameHlOnly() || isBaseSave() || isDelete());
+                    && (isNewVer() || isNameHlOnly() || isOverwrite() || isBaseSave() || isDelete());
 
       // 新しいverの公開：通し番号が1つだけ進み、同じ書き込みでそのverを作る（name も一緒に変えてよい）
       function isNewVer() {
@@ -84,6 +92,15 @@ service cloud.firestore {
             && charsBetween(request.resource.data.name, 1, 200)
             && (request.resource.data.get('hlSeqs', []) == resource.data.get('hlSeqs', [])
                 || request.resource.data.get('hlSeqs', []) == resource.data.get('hlSeqs', []).concat([resource.data.latestSeq]));
+      }
+      // verを上げずに最新のverを上書き：verの数と最新は変えず、変更内容（history の中の note）と名前だけ変えてよい。
+      // 同じ書き込みで、最新のverの中身を書き換える
+      function isOverwrite() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['name', 'history', 'opCount', 'updatedAt'])
+            && request.resource.data.history is list
+            && request.resource.data.history.size() == resource.data.history.size()
+            && charsBetween(request.resource.data.name, 1, 200);
       }
       // 比較対象の保存：印を減らせるのは、ログインしていないときに、30件以上ある状態から1件だけ
       function isBaseSave() {
